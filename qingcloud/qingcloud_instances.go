@@ -1,19 +1,3 @@
-/*
-Copyright 2016 The Kubernetes Authors All rights reserved.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
 package qingcloud
 
 // See https://docs.qingcloud.com/api/instance/index.html
@@ -23,13 +7,13 @@ import (
 
 	"github.com/golang/glog"
 	qcservice "github.com/yunify/qingcloud-sdk-go/service"
-	"k8s.io/kubernetes/pkg/api"
 	"k8s.io/kubernetes/pkg/cloudprovider"
-	"k8s.io/kubernetes/pkg/types"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/kubernetes/pkg/api/v1"
 )
 
 // NodeAddresses returns the addresses of the specified instance.
-func (qc *QingCloud) NodeAddresses(nodeName types.NodeName) ([]api.NodeAddress, error) {
+func (qc *QingCloud) NodeAddresses(nodeName types.NodeName) ([]v1.NodeAddress, error) {
 	glog.V(4).Infof("NodeAddresses(%v) called", nodeName)
 
 	ins, err := qc.GetInstanceByID(NodeNameToInstanceID(nodeName))
@@ -38,14 +22,14 @@ func (qc *QingCloud) NodeAddresses(nodeName types.NodeName) ([]api.NodeAddress, 
 		return nil, err
 	}
 
-	addrs := []api.NodeAddress{}
+	addrs := []v1.NodeAddress{}
 	for _, vxnet := range ins.VxNets {
 		if vxnet.PrivateIP != nil && *vxnet.PrivateIP != "" {
-			addrs = append(addrs, api.NodeAddress{Type: api.NodeInternalIP, Address: *vxnet.PrivateIP})
+			addrs = append(addrs, v1.NodeAddress{Type: v1.NodeInternalIP, Address: *vxnet.PrivateIP})
 		}
 	}
 	if ins.EIP != nil && ins.EIP.EIPAddr != nil && *ins.EIP.EIPAddr != "" {
-		addrs = append(addrs, api.NodeAddress{Type: api.NodeExternalIP, Address: *ins.EIP.EIPAddr})
+		addrs = append(addrs, v1.NodeAddress{Type: v1.NodeExternalIP, Address: *ins.EIP.EIPAddr})
 	}
 
 	glog.V(4).Infof("NodeAddresses: %v, %v", nodeName, addrs)
@@ -100,6 +84,15 @@ func (qc *QingCloud) List(filter string) ([]types.NodeName, error) {
 	glog.V(4).Infof("List instances: %v", result)
 
 	return result, nil
+}
+
+func (qc *QingCloud) NodeAddressesByProviderID(providerId string) ([]v1.NodeAddress, error){
+	//TODO
+	return nil, nil
+}
+func (qc *QingCloud) InstanceTypeByProviderID(providerID string) (string, error){
+	//TODO
+	return "", nil
 }
 
 // AddSSHKeyToAllInstances adds an SSH public key as a legal identity for all instances.

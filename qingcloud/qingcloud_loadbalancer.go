@@ -1,19 +1,3 @@
-/*
-Copyright 2016 The Kubernetes Authors All rights reserved.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
 package qingcloud
 
 // See https://docs.qingcloud.com/api/lb/index.html
@@ -32,10 +16,10 @@ import (
 	"github.com/golang/glog"
 	qcclient "github.com/yunify/qingcloud-sdk-go/client"
 	qcservice "github.com/yunify/qingcloud-sdk-go/service"
-	"k8s.io/kubernetes/pkg/api"
 	"k8s.io/kubernetes/pkg/cloudprovider"
-	"k8s.io/kubernetes/pkg/types"
-	"k8s.io/kubernetes/pkg/util/sets"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/kubernetes/pkg/api/v1"
 )
 
 const (
@@ -83,7 +67,7 @@ var defaultLBSecurityGroupRules = []*qcservice.SecurityGroupRule{
 
 // GetLoadBalancer returns whether the specified load balancer exists, and
 // if so, what its status is.
-func (qc *QingCloud) GetLoadBalancer(clusterName string, service *api.Service) (status *api.LoadBalancerStatus, exists bool, err error) {
+func (qc *QingCloud) GetLoadBalancer(clusterName string, service *v1.Service) (status *v1.LoadBalancerStatus, exists bool, err error) {
 	loadBalancerName := qc.getQingCloudLoadBalancerName(service)
 	glog.V(3).Infof("GetLoadBalancer(%v, %v)", clusterName, loadBalancerName)
 
@@ -95,9 +79,9 @@ func (qc *QingCloud) GetLoadBalancer(clusterName string, service *api.Service) (
 		return nil, false, nil
 	}
 
-	status = &api.LoadBalancerStatus{}
+	status = &v1.LoadBalancerStatus{}
 	for _, ip := range loadBalancer.Cluster {
-		status.Ingress = append(status.Ingress, api.LoadBalancerIngress{IP: *ip.EIPAddr})
+		status.Ingress = append(status.Ingress, v1.LoadBalancerIngress{IP: *ip.EIPAddr})
 	}
 
 	return status, true, nil
@@ -108,12 +92,12 @@ func (qc *QingCloud) GetLoadBalancer(clusterName string, service *api.Service) (
 // 1. create a qingcloud loadBalancer;
 // 2. create listeners for the new loadBalancer, number of listeners = number of service ports;
 // 3. add backends to the new loadBalancer.
-func (qc *QingCloud) EnsureLoadBalancer(clusterName string, apiService *api.Service, hosts []string) (*api.LoadBalancerStatus, error) {
-	glog.V(3).Infof("EnsureLoadBalancer(%v, %v, %v)", clusterName, apiService, hosts)
+func (qc *QingCloud) EnsureLoadBalancer(clusterName string, service *v1.Service, nodes []*v1.Node) (*v1.LoadBalancerStatus, error) {
+	glog.V(3).Infof("EnsureLoadBalancer(%v, %v, %v)", clusterName, service, nodes)
 
 	tcpPortNum := 0
-	for _, port := range apiService.Spec.Ports {
-		if port.Protocol == api.ProtocolUDP {
+	for _, port := range service.Spec.Ports {
+		if port.Protocol == v1.ProtocolUDP {
 			glog.Warningf("qingcloud not support udp port, skip [%v]", port.Port)
 		} else {
 			tcpPortNum++
@@ -125,11 +109,11 @@ func (qc *QingCloud) EnsureLoadBalancer(clusterName string, apiService *api.Serv
 
 	// QingCloud does not support user-specified ip addr for LB. We just
 	// print some log and ignore the public ip.
-	if apiService.Spec.LoadBalancerIP != "" {
-		glog.Warningf("Public IP[%v] cannot be specified for qingcloud LB", apiService.Spec.LoadBalancerIP)
+	if service.Spec.LoadBalancerIP != "" {
+		glog.Warningf("Public IP[%v] cannot be specified for qingcloud LB", service.Spec.LoadBalancerIP)
 	}
 
-	loadBalancerName := qc.getQingCloudLoadBalancerName(apiService)
+	loadBalancerName := qc.getQingCloudLoadBalancerName(service)
 
 	glog.V(2).Infof("Checking if qingcloud load balancer already exists: %s", loadBalancerName)
 	loadBalancer, err := qc.getLoadBalancerByName(loadBalancerName)
@@ -138,7 +122,7 @@ func (qc *QingCloud) EnsureLoadBalancer(clusterName string, apiService *api.Serv
 	}
 
 	// TODO: Implement a more efficient update strategy for common changes than delete & create
-	// In particular, if we implement hosts update, we can get rid of UpdateHosts
+	// In particular, if we implement nodes update, we can get rid of UpdateHosts
 	if loadBalancer != nil {
 		if err = qc.deleteLoadBalancer(*loadBalancer.LoadBalancerID); err != nil {
 			glog.V(1).Infof("Deleted loadBalancer '%s' error before creating: %v", loadBalancerName, err)
@@ -158,14 +142,14 @@ func (qc *QingCloud) EnsureLoadBalancer(clusterName string, apiService *api.Serv
 		glog.V(2).Infof("Done, deleted loadBalancer '%s'", loadBalancerName)
 	}
 
-	lbType := apiService.Annotations[ServiceAnnotationLoadBalancerType]
+	lbType := service.Annotations[ServiceAnnotationLoadBalancerType]
 	if lbType != "0" && lbType != "1" && lbType != "2" && lbType != "3" {
 		lbType = "0"
 	}
 	loadBalancerType, _ := strconv.Atoi(lbType)
 
-	lbEipIds, hasEip := apiService.Annotations[ServiceAnnotationLoadBalancerEipIds]
-	vxnetId, hasVxnet := apiService.Annotations[ServiceAnnotationLoadBalancerVxnetId]
+	lbEipIds, hasEip := service.Annotations[ServiceAnnotationLoadBalancerEipIds]
+	vxnetId, hasVxnet := service.Annotations[ServiceAnnotationLoadBalancerVxnetId]
 
 	var loadBalancerID string
 	if hasEip {
@@ -195,18 +179,18 @@ func (qc *QingCloud) EnsureLoadBalancer(clusterName string, apiService *api.Serv
 	glog.Infof("Create loadBalancer '%s' in zone '%s'", loadBalancerName, qc.zone)
 
 	balanceMode := "roundrobin"
-	if apiService.Spec.SessionAffinity == api.ServiceAffinityClientIP {
+	if service.Spec.SessionAffinity == v1.ServiceAffinityClientIP {
 		balanceMode = "source"
 	}
 
 	instances := []string{}
-	for _, hostname := range hosts {
-		instances = append(instances, NodeNameToInstanceID(types.NodeName(hostname)))
+	for _, node := range nodes {
+		instances = append(instances, NodeNameToInstanceID(types.NodeName(node.Name)))
 	}
 
 	// For every port(qingcloud only support tcp), we need a listener.
-	for _, port := range apiService.Spec.Ports {
-		if port.Protocol == api.ProtocolUDP {
+	for _, port := range service.Spec.Ports {
+		if port.Protocol == v1.ProtocolUDP {
 			continue
 		}
 
@@ -252,14 +236,14 @@ func (qc *QingCloud) EnsureLoadBalancer(clusterName string, apiService *api.Serv
 		return nil, err
 	}
 
-	status := &api.LoadBalancerStatus{}
+	status := &v1.LoadBalancerStatus{}
 	if hasEip {
 		for _, ip := range eips {
-			status.Ingress = append(status.Ingress, api.LoadBalancerIngress{IP: ip})
+			status.Ingress = append(status.Ingress, v1.LoadBalancerIngress{IP: ip})
 		}
 	}else{
 		for _, ip := range privateIps {
-			status.Ingress = append(status.Ingress, api.LoadBalancerIngress{IP: ip})
+			status.Ingress = append(status.Ingress, v1.LoadBalancerIngress{IP: ip})
 		}
 	}
 	glog.Infof("Start loadBalancer '%v', ingress ip '%v'", loadBalancerName, status.Ingress)
@@ -267,14 +251,10 @@ func (qc *QingCloud) EnsureLoadBalancer(clusterName string, apiService *api.Serv
 	return status, nil
 }
 
-func (qc *QingCloud) getQingCloudLoadBalancerName(service *api.Service) string {
-	return fmt.Sprintf("k8s_%s_%s", service.Name, cloudprovider.GetLoadBalancerName(service))
-}
-
 // UpdateLoadBalancer updates hosts under the specified load balancer.
-func (qc *QingCloud) UpdateLoadBalancer(clusterName string, service *api.Service, hosts []string) error {
+func (qc *QingCloud) UpdateLoadBalancer(clusterName string, service *v1.Service, nodes []*v1.Node) error {
 	loadBalancerName := qc.getQingCloudLoadBalancerName(service)
-	glog.V(3).Infof("UpdateLoadBalancer(%v, %v, %v)", clusterName, loadBalancerName, hosts)
+	glog.V(3).Infof("UpdateLoadBalancer(%v, %v, %v)", clusterName, loadBalancerName, nodes)
 
 	loadBalancer, err := qc.getLoadBalancerByName(loadBalancerName)
 	if err != nil {
@@ -284,14 +264,14 @@ func (qc *QingCloud) UpdateLoadBalancer(clusterName string, service *api.Service
 		return fmt.Errorf("Couldn't find load balancer by name '%s' in zone '%s'", loadBalancerName, qc.zone)
 	}
 
-	if len(hosts) == 0 {
+	if len(nodes) == 0 {
 		return nil
 	}
 
 	// Expected instances for the load balancer.
 	expected := sets.NewString()
-	for _, hostname := range hosts {
-		instanceID := NodeNameToInstanceID(types.NodeName(hostname))
+	for _, node := range nodes {
+		instanceID := NodeNameToInstanceID(types.NodeName(node.Name))
 		expected.Insert(instanceID)
 	}
 
@@ -303,7 +283,7 @@ func (qc *QingCloud) UpdateLoadBalancer(clusterName string, service *api.Service
 		return err
 	}
 	for _, listener := range loadBalancerListeners {
-		nodePort, found := getNodePort(service, int32(*listener.ListenerPort), api.ProtocolTCP)
+		nodePort, found := getNodePort(service, int32(*listener.ListenerPort), v1.ProtocolTCP)
 		if !found {
 			continue
 		}
@@ -379,7 +359,7 @@ func (qc *QingCloud) UpdateLoadBalancer(clusterName string, service *api.Service
 // This construction is useful because many cloud providers' load balancers
 // have multiple underlying components, meaning a Get could say that the LB
 // doesn't exist even if some part of it is still laying around.
-func (qc *QingCloud) EnsureLoadBalancerDeleted(clusterName string, service *api.Service) error {
+func (qc *QingCloud) EnsureLoadBalancerDeleted(clusterName string, service *v1.Service) error {
 	loadBalancerName := qc.getQingCloudLoadBalancerName(service)
 	glog.V(3).Infof("EnsureLoadBalancerDeleted(%v, %v)", clusterName, loadBalancerName)
 
@@ -402,6 +382,10 @@ func (qc *QingCloud) EnsureLoadBalancerDeleted(clusterName string, service *api.
 	glog.Infof("Delete loadBalancer '%s' in zone '%s'", loadBalancerName, qc.zone)
 
 	return nil
+}
+
+func (qc *QingCloud) getQingCloudLoadBalancerName(service *v1.Service) string {
+	return fmt.Sprintf("k8s_%s_%s", service.Name, cloudprovider.GetLoadBalancerName(service))
 }
 
 func (qc *QingCloud) createLoadBalancerWithEips(lbName string, lbType int, lbEipIds []string) (string, error) {
