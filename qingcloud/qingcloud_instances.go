@@ -118,13 +118,13 @@ func (qc *QingCloud) GetInstanceByID(instanceID string) (*qcservice.Instance, er
 		return qc.selfInstance, nil
 	}
 
-	status := []*string{stringPtr("pending"), stringPtr("running"), stringPtr("stopped")}
-	verbose := intPtr(1)
+	status := []*string{qcservice.String("pending"), qcservice.String("running"), qcservice.String("stopped")}
+	verbose := qcservice.Int(1)
 	output, err := qc.instanceService.DescribeInstances(&qcservice.DescribeInstancesInput{
 		Instances: []*string{&instanceID},
 		Status:    status,
 		Verbose:   verbose,
-		IsClusterNode: intPtr(1),
+		IsClusterNode: qcservice.Int(1),
 	})
 	if err != nil {
 		return nil, err
@@ -138,14 +138,14 @@ func (qc *QingCloud) GetInstanceByID(instanceID string) (*qcservice.Instance, er
 
 // List instances that match the filter
 func (qc *QingCloud) getInstancesByFilter(filter string) ([]*qcservice.Instance, error) {
-	status := []*string{stringPtr("running"), stringPtr("stopped")}
-	verbose := intPtr(1)
-	limit := intPtr(pageLimt)
+	status := []*string{qcservice.String("running"), qcservice.String("stopped")}
+	verbose := qcservice.Int(1)
+	limit := qcservice.Int(pageLimt)
 
 	instances := []*qcservice.Instance{}
 
 	for i := 0; ; i += pageLimt {
-		offset := intPtr(i)
+		offset := qcservice.Int(i)
 		output, err := qc.instanceService.DescribeInstances(&qcservice.DescribeInstancesInput{
 			SearchWord: &filter,
 			Status:     status,
