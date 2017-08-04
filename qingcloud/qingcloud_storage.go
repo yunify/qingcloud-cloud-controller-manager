@@ -167,7 +167,7 @@ func (qc *QingCloud)  DisksAreAttached(volumeIDs []string, instanceID string) (m
 		attached[volumeID] = false
 	}
 	output, err := qc.volumeService.DescribeVolumes(&qcservice.DescribeVolumesInput{
-		Volumes: stringArrayPtr(volumeIDs),
+		Volumes: qcservice.StringSlice(volumeIDs),
 	})
 	if err != nil {
 		return nil, err

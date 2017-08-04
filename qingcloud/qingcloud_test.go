@@ -3,7 +3,7 @@ package qingcloud
 import (
 	"strings"
 	"testing"
-	"github.com/stretchr/testify/assert"
+	//"github.com/stretchr/testify/assert"
 )
 
 func TestReadConfig(t *testing.T) {
@@ -143,11 +143,3 @@ func TestZones(t *testing.T) {
 //	assert.True(t, found)
 //
 //}
-
-func TestStringArrayPtr(t *testing.T) {
-	ss := []string{"a","b"}
-	ssa := stringArrayPtr(ss)
-	for i,s := range ss {
-		assert.Equal(t, *ssa[i], s)
-	}
-}

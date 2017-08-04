@@ -34,19 +34,3 @@ func getNodePort(service *v1.Service, port int32, protocol v1.Protocol) (nodePor
 
 	return
 }
-
-func stringPtr(str string) *string {
-	return &str
-}
-
-func intPtr(i int) *int {
-	return &i
-}
-
-func stringArrayPtr(strs []string) []*string{
-	results := make([]*string, len(strs))
-	for i :=0; i < len(strs); i++ {
-		results[i] = &strs[i]
-	}
-	return results
-}

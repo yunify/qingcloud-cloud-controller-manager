@@ -46,21 +46,21 @@ const (
 
 var defaultLBSecurityGroupRules = []*qcservice.SecurityGroupRule{
 	{
-		Priority: intPtr(0),
-		Protocol: stringPtr("icmp"),
-		Action:   stringPtr("accept"),
-		Val1:     stringPtr("8"), //Echo
-		Val2:     stringPtr("0"), //Echo request
+		Priority: qcservice.Int(0),
+		Protocol: qcservice.String("icmp"),
+		Action:   qcservice.String("accept"),
+		Val1:     qcservice.String("8"), //Echo
+		Val2:     qcservice.String("0"), //Echo request
 		Val3:     nil,
 	},
 	//allow all tcp port, lb only open listener's port,
 	//security group is for limit ip source.
 	{
-		Priority: intPtr(1),
-		Protocol: stringPtr("tcp"),
-		Action:   stringPtr("accept"),
-		Val1:     stringPtr("1"),
-		Val2:     stringPtr("65535"),
+		Priority: qcservice.Int(1),
+		Protocol: qcservice.String("tcp"),
+		Action:   qcservice.String("accept"),
+		Val1:     qcservice.String("1"),
+		Val2:     qcservice.String("65535"),
 		Val3:     nil,
 	},
 }
@@ -210,7 +210,7 @@ func (qc *QingCloud) EnsureLoadBalancer(clusterName string, service *v1.Service,
 			backends[i] = &qcservice.LoadBalancerBackend{
 				ResourceID:              &instanceID,
 				LoadBalancerBackendName: &instanceID,
-				Port: intPtr(int(port.NodePort)),
+				Port: qcservice.Int(int(port.NodePort)),
 			}
 		}
 		if len(backends) > 0 {
@@ -313,7 +313,7 @@ func (qc *QingCloud) UpdateLoadBalancer(clusterName string, service *v1.Service,
 				backends[i] = &qcservice.LoadBalancerBackend{
 					ResourceID:              &instanceID,
 					LoadBalancerBackendName: &instanceID,
-					Port: intPtr(int(port)),
+					Port: qcservice.Int(int(port)),
 				}
 			}
 			err := qc.addLoadBalancerBackends(listenerID, backends)
@@ -394,9 +394,9 @@ func (qc *QingCloud) createLoadBalancerWithEips(lbName string, lbType int, lbEip
 		return "", err
 	}
 	output, err := qc.lbService.CreateLoadBalancer(&qcservice.CreateLoadBalancerInput{
-		EIPs:             stringArrayPtr(lbEipIds),
-		LoadBalancerType: intPtr(lbType),
-		LoadBalancerName: stringPtr(lbName),
+		EIPs:             qcservice.StringSlice(lbEipIds),
+		LoadBalancerType: qcservice.Int(lbType),
+		LoadBalancerName: qcservice.String(lbName),
 		SecurityGroup:    sgID,
 	})
 	if err != nil {
@@ -413,8 +413,8 @@ func (qc *QingCloud) createLoadBalancerWithVxnet(lbName string, lbType int, vxne
 	}
 	output, err := qc.lbService.CreateLoadBalancer(&qcservice.CreateLoadBalancerInput{
 		VxNet:            &vxnetID,
-		LoadBalancerType: intPtr(lbType),
-		LoadBalancerName: stringPtr(lbName),
+		LoadBalancerType: qcservice.Int(lbType),
+		LoadBalancerName: qcservice.String(lbName),
 		SecurityGroup:    sgID,
 	})
 	if err != nil {
@@ -425,7 +425,7 @@ func (qc *QingCloud) createLoadBalancerWithVxnet(lbName string, lbType int, vxne
 }
 
 func (qc *QingCloud) deleteLoadBalancer(loadBalancerID string) error {
-	output, err := qc.lbService.DeleteLoadBalancers(&qcservice.DeleteLoadBalancersInput{LoadBalancers: []*string{stringPtr(loadBalancerID)}})
+	output, err := qc.lbService.DeleteLoadBalancers(&qcservice.DeleteLoadBalancersInput{LoadBalancers: []*string{qcservice.String(loadBalancerID)}})
 	if err != nil {
 		return err
 	}
@@ -446,7 +446,7 @@ func (qc *QingCloud) addLoadBalancerBackends(loadBalancerListenerID string, back
 
 func (qc *QingCloud) deleteLoadBalancerBackends(loadBalancerBackends []string) error {
 	_, err := qc.lbService.DeleteLoadBalancerBackends(&qcservice.DeleteLoadBalancerBackendsInput{
-		LoadBalancerBackends: stringArrayPtr(loadBalancerBackends),
+		LoadBalancerBackends: qcservice.StringSlice(loadBalancerBackends),
 	})
 	return err
 }
@@ -457,8 +457,8 @@ func (qc *QingCloud) addLoadBalancerListener(loadBalancerID string, listenerPort
 		LoadBalancer: &loadBalancerID,
 		Listeners: []*qcservice.LoadBalancerListener{
 			{
-				ListenerProtocol: stringPtr("tcp"),
-				BackendProtocol:  stringPtr("tcp"),
+				ListenerProtocol: qcservice.String("tcp"),
+				BackendProtocol:  qcservice.String("tcp"),
 				BalanceMode:      &balanceMode,
 				ListenerPort:     &listenerPort,
 			},
@@ -472,7 +472,7 @@ func (qc *QingCloud) addLoadBalancerListener(loadBalancerID string, listenerPort
 }
 
 func (qc *QingCloud) getLoadBalancerByName(name string) (*qcservice.LoadBalancer, error) {
-	status := []*string{stringPtr("pending"), stringPtr("active"), stringPtr("stopped")}
+	status := []*string{qcservice.String("pending"), qcservice.String("active"), qcservice.String("stopped")}
 	output, err := qc.lbService.DescribeLoadBalancers(&qcservice.DescribeLoadBalancersInput{
 		Status:     status,
 		SearchWord: &name,
@@ -514,9 +514,9 @@ func (qc *QingCloud) getLoadBalancerListeners(loadBalancerID string) ([]*qcservi
 	for i := 0; ; i += pageLimt {
 		resp, err := qc.lbService.DescribeLoadBalancerListeners(&qcservice.DescribeLoadBalancerListenersInput{
 			LoadBalancer: &loadBalancerID,
-			Verbose:      intPtr(1),
-			Offset:       intPtr(i),
-			Limit:        intPtr(pageLimt),
+			Verbose:      qcservice.Int(1),
+			Offset:       qcservice.Int(i),
+			Limit:        qcservice.Int(pageLimt),
 		})
 		if err != nil {
 			return nil, err
