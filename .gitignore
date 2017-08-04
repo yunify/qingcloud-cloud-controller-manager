@@ -14,3 +14,4 @@
 .glide/
 .idea
 qingcloud-cloud-controller-manager
+bin/
