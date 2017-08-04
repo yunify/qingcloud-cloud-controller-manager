@@ -14,11 +14,18 @@ import (
 
 // NodeAddresses returns the addresses of the specified instance.
 func (qc *QingCloud) NodeAddresses(nodeName types.NodeName) ([]v1.NodeAddress, error) {
-	glog.V(4).Infof("NodeAddresses(%v) called", nodeName)
+	return qc.instanceAddress(NodeNameToInstanceID(nodeName))
+}
 
-	ins, err := qc.GetInstanceByID(NodeNameToInstanceID(nodeName))
+func (qc *QingCloud) NodeAddressesByProviderID(providerId string) ([]v1.NodeAddress, error){
+	return qc.instanceAddress(providerId)
+}
+
+func (qc *QingCloud) instanceAddress(instanceID string) ([]v1.NodeAddress, error) {
+	glog.V(9).Infof("instanceAddress(%v) called", instanceID)
+	ins, err := qc.GetInstanceByID(instanceID)
 	if err != nil {
-		glog.Errorf("error getting instance '%q': %v", nodeName, err)
+		glog.Errorf("error getting instance '%v': %v", instanceID, err)
 		return nil, err
 	}
 
@@ -28,48 +35,46 @@ func (qc *QingCloud) NodeAddresses(nodeName types.NodeName) ([]v1.NodeAddress, e
 			addrs = append(addrs, v1.NodeAddress{Type: v1.NodeInternalIP, Address: *vxnet.PrivateIP})
 		}
 	}
+
 	if ins.EIP != nil && ins.EIP.EIPAddr != nil && *ins.EIP.EIPAddr != "" {
 		addrs = append(addrs, v1.NodeAddress{Type: v1.NodeExternalIP, Address: *ins.EIP.EIPAddr})
 	}
-
-	glog.V(4).Infof("NodeAddresses: %v, %v", nodeName, addrs)
 	return addrs, nil
 }
 
 // ExternalID returns the cloud provider ID of the specified instance (deprecated).
 // Note that if the instance does not exist or is no longer running, we must return ("", cloudprovider.InstanceNotFound)
 func (qc *QingCloud) ExternalID(nodeName types.NodeName) (string, error) {
-	glog.V(4).Infof("ExternalID(%v) called", nodeName)
-
-	ins, err := qc.GetInstanceByID(NodeNameToInstanceID(nodeName))
-	if err != nil {
-		return "", err
-	}
-
-	return *ins.InstanceID, nil
+	return NodeNameToInstanceID(nodeName), nil
 }
 
 // InstanceID returns the cloud provider ID of the specified instance.
 func (qc *QingCloud) InstanceID(nodeName types.NodeName) (string, error) {
-	glog.V(4).Infof("InstanceID(%v) called", nodeName)
+	glog.V(9).Infof("InstanceID(%v) called", nodeName)
 	return NodeNameToInstanceID(nodeName), nil
 }
 
 // InstanceType returns the type of the specified instance.
 func (qc *QingCloud) InstanceType(name types.NodeName) (string, error) {
-	glog.V(4).Infof("InstanceType(%v) called", name)
+	return qc.instanceType(NodeNameToInstanceID(name))
+}
 
-	ins, err := qc.GetInstanceByID(NodeNameToInstanceID(name))
+func (qc *QingCloud) InstanceTypeByProviderID(providerID string) (string, error){
+	return qc.instanceType(providerID)
+}
+
+func (qc *QingCloud) instanceType(instanceID string) (string, error) {
+	glog.V(9).Infof("instanceType(%v) called", instanceID)
+	ins, err := qc.GetInstanceByID(instanceID)
 	if err != nil {
 		return "", err
 	}
-
 	return *ins.InstanceType, nil
 }
 
 // List lists instances that match 'filter' which is a regular expression which must match the entire instance name (fqdn)
 func (qc *QingCloud) List(filter string) ([]types.NodeName, error) {
-	glog.V(4).Infof("List(%v) called", filter)
+	glog.V(9).Infof("List(%v) called", filter)
 
 	instances, err := qc.getInstancesByFilter(filter)
 	if err != nil {
@@ -81,18 +86,9 @@ func (qc *QingCloud) List(filter string) ([]types.NodeName, error) {
 		result = append(result, types.NodeName(*ins.InstanceID))
 	}
 
-	glog.V(4).Infof("List instances: %v", result)
+	glog.V(9).Infof("List instances: %v", result)
 
 	return result, nil
-}
-
-func (qc *QingCloud) NodeAddressesByProviderID(providerId string) ([]v1.NodeAddress, error){
-	//TODO
-	return nil, nil
-}
-func (qc *QingCloud) InstanceTypeByProviderID(providerID string) (string, error){
-	//TODO
-	return "", nil
 }
 
 // AddSSHKeyToAllInstances adds an SSH public key as a legal identity for all instances.
