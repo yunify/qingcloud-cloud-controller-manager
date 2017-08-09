@@ -1,4 +1,4 @@
-FROM busybox:1.27.1
+FROM busybox:1.27.1-glibc
 
 COPY bin/qingcloud-cloud-controller-manager /qingcloud-cloud-controller-manager
 
