@@ -138,6 +138,7 @@ func Run(s *options.CloudControllerManagerServer, cloud cloudprovider.Interface)
 		}
 		var clientBuilder controller.ControllerClientBuilder
 		if len(s.ServiceAccountKeyFile) > 0 && s.UseServiceAccountCredentials {
+			glog.Info("UseServiceAccountCredentials and use AnonymousClientConfig")
 			clientBuilder = controller.SAControllerClientBuilder{
 				ClientConfig:         restclient.AnonymousClientConfig(kubeconfig),
 				CoreClient:           kubeClient.Core(),

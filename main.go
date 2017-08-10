@@ -34,7 +34,7 @@ func main() {
 	defer logs.FlushLogs()
 
 	verflag.PrintAndExitIfRequested()
-
+	fmt.Printf("final flag: %+v", s)
 	cloud, err := cloudprovider.InitCloudProvider("qingcloud", s.CloudConfigFile)
 	if err != nil {
 		glog.Fatalf("Cloud provider could not be initialized: %v", err)
