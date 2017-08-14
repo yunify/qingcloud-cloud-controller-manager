@@ -2,7 +2,7 @@ package zones
 
 import "github.com/gophercloud/gophercloud"
 
-func baseURL(c *gophercloud.ServiceClient) string {
+func listURL(c *gophercloud.ServiceClient) string {
 	return c.ServiceURL("zones")
 }
 

@@ -98,8 +98,8 @@ func CreateBootableVolumeServer(t *testing.T, client *gophercloud.ServiceClient,
 	}
 
 	server, err = bootfromvolume.Create(client, bootfromvolume.CreateOptsExt{
-		CreateOptsBuilder: serverCreateOpts,
-		BlockDevice:       blockDevices,
+		serverCreateOpts,
+		blockDevices,
 	}).Extract()
 
 	if err != nil {
@@ -227,8 +227,8 @@ func CreateMultiEphemeralServer(t *testing.T, client *gophercloud.ServiceClient,
 	}
 
 	server, err = bootfromvolume.Create(client, bootfromvolume.CreateOptsExt{
-		CreateOptsBuilder: serverCreateOpts,
-		BlockDevice:       blockDevices,
+		serverCreateOpts,
+		blockDevices,
 	}).Extract()
 
 	if err != nil {
@@ -440,8 +440,8 @@ func CreateServerInServerGroup(t *testing.T, client *gophercloud.ServiceClient, 
 	}
 
 	schedulerHintsOpts := schedulerhints.CreateOptsExt{
-		CreateOptsBuilder: serverCreateOpts,
-		SchedulerHints: schedulerhints.SchedulerHints{
+		serverCreateOpts,
+		schedulerhints.SchedulerHints{
 			Group: serverGroup.ID,
 		},
 	}
@@ -485,8 +485,8 @@ func CreateServerWithPublicKey(t *testing.T, client *gophercloud.ServiceClient, 
 	}
 
 	server, err = servers.Create(client, keypairs.CreateOptsExt{
-		CreateOptsBuilder: serverCreateOpts,
-		KeyName:           keyPairName,
+		serverCreateOpts,
+		keyPairName,
 	}).Extract()
 	if err != nil {
 		return server, err

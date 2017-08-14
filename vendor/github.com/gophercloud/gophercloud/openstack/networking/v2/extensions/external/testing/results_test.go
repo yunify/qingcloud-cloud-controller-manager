@@ -176,10 +176,7 @@ func TestCreate(t *testing.T) {
 		`)
 	})
 
-	options := external.CreateOpts{
-		CreateOpts: networks.CreateOpts{Name: "ext_net", AdminStateUp: gophercloud.Enabled},
-		External:   gophercloud.Enabled,
-	}
+	options := external.CreateOpts{networks.CreateOpts{Name: "ext_net", AdminStateUp: gophercloud.Enabled}, gophercloud.Enabled}
 	res := networks.Create(fake.ServiceClient(), options)
 
 	n, err := external.ExtractCreate(res)
@@ -227,10 +224,7 @@ func TestUpdate(t *testing.T) {
 		`)
 	})
 
-	options := external.UpdateOpts{
-		UpdateOpts: networks.UpdateOpts{Name: "new_name"},
-		External:   gophercloud.Enabled,
-	}
+	options := external.UpdateOpts{networks.UpdateOpts{Name: "new_name"}, gophercloud.Enabled}
 	res := networks.Update(fake.ServiceClient(), "4e8e5957-649f-477b-9e5b-f1f75b21c03c", options)
 	n, err := external.ExtractUpdate(res)
 

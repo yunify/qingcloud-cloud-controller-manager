@@ -53,7 +53,7 @@ func TestProjectsGet(t *testing.T) {
 	}
 
 	project := allProjects[0]
-	p, err := projects.Get(client, project.ID).Extract()
+	p, err := projects.Get(client, project.ID, nil).Extract()
 	if err != nil {
 		t.Fatalf("Unable to get project: %v", err)
 	}

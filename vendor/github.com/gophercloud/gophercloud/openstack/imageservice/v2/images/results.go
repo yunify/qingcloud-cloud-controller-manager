@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/gophercloud/gophercloud"
-	"github.com/gophercloud/gophercloud/internal"
 	"github.com/gophercloud/gophercloud/pagination"
 )
 
@@ -64,7 +63,7 @@ type Image struct {
 	Metadata map[string]string `json:"metadata"`
 
 	// Properties is a set of key-value pairs, if any, that are associated with the image.
-	Properties map[string]interface{} `json:"-"`
+	Properties map[string]string `json:"properties"`
 
 	// CreatedAt is the date when the image has been created.
 	CreatedAt time.Time `json:"created_at"`
@@ -78,9 +77,6 @@ type Image struct {
 
 	// Schema is the path to the JSON-schema that represent the image or image entity.
 	Schema string `json:"schema"`
-
-	// VirtualSize is the virtual size of the image
-	VirtualSize int64 `json:"virtual_size"`
 }
 
 func (r *Image) UnmarshalJSON(b []byte) error {
@@ -104,17 +100,6 @@ func (r *Image) UnmarshalJSON(b []byte) error {
 		r.SizeBytes = int64(t)
 	default:
 		return fmt.Errorf("Unknown type for SizeBytes: %v (value: %v)", reflect.TypeOf(t), t)
-	}
-
-	// Bundle all other fields into Properties
-	var result interface{}
-	err = json.Unmarshal(b, &result)
-	if err != nil {
-		return err
-	}
-	if resultMap, ok := result.(map[string]interface{}); ok {
-		delete(resultMap, "self")
-		r.Properties = internal.RemainingKeys(Image{}, resultMap)
 	}
 
 	return err
@@ -176,7 +161,7 @@ func (r ImagePage) NextPageURL() (string, error) {
 		return "", nil
 	}
 
-	return nextPageURL(r.URL.String(), s.Next)
+	return nextPageURL(r.URL.String(), s.Next), nil
 }
 
 // ExtractImages interprets the results of a single page from a List() call, producing a slice of Image entities.

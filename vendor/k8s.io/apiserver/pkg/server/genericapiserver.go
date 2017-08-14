@@ -18,6 +18,7 @@ package server
 
 import (
 	"fmt"
+	"mime"
 	"net/http"
 	"strings"
 	"sync"
@@ -149,10 +150,6 @@ type GenericAPIServer struct {
 
 	// auditing. The backend is started after the server starts listening.
 	AuditBackend audit.Backend
-
-	// enableAPIResponseCompression indicates whether API Responses should support compression
-	// if the client requests it via Accept-Encoding
-	enableAPIResponseCompression bool
 }
 
 // DelegationTarget is an interface which allows for composition of API servers with top level handling that works
@@ -220,6 +217,13 @@ func (s emptyDelegate) RequestContextMapper() apirequest.RequestContextMapper {
 }
 func (s emptyDelegate) OpenAPISpec() *spec.Swagger {
 	return nil
+}
+
+func init() {
+	// Send correct mime type for .svg files.
+	// TODO: remove when https://github.com/golang/go/commit/21e47d831bafb59f22b1ea8098f709677ec8ce33
+	// makes it into all of our supported go versions (only in v1.7.1 now).
+	mime.AddExtensionType(".svg", "image/svg+xml")
 }
 
 // RequestContextMapper is exposed so that third party resource storage can be build in a different location.
@@ -427,10 +431,9 @@ func (s *GenericAPIServer) newAPIGroupVersion(apiGroupInfo *APIGroupInfo, groupV
 		Linker: apiGroupInfo.GroupMeta.SelfLinker,
 		Mapper: apiGroupInfo.GroupMeta.RESTMapper,
 
-		Admit:                        s.admissionControl,
-		Context:                      s.RequestContextMapper(),
-		MinRequestTimeout:            s.minRequestTimeout,
-		EnableAPIResponseCompression: s.enableAPIResponseCompression,
+		Admit:             s.admissionControl,
+		Context:           s.RequestContextMapper(),
+		MinRequestTimeout: s.minRequestTimeout,
 	}
 }
 

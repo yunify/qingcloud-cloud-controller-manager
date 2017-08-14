@@ -106,8 +106,3 @@ type DeleteResult struct {
 type GetResult struct {
 	commonResult
 }
-
-// UpdateResult contains the response body and error from an Update request.
-type UpdateResult struct {
-	commonResult
-}

@@ -137,9 +137,7 @@ func Run(s *options.CloudControllerManagerServer, cloud cloudprovider.Interface)
 			ClientConfig: kubeconfig,
 		}
 		var clientBuilder controller.ControllerClientBuilder
-		glog.Infof("====== Build client %v %v", s.ServiceAccountKeyFile, s.UseServiceAccountCredentials)
 		if len(s.ServiceAccountKeyFile) > 0 && s.UseServiceAccountCredentials {
-			glog.Info("====== UseServiceAccountCredentials and use AnonymousClientConfig")
 			clientBuilder = controller.SAControllerClientBuilder{
 				ClientConfig:         restclient.AnonymousClientConfig(kubeconfig),
 				CoreClient:           kubeClient.Core(),
@@ -147,7 +145,6 @@ func Run(s *options.CloudControllerManagerServer, cloud cloudprovider.Interface)
 				Namespace:            "kube-system",
 			}
 		} else {
-			glog.Info("====== use rootClientBuilder")
 			clientBuilder = rootClientBuilder
 		}
 

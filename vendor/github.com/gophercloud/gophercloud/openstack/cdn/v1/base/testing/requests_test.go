@@ -17,18 +17,16 @@ func TestGetHomeDocument(t *testing.T) {
 	th.CheckNoErr(t, err)
 
 	expected := base.HomeDocument{
-		"resources": map[string]interface{}{
-			"rel/cdn": map[string]interface{}{
-				"href-template": "services{?marker,limit}",
-				"href-vars": map[string]interface{}{
-					"marker": "param/marker",
-					"limit":  "param/limit",
-				},
-				"hints": map[string]interface{}{
-					"allow": []interface{}{"GET"},
-					"formats": map[string]interface{}{
-						"application/json": map[string]interface{}{},
-					},
+		"rel/cdn": map[string]interface{}{
+			"href-template": "services{?marker,limit}",
+			"href-vars": map[string]interface{}{
+				"marker": "param/marker",
+				"limit":  "param/limit",
+			},
+			"hints": map[string]interface{}{
+				"allow": []string{"GET"},
+				"formats": map[string]interface{}{
+					"application/json": map[string]interface{}{},
 				},
 			},
 		},
