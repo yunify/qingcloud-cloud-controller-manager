@@ -31,7 +31,8 @@ func (qc *QingCloud) instanceAddress(instanceID string) ([]v1.NodeAddress, error
 
 	addrs := []v1.NodeAddress{}
 	for _, vxnet := range ins.VxNets {
-		if vxnet.PrivateIP != nil && *vxnet.PrivateIP != "" {
+		// vxnet.Role 1 main nic, 0 slave nic. skip slave nic for hostnic cni plugin
+		if vxnet.PrivateIP != nil && *vxnet.PrivateIP != "" && *vxnet.Role == 1 {
 			addrs = append(addrs, v1.NodeAddress{Type: v1.NodeInternalIP, Address: *vxnet.PrivateIP})
 		}
 	}

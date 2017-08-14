@@ -33,29 +33,18 @@ func TestListFlavors(t *testing.T) {
 							{
 								"id": "1",
 								"name": "m1.tiny",
-								"vcpus": 1,
 								"disk": 1,
 								"ram": 512,
-								"swap":"",
-								"is_public": true
+								"vcpus": 1,
+								"swap":""
 							},
 							{
 								"id": "2",
-								"name": "m1.small",
-								"vcpus": 1,
-								"disk": 20,
-								"ram": 2048,
-								"swap": 1000,
-								"is_public": true
-							},
-							{
-								"id": "3",
-								"name": "m1.medium",
+								"name": "m2.small",
+								"disk": 10,
+								"ram": 1024,
 								"vcpus": 2,
-								"disk": 40,
-								"ram": 4096,
-								"swap": 1000,
-								"is_public": false
+								"swap": 1000
 							}
 						],
 						"flavors_links": [
@@ -74,7 +63,6 @@ func TestListFlavors(t *testing.T) {
 	})
 
 	pages := 0
-	// Get public and private flavors
 	err := flavors.ListDetail(fake.ServiceClient(), nil).EachPage(func(page pagination.Page) (bool, error) {
 		pages++
 
@@ -84,9 +72,8 @@ func TestListFlavors(t *testing.T) {
 		}
 
 		expected := []flavors.Flavor{
-			{ID: "1", Name: "m1.tiny", VCPUs: 1, Disk: 1, RAM: 512, Swap: 0, IsPublic: true},
-			{ID: "2", Name: "m1.small", VCPUs: 1, Disk: 20, RAM: 2048, Swap: 1000, IsPublic: true},
-			{ID: "3", Name: "m1.medium", VCPUs: 2, Disk: 40, RAM: 4096, Swap: 1000, IsPublic: false},
+			{ID: "1", Name: "m1.tiny", Disk: 1, RAM: 512, VCPUs: 1, Swap: 0},
+			{ID: "2", Name: "m2.small", Disk: 10, RAM: 1024, VCPUs: 2, Swap: 1000},
 		}
 
 		if !reflect.DeepEqual(expected, actual) {

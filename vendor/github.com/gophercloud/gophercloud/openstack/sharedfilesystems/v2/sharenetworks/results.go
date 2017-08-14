@@ -168,15 +168,3 @@ type GetResult struct {
 type UpdateResult struct {
 	commonResult
 }
-
-// AddSecurityServiceResult contains the response body and error from a security
-// service addition request.
-type AddSecurityServiceResult struct {
-	commonResult
-}
-
-// RemoveSecurityServiceResult contains the response body and error from a security
-// service removal request.
-type RemoveSecurityServiceResult struct {
-	commonResult
-}

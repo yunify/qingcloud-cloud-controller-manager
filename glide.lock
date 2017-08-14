@@ -1,5 +1,5 @@
-hash: 53288439fbde723017fffcd5da85c41989bea01cdc415cacae991bab9dd07376
-updated: 2017-08-02T17:29:14.50063535+08:00
+hash: f0c96b027694ce53394f77bb223f6f3c4134ad4fcb22dc5a56622e5bd4a754ed
+updated: 2017-08-14T16:50:12.307001654+08:00
 imports:
 - name: cloud.google.com/go
   version: 3b1ae45394a234c385be014e9a488f2bb6eef821
@@ -64,7 +64,7 @@ imports:
   subpackages:
   - quantile
 - name: github.com/davecgh/go-spew
-  version: 782f4967f2dc4564575ca782fe2d04090b5faca8
+  version: 5215b55f46b2b919f50a1df0eaa5886afe4e3b3d
   subpackages:
   - spew
 - name: github.com/dgrijalva/jwt-go
@@ -128,7 +128,7 @@ imports:
   - proto
   - sortkeys
 - name: github.com/golang/glog
-  version: 23def4e6c14b4da8ac2ed8007337bc5eb5007998
+  version: 44145f04b68cf362d9c4df2182967c2275eaefed
 - name: github.com/golang/groupcache
   version: 02826c3e79038b59d737d3b1c0a1d937f71a4433
   subpackages:
@@ -145,7 +145,7 @@ imports:
 - name: github.com/google/gofuzz
   version: 44d81051d367757e1c7c6a5a86423ece9afcf63c
 - name: github.com/gophercloud/gophercloud
-  version: ed590d9afe113c6107cd60717b196155e6579e78
+  version: ce1e02c3ccfdb7fab257340dc4d603ec3035fa11
   subpackages:
   - openstack
   - openstack/blockstorage/v1/apiversions
@@ -266,13 +266,17 @@ imports:
 - name: github.com/satori/uuid
   version: 5bf94b69c6b68ee1b541973bb8e1144db23a194b
 - name: github.com/Sirupsen/logrus
-  version: 51fe59aca108dc5680109e7b2051cbdcfa5a253c
+  version: a3f95b5c423586578a4e099b11a46c2479628cac
+  repo: git@github.com:/sirupsen/logrus
+  vcs: git
+- name: github.com/sirupsen/logrus
+  version: a3f95b5c423586578a4e099b11a46c2479628cac
 - name: github.com/spf13/cobra
   version: f62e98d28ab7ad31d707ba837a966378465c7b57
   subpackages:
   - doc
 - name: github.com/spf13/pflag
-  version: 25f8b5b07aece3207895bf19f7ab517eb3b22a40
+  version: 5ccb023bc27df288a957c5e994cd44fd19619465
 - name: github.com/ugorji/go
   version: ded73eae5db7e7a0ef6f55aace87a2873c5d2b74
   subpackages:
@@ -308,7 +312,7 @@ imports:
   subpackages:
   - cloudstack
 - name: github.com/yunify/qingcloud-sdk-go
-  version: f873dbd67f4f5e8717c0d1405652142ed59967d5
+  version: e11223f05644bb8582818889f6e5ff1df3686215
   subpackages:
   - client
   - config
@@ -394,13 +398,15 @@ imports:
   - internal/urlfetch
   - urlfetch
 - name: gopkg.in/gcfg.v1
-  version: 083575c3955c85df16fe9590cceab64d03f5eb6e
+  version: 27e4946190b4a327b539185f2b5b1f7c84730728
   subpackages:
   - scanner
   - token
   - types
 - name: gopkg.in/inf.v0
   version: 3887ee99ecf07df5b447e9b00d9c0b2adaa9f3e4
+- name: gopkg.in/warnings.v0
+  version: 8a331561fe74dadba6edfc59f3be66c22c3b065d
 - name: gopkg.in/yaml.v2
   version: 53feefa2559fb8dfa8d81baad31be332c97d6c77
 - name: k8s.io/apimachinery
@@ -456,7 +462,7 @@ imports:
   - third_party/forked/golang/json
   - third_party/forked/golang/reflect
 - name: k8s.io/apiserver
-  version: 149fc2228647cea28b0670c240ec582e985e8eda
+  version: ab57ed5a72c3b67058f665d660e23bae18339fc2
   subpackages:
   - pkg/authentication/authenticator
   - pkg/authentication/serviceaccount
@@ -547,7 +553,7 @@ imports:
   - util/integer
   - util/workqueue
 - name: k8s.io/kubernetes
-  version: 922a86cfcd65915a9b2f69f3f193b8907d741d9c
+  version: 2c2fe6e8278a5db2d15a013987b53968c743f2a1
   subpackages:
   - cmd/cloud-controller-manager/app
   - cmd/cloud-controller-manager/app/options
@@ -725,12 +731,4 @@ imports:
   - plugin/pkg/scheduler/algorithm/priorities/util
   - plugin/pkg/scheduler/api
   - plugin/pkg/scheduler/schedulercache
-testImports:
-- name: github.com/pmezard/go-difflib
-  version: d8ed2627bdf02c080bf22230dbb337003b7aba2d
-  subpackages:
-  - difflib
-- name: github.com/stretchr/testify
-  version: 69483b4bd14f5845b5a1e55bca19e954e827f1d0
-  subpackages:
-  - assert
+testImports: []

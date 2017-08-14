@@ -2,11 +2,10 @@ package testing
 
 import (
 	"fmt"
-	"net/http"
-	"testing"
-
 	th "github.com/gophercloud/gophercloud/testhelper"
 	fake "github.com/gophercloud/gophercloud/testhelper/client"
+	"net/http"
+	"testing"
 )
 
 const (

@@ -4,7 +4,6 @@ package v2
 
 import (
 	"fmt"
-	"os"
 	"testing"
 
 	"github.com/gophercloud/gophercloud"
@@ -13,6 +12,7 @@ import (
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/extensions/quotasets"
 	"github.com/gophercloud/gophercloud/openstack/identity/v2/tenants"
 	th "github.com/gophercloud/gophercloud/testhelper"
+	"os"
 )
 
 func TestQuotasetGet(t *testing.T) {

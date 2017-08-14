@@ -17,8 +17,8 @@ import (
 
 	_ "github.com/yunify/qingcloud-cloud-controller-manager/qingcloud"
 
-	"github.com/golang/glog"
 	"github.com/spf13/pflag"
+	goflag "flag"
 )
 
 func init() {
@@ -30,16 +30,19 @@ func main() {
 	s.AddFlags(pflag.CommandLine)
 
 	flag.InitFlags()
+	// Convinces goflags that we have called Parse() to avoid noisy logs.
+	// OSS Issue: kubernetes/kubernetes#17162.
+	goflag.CommandLine.Parse([]string{})
 	logs.InitLogs()
 	defer logs.FlushLogs()
 
 	verflag.PrintAndExitIfRequested()
-
+	fmt.Fprintf(os.Stderr,"final flag: %+v\n", s)
 	cloud, err := cloudprovider.InitCloudProvider("qingcloud", s.CloudConfigFile)
 	if err != nil {
-		glog.Fatalf("Cloud provider could not be initialized: %v", err)
+		fmt.Fprintf(os.Stderr, "Cloud provider could not be initialized: %v", err)
+		os.Exit(1)
 	}
-
 	if err := app.Run(s, cloud); err != nil {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
 		os.Exit(1)

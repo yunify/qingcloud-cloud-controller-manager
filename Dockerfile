@@ -1,5 +1,5 @@
-FROM busybox:1.27.1
+FROM busybox:1.27.1-glibc
 
-ADD bin/qingcloud-cloud-controller-manager /usr/bin
+COPY bin/qingcloud-cloud-controller-manager /qingcloud-cloud-controller-manager
 
-ENTRYPOINT ["/usr/bin/qingcloud-cloud-controller-manager"]
+RUN ln -s /qingcloud-cloud-controller-manager /bin/qingcloud-cloud-controller-manager
