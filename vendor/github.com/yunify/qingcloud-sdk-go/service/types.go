@@ -1030,6 +1030,7 @@ func (v *KeyPair) Validate() error {
 
 type LoadBalancer struct {
 	Cluster     []*EIP     `json:"cluster" name:"cluster"`
+	VxNetID     *string    `json:"vxnet_id" name:"vxnet_id"`
 	CreateTime  *time.Time `json:"create_time" name:"create_time" format:"ISO 8601"`
 	Description *string    `json:"description" name:"description"`
 	// IsApplied's available values: 0, 1
@@ -1037,6 +1038,7 @@ type LoadBalancer struct {
 	Listeners        []*LoadBalancerListener `json:"listeners" name:"listeners"`
 	LoadBalancerID   *string                 `json:"loadbalancer_id" name:"loadbalancer_id"`
 	LoadBalancerName *string                 `json:"loadbalancer_name" name:"loadbalancer_name"`
+	LoadBalancerType *int                    `json:"loadbalancer_type" name:"loadbalancer_type"`
 	PrivateIPs       []*string               `json:"private_ips" name:"private_ips"`
 	SecurityGroupID  *string                 `json:"security_group_id" name:"security_group_id"`
 	// Status's available values: pending, active, stopped, suspended, deleted, ceased
