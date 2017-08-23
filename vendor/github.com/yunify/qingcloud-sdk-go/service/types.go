@@ -1030,7 +1030,6 @@ func (v *KeyPair) Validate() error {
 
 type LoadBalancer struct {
 	Cluster     []*EIP     `json:"cluster" name:"cluster"`
-	VxNetID     *string    `json:"vxnet_id" name:"vxnet_id"`
 	CreateTime  *time.Time `json:"create_time" name:"create_time" format:"ISO 8601"`
 	Description *string    `json:"description" name:"description"`
 	// IsApplied's available values: 0, 1
@@ -1038,15 +1037,17 @@ type LoadBalancer struct {
 	Listeners        []*LoadBalancerListener `json:"listeners" name:"listeners"`
 	LoadBalancerID   *string                 `json:"loadbalancer_id" name:"loadbalancer_id"`
 	LoadBalancerName *string                 `json:"loadbalancer_name" name:"loadbalancer_name"`
-	LoadBalancerType *int                    `json:"loadbalancer_type" name:"loadbalancer_type"`
-	PrivateIPs       []*string               `json:"private_ips" name:"private_ips"`
-	SecurityGroupID  *string                 `json:"security_group_id" name:"security_group_id"`
+	// LoadBalancerType's available values: 0, 1, 2, 3, 4, 5
+	LoadBalancerType *int      `json:"loadbalancer_type" name:"loadbalancer_type"`
+	PrivateIPs       []*string `json:"private_ips" name:"private_ips"`
+	SecurityGroupID  *string   `json:"security_group_id" name:"security_group_id"`
 	// Status's available values: pending, active, stopped, suspended, deleted, ceased
 	Status     *string    `json:"status" name:"status"`
 	StatusTime *time.Time `json:"status_time" name:"status_time" format:"ISO 8601"`
 	Tags       []*Tag     `json:"tags" name:"tags"`
 	// TransitionStatus's available values: creating, starting, stopping, updating, suspending, resuming, deleting
 	TransitionStatus *string `json:"transition_status" name:"transition_status"`
+	VxNetID          *string `json:"vxnet_id" name:"vxnet_id"`
 }
 
 func (v *LoadBalancer) Validate() error {
@@ -1083,6 +1084,26 @@ func (v *LoadBalancer) Validate() error {
 		for _, property := range v.Listeners {
 			if err := property.Validate(); err != nil {
 				return err
+			}
+		}
+	}
+
+	if v.LoadBalancerType != nil {
+		loadBalancerTypeValidValues := []string{"0", "1", "2", "3", "4", "5"}
+		loadBalancerTypeParameterValue := fmt.Sprint(*v.LoadBalancerType)
+
+		loadBalancerTypeIsValid := false
+		for _, value := range loadBalancerTypeValidValues {
+			if value == loadBalancerTypeParameterValue {
+				loadBalancerTypeIsValid = true
+			}
+		}
+
+		if !loadBalancerTypeIsValid {
+			return errors.ParameterValueNotAllowedError{
+				ParameterName:  "LoadBalancerType",
+				ParameterValue: loadBalancerTypeParameterValue,
+				AllowedValues:  loadBalancerTypeValidValues,
 			}
 		}
 	}
@@ -1255,22 +1276,14 @@ func (v *LoadBalancerPolicyRule) Validate() error {
 }
 
 type Meter struct {
-	Data     *string `json:"data" name:"data"`
-	DataSet  []*Data `json:"data_set" name:"data_set"`
-	MeterID  *string `json:"meter_id" name:"meter_id"`
-	Sequence *int    `json:"sequence" name:"sequence"`
-	VxNetID  *string `json:"vxnet_id" name:"vxnet_id"`
+	Data     interface{}   `json:"data" name:"data"`
+	DataSet  []interface{} `json:"data_set" name:"data_set"`
+	MeterID  *string       `json:"meter_id" name:"meter_id"`
+	Sequence *int          `json:"sequence" name:"sequence"`
+	VxNetID  *string       `json:"vxnet_id" name:"vxnet_id"`
 }
 
 func (v *Meter) Validate() error {
-
-	if len(v.DataSet) > 0 {
-		for _, property := range v.DataSet {
-			if err := property.Validate(); err != nil {
-				return err
-			}
-		}
-	}
 
 	return nil
 }
