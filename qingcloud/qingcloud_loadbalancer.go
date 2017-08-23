@@ -119,7 +119,7 @@ func (qc *QingCloud) EnsureLoadBalancer(clusterName string, service *v1.Service,
 
 	// get lb properties from k8s service spec
 	lbType := service.Annotations[ServiceAnnotationLoadBalancerType]
-	if lbType != "0" && lbType != "1" && lbType != "2" && lbType != "3" {
+	if lbType != "0" && lbType != "1" && lbType != "2" && lbType != "3" && lbType != "4" && lbType != "5" {
 		lbType = "0"
 	}
 	loadBalancerType, _ := strconv.Atoi(lbType)
@@ -173,7 +173,7 @@ func (qc *QingCloud) EnsureLoadBalancer(clusterName string, service *v1.Service,
 					}
 				}
 			} else if hasVxnet {
-				if vxnetId != *loadBalancer.VxNetID {
+				if vxnetId != *loadBalancer.VxNetId {
 					needUpdate = true
 					break
 				}
