@@ -173,7 +173,7 @@ func (qc *QingCloud) EnsureLoadBalancer(clusterName string, service *v1.Service,
 					}
 				}
 			} else if hasVxnet {
-				if vxnetId != *loadBalancer.VxNetId {
+				if vxnetId != *loadBalancer.VxNetID {
 					needUpdate = true
 					break
 				}

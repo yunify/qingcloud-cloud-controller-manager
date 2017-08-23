@@ -1047,7 +1047,7 @@ type LoadBalancer struct {
 	Tags       []*Tag     `json:"tags" name:"tags"`
 	// TransitionStatus's available values: creating, starting, stopping, updating, suspending, resuming, deleting
 	TransitionStatus *string `json:"transition_status" name:"transition_status"`
-	VxNetId          *string `json:"vxnet_id" name:"vxnet_id"`
+	VxNetID          *string `json:"vxnet_id" name:"vxnet_id"`
 }
 
 func (v *LoadBalancer) Validate() error {
