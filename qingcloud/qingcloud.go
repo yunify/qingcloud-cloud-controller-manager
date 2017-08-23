@@ -26,7 +26,7 @@ type Config struct {
 	Global struct {
 		QYConfigPath string `gcfg:"qyConfigPath"`
 		Zone         string `gcfg:"zone"`
-		VxNetID      string `gcfg:"vxNetID"`
+		VxNetId      string `gcfg:"vxNetId"`
 	}
 }
 
@@ -40,7 +40,7 @@ type QingCloud struct {
 	securityGroupService *qcservice.SecurityGroupService
 	zone                 string
 	selfInstance         *qcservice.Instance
-	vxNetID              string
+	vxNetId              string
 }
 
 func init() {
@@ -106,7 +106,7 @@ func newQingCloud(config Config) (cloudprovider.Interface, error) {
 		jobService:           jobService,
 		securityGroupService: securityGroupService,
 		zone:                 config.Global.Zone,
-		vxNetID:              config.Global.VxNetID,
+		vxNetId:              config.Global.VxNetId,
 	}
 	host, err := getHostname()
 	if err != nil {

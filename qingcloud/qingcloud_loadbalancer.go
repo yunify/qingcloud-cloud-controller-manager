@@ -243,8 +243,8 @@ func (qc *QingCloud) EnsureLoadBalancer(clusterName string, service *v1.Service,
 		}
 	} else {
 		// use vxnetId of k8s cluster to create new load balancer
-		if qc.vxNetID != "" {
-			glog.Infof("As no other load balancer properties specified but set vxnet id in qingcloud.config, just create loadBalancer '%s' in zone '%s' with vxnetid '$s", loadBalancerName, qc.zone, qc.vxNetID)
+		if qc.vxNetId != "" {
+			glog.Infof("As no other load balancer properties specified but set vxnet id in qingcloud.config, just create loadBalancer '%s' in zone '%s' with vxnetid '$s", loadBalancerName, qc.zone, qc.vxNetId)
 			loadBalancerID, err = qc.createLoadBalancerWithVxnet(loadBalancerName, loadBalancerType, vxnetId)
 			if err != nil {
 				glog.Errorf("Error creating loadBalancer '%s': %v", loadBalancerName, err)
