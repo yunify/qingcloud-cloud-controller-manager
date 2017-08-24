@@ -112,7 +112,9 @@ func (qc *QingCloud) EnsureLoadBalancer(clusterName string, service *v1.Service,
 	if tcpPortNum == 0 {
 		return nil, fmt.Errorf("requested load balancer with no tcp ports")
 	}
-
+	if len(nodes) == 0 {
+		return nil, fmt.Errorf("requested load balancer with empty nodes")
+	}
 	// QingCloud does not support user-specified ip addr for LB. We just
 	// print some log and ignore the public ip.
 	if service.Spec.LoadBalancerIP != "" {
@@ -692,11 +694,11 @@ func (qc *QingCloud) DeleteSecurityGroup(sgID *string) error {
 func (qc *QingCloud) createLoadBalancerListenerWithBackends(loadBalancerID string, port int, nodePort int, balanceMode string, instances []string) (string, error) {
 	listenerID, err := qc.addLoadBalancerListener(loadBalancerID, port, balanceMode)
 
-	if err != nil {
+	if err != nil || listenerID == "" {
 		glog.Errorf("Error create loadBalancer TCP listener (LoadBalancerId:'%s', Port: '%v'): %v", loadBalancerID, port, err)
 		return "", err
 	}
-	glog.Infof("Created LoadBalancerTCPListener (LoadBalancerId:'%s', Port: '%v')", loadBalancerID, port)
+	glog.Infof("Created LoadBalancerTCPListener (LoadBalancerId:'%s', Port: '%v', listenerID: '%s')", loadBalancerID, port, listenerID)
 
 	backends := make([]*qcservice.LoadBalancerBackend, len(instances))
 	for j, instance := range instances {
