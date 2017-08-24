@@ -41,6 +41,8 @@ const (
 	// value "1" means the LB can max support 20000 concurrency connections.
 	// value "2" means the LB can max support 40000 concurrency connections.
 	// value "3" means the LB can max support 100000 concurrency connections.
+	// value "4" means the LB can max support 200000 concurrency connections.
+	// value "5" means the LB can max support 500000 concurrency connections.
 	ServiceAnnotationLoadBalancerType = "service.beta.kubernetes.io/qingcloud-load-balancer-type"
 )
 
@@ -147,7 +149,7 @@ func (qc *QingCloud) EnsureLoadBalancer(clusterName string, service *v1.Service,
 
 	// TODO: Implement a more efficient update strategy for common changes than delete & create
 	// In particular, if we implement nodes update, we can get rid of UpdateHosts
-	if loadBalancer != nil {
+	if loadBalancer != nil && *loadBalancer.Status != "ceased" {
 		// enforce the loadBalancer config
 		var needUpdate bool
 		qyEips, qyPrivateIps, err := qc.waitLoadBalancerActive(*loadBalancer.LoadBalancerID, operationWaitTimeout)
