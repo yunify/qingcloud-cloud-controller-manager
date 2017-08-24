@@ -189,6 +189,11 @@ func (qc *QingCloud) EnsureLoadBalancer(clusterName string, service *v1.Service,
 				glog.Error(err)
 				return nil, err
 			}
+			if len(qyLbListeners) == 0 {
+				err := fmt.Errorf("No listners under this load balancer '%s'", *loadBalancer.LoadBalancerID)
+				glog.Error(err)
+				return nil, err
+			}
 			for _, qyLbListerner := range qyLbListeners {
 				for i, k8sPort := range k8sTCPPorts {
 					// check balance mode
@@ -197,7 +202,12 @@ func (qc *QingCloud) EnsureLoadBalancer(clusterName string, service *v1.Service,
 							needUpdate = true
 						}
 					} else {
-						qc.createLoadBalancerListenerWithBackends(*loadBalancer.LoadBalancerID, k8sPort, k8sNodePorts[i], balanceMode, instances)
+						_, err := qc.createLoadBalancerListenerWithBackends(*loadBalancer.LoadBalancerID, k8sPort, k8sNodePorts[i], balanceMode, instances)
+						if err != nil {
+							glog.Errorf("Couldn't create loadBalancerListener with backends")
+							glog.Error(err)
+							return nil, err
+						}
 					}
 				}
 			}
@@ -260,7 +270,11 @@ func (qc *QingCloud) EnsureLoadBalancer(clusterName string, service *v1.Service,
 			return nil, err
 		}
 	}
-
+	eips, privateIps, err := qc.waitLoadBalancerActive(loadBalancerID, operationWaitTimeout)
+	if err != nil {
+		glog.Error(err)
+		return nil, err
+	}
 	// For every port(qingcloud only support tcp), we need a listener.
 	for i, port := range k8sTCPPorts {
 		_, err := qc.createLoadBalancerListenerWithBackends(*loadBalancer.LoadBalancerID, port, k8sNodePorts[i], balanceMode, instances)
@@ -270,13 +284,6 @@ func (qc *QingCloud) EnsureLoadBalancer(clusterName string, service *v1.Service,
 			return nil, err
 		}
 	}
-
-	eips, privateIps, err := qc.waitLoadBalancerActive(loadBalancerID, operationWaitTimeout)
-	if err != nil {
-		glog.Error(err)
-		return nil, err
-	}
-
 	// enforce the loadBalancer config
 	err = qc.updateLoadBalancer(loadBalancerID)
 	if err != nil {
