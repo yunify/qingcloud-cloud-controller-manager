@@ -164,7 +164,12 @@ func (qc *QingCloud) EnsureLoadBalancer(clusterName string, service *v1.Service,
 			sum++
 			// check lb type
 			if loadBalancerType != *loadBalancer.LoadBalancerType {
-				glog.V(1).Infof("qingcloud lb type '%d' is different with the one ins k8s servie spec %d", loadBalancer.LoadBalancerType, lbType)
+				glog.V(1).Infof("qingcloud lb type '%d' is different with the one ins k8s servie spec '%d'", *loadBalancer.LoadBalancerType, loadBalancerType)
+				err := qc.resizeLoadBalancer(*loadBalancer.LoadBalancerID, loadBalancerType)
+				if err != nil {
+					glog.Error(err)
+					return nil, err
+				}
 				needUpdate = true
 				break
 			}
@@ -728,3 +733,17 @@ func (qc *QingCloud) createLoadBalancerListenerWithBackends(loadBalancerID strin
 
 	return listenerID, nil
 }
+func (qc *QingCloud) resizeLoadBalancer(loadBalancerID string, loadBalancerType int) error {
+	output, err := qc.lbService.ResizeLoadBalancers(&qcservice.ResizeLoadBalancersInput{
+		LoadBalancerType: &loadBalancerType,
+		LoadBalancers:    []*string{qcservice.String(loadBalancerID)},
+	})
+	if err != nil {
+		return err
+	}
+	qcclient.WaitJob(qc.jobService, *output.JobID, operationWaitTimeout, waitInterval)
+	return err
+}
+
+//ModifyLoadBalancerListenerAttributes
+//ResizeLoadBalancers
