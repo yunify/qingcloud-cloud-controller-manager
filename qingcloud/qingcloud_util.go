@@ -34,3 +34,21 @@ func getNodePort(service *v1.Service, port int32, protocol v1.Protocol) (nodePor
 
 	return
 }
+
+func stringIndex(vs []string, t string) int {
+	for i, v := range vs {
+		if v == t {
+			return i
+		}
+	}
+	return -1
+}
+
+func intIndex(vs []int, t int) int {
+	for i, v := range vs {
+		if v == t {
+			return i
+		}
+	}
+	return -1
+}

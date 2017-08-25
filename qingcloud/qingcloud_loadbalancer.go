@@ -164,26 +164,69 @@ func (qc *QingCloud) EnsureLoadBalancer(clusterName string, service *v1.Service,
 			sum++
 			// check lb type
 			if loadBalancerType != *loadBalancer.LoadBalancerType {
-				glog.V(1).Infof("qingcloud lb type '%d' is different with the one ins k8s servie spec '%d'", *loadBalancer.LoadBalancerType, loadBalancerType)
+				glog.V(1).Infof("Resize lb type because current lb type '%d' is different with the one in k8s servie spec '%d'", *loadBalancer.LoadBalancerType, loadBalancerType)
 				err := qc.resizeLoadBalancer(*loadBalancer.LoadBalancerID, loadBalancerType)
 				if err != nil {
 					glog.Error(err)
 					return nil, err
 				}
 				needUpdate = true
-				break
 			}
 			// check eip and vxnet
 			if hasEip {
-				for _, qyLbCluster := range loadBalancer.Cluster {
-					if !strings.Contains(lbEipIds, *qyLbCluster.EIPID) {
+				if *loadBalancer.VxNetID != "" {
+					err := qc.deleteLoadBalancerAndSecurityGrp(*loadBalancer.LoadBalancerID, loadBalancer.SecurityGroupID)
+					if err != nil {
+						glog.Error(err)
+						return nil, err
+					}
+					needUpdate = false
+					break
+				}
+
+				k8sLoadBalancerEipIds := strings.Split(lbEipIds, ",")
+				for _, k8sEipID := range k8sLoadBalancerEipIds {
+					if stringIndex(qyEips, k8sEipID) < 0 {
+						glog.V(1).Infof("Associate new EIP '%s' to LB '%s'", k8sEipID, *loadBalancer.LoadBalancerID)
+						err := qc.associateEipToLoadBalancer(*loadBalancer.LoadBalancerID, k8sEipID)
+						if err != nil {
+							glog.Error(err)
+							return nil, err
+						}
 						needUpdate = true
-						break
+					}
+				}
+				for _, qyEipID := range qyEips {
+					if stringIndex(k8sLoadBalancerEipIds, qyEipID) < 0 {
+						glog.V(1).Infof("dissociate EIP '%s' from LB '%s'", qyEipID, *loadBalancer.LoadBalancerID)
+						err := qc.dissociateEipFromLoadBalancer(*loadBalancer.LoadBalancerID, qyEipID)
+						if err != nil {
+							glog.Error(err)
+							return nil, err
+						}
+						needUpdate = true
 					}
 				}
 			} else if hasVxnet {
-				if vxnetId != *loadBalancer.VxNetID {
+				if len(qyEips) > 0 {
+					for _, qyEipID := range qyEips {
+						glog.V(1).Infof("dissociate EIP '%s' from LB '%s'", qyEipID, *loadBalancer.LoadBalancerID)
+						err := qc.dissociateEipFromLoadBalancer(*loadBalancer.LoadBalancerID, qyEipID)
+						if err != nil {
+							glog.Error(err)
+							return nil, err
+						}
+						needUpdate = true
+					}
 					needUpdate = true
+				}
+				if vxnetId != *loadBalancer.VxNetID {
+					err := qc.deleteLoadBalancerAndSecurityGrp(*loadBalancer.LoadBalancerID, loadBalancer.SecurityGroupID)
+					if err != nil {
+						glog.Error(err)
+						return nil, err
+					}
+					needUpdate = false
 					break
 				}
 			}
@@ -199,11 +242,26 @@ func (qc *QingCloud) EnsureLoadBalancer(clusterName string, service *v1.Service,
 				glog.Error(err)
 				return nil, err
 			}
+			//qyLbListenerPorts := []string{}
 			for _, qyLbListerner := range qyLbListeners {
+				//qyLbListenerPorts = append(qyLbListenerPorts, strconv.Itoa(*qyLbListerner.ListenerPort))
+				if intIndex(k8sTCPPorts, *qyLbListerner.ListenerPort) < 0 {
+					err := qc.deleteLoadBalancerListener(*qyLbListerner.LoadBalancerListenerID)
+					if err != nil {
+						glog.Error(err)
+						return nil, err
+					}
+					needUpdate = true
+				}
 				for i, k8sPort := range k8sTCPPorts {
 					// check balance mode
 					if k8sPort == *qyLbListerner.ListenerPort {
 						if balanceMode != *qyLbListerner.BalanceMode {
+							err := qc.modifyLoadBalancerListenerAttributes(*qyLbListerner.LoadBalancerListenerID, *qyLbListerner.LoadBalancerListenerName, balanceMode)
+							if err != nil {
+								glog.Error(err)
+								return nil, err
+							}
 							needUpdate = true
 						}
 					} else {
@@ -213,6 +271,7 @@ func (qc *QingCloud) EnsureLoadBalancer(clusterName string, service *v1.Service,
 							glog.Error(err)
 							return nil, err
 						}
+						needUpdate = true
 					}
 				}
 			}
@@ -532,7 +591,7 @@ func (qc *QingCloud) addLoadBalancerListener(loadBalancerID string, listenerPort
 }
 
 func (qc *QingCloud) getLoadBalancerByName(name string) (*qcservice.LoadBalancer, error) {
-	status := []*string{qcservice.String("pending"), qcservice.String("active"), qcservice.String("stopped")}
+	status := []*string{qcservice.String("pending"), qcservice.String("active"), qcservice.String("stopped"), qcservice.String("ceased")}
 	output, err := qc.lbService.DescribeLoadBalancers(&qcservice.DescribeLoadBalancersInput{
 		Status:     status,
 		SearchWord: &name,
@@ -733,7 +792,9 @@ func (qc *QingCloud) createLoadBalancerListenerWithBackends(loadBalancerID strin
 
 	return listenerID, nil
 }
+
 func (qc *QingCloud) resizeLoadBalancer(loadBalancerID string, loadBalancerType int) error {
+	glog.V(2).Infof("Starting resize loadBalancer '%s'", loadBalancerID)
 	output, err := qc.lbService.ResizeLoadBalancers(&qcservice.ResizeLoadBalancersInput{
 		LoadBalancerType: &loadBalancerType,
 		LoadBalancers:    []*string{qcservice.String(loadBalancerID)},
@@ -745,5 +806,81 @@ func (qc *QingCloud) resizeLoadBalancer(loadBalancerID string, loadBalancerType 
 	return err
 }
 
+func (qc *QingCloud) associateEipToLoadBalancer(loadBalancerID string, eip string) error {
+	glog.V(2).Infof("Starting associate Eip %s to loadBalancer '%s'", eip, loadBalancerID)
+	output, err := qc.lbService.AssociateEIPsToLoadBalancer(&qcservice.AssociateEIPsToLoadBalancerInput{
+		EIPs:         []*string{qcservice.String(eip)},
+		LoadBalancer: &loadBalancerID,
+	})
+	if err != nil {
+		return err
+	}
+	qcclient.WaitJob(qc.jobService, *output.JobID, operationWaitTimeout, waitInterval)
+	return err
+}
+func (qc *QingCloud) dissociateEipFromLoadBalancer(loadBalancerID string, eip string) error {
+	glog.V(2).Infof("Starting dissociate Eip %s from loadBalancer '%s'", eip, loadBalancerID)
+	output, err := qc.lbService.DissociateEIPsFromLoadBalancer(&qcservice.DissociateEIPsFromLoadBalancerInput{
+		EIPs:         []*string{qcservice.String(eip)},
+		LoadBalancer: &loadBalancerID,
+	})
+	if err != nil {
+		return err
+	}
+	qcclient.WaitJob(qc.jobService, *output.JobID, operationWaitTimeout, waitInterval)
+	return err
+}
+
+func (qc *QingCloud) deleteLoadBalancerAndSecurityGrp(loadBalancerID string, securityGroupID *string) error {
+	glog.Infof("Starting delete loadBalancer '%s' before creating", loadBalancerID)
+	err := qc.deleteLoadBalancer(loadBalancerID)
+	if err != nil {
+		glog.V(1).Infof("Deleted loadBalancer '%s' error before creating: %v", loadBalancerID, err)
+		return err
+	}
+	err = qc.waitLoadBalancerDelete(loadBalancerID, operationWaitTimeout)
+	if err != nil {
+		glog.Error(err)
+		return err
+	}
+	err = qc.DeleteSecurityGroup(securityGroupID)
+	if err != nil {
+		glog.Errorf("Delete SecurityGroup '%v' err '%s' ", &securityGroupID, err)
+	}
+	glog.Infof("Done, deleted loadBalancer '%s'", loadBalancerID)
+	return nil
+}
+
+func (qc *QingCloud) deleteLoadBalancerListener(loadBalancerListenerID string) error {
+	glog.Infof("Deleting LoadBalancerTCPListener :'%s'", loadBalancerListenerID)
+	output, err := qc.lbService.DeleteLoadBalancerListeners(&qcservice.DeleteLoadBalancerListenersInput{
+		LoadBalancerListeners: []*string{qcservice.String(loadBalancerListenerID)},
+	})
+	if err != nil {
+		return err
+	}
+	if *output.RetCode != 0 {
+		err := fmt.Errorf("Fail to delete loadbalancer lisener '%s' because of '%s'", loadBalancerListenerID, *output.Message)
+		return err
+	}
+	return nil
+}
+
+func (qc *QingCloud) modifyLoadBalancerListenerAttributes(loadBalancerListenerID string, loadBalancerListenerName string, balanceMode string) error {
+	glog.Infof("Modifying balanceMode of LoadBalancerTCPListener :'%s'", loadBalancerListenerID)
+	output, err := qc.lbService.ModifyLoadBalancerListenerAttributes(&qcservice.ModifyLoadBalancerListenerAttributesInput{
+		LoadBalancerListener:     &loadBalancerListenerID,
+		LoadBalancerListenerName: &loadBalancerListenerName,
+		BalanceMode:              &balanceMode,
+	})
+	if err != nil {
+		return err
+	}
+	if *output.RetCode != 0 {
+		err := fmt.Errorf("Fail to modify balanceMode of loadbalancer lisener '%s' because of '%s'", loadBalancerListenerID, *output.Message)
+		return err
+	}
+	return nil
+}
+
 //ModifyLoadBalancerListenerAttributes
-//ResizeLoadBalancers
