@@ -164,6 +164,14 @@ func (qc *QingCloud) EnsureLoadBalancer(clusterName string, service *v1.Service,
 			sum++
 			// check lb type
 			if loadBalancerType != *loadBalancer.LoadBalancerType {
+				if loadBalancerType < *loadBalancer.LoadBalancerType {
+					glog.V(1).Infof("Stop lb at first before resizing it because current lb type '%d' is bigger with the one in k8s servie spec '%d', ", *loadBalancer.LoadBalancerType, loadBalancerType)
+					err := qc.stopLoadBalancer(*loadBalancer.LoadBalancerID)
+					if err != nil {
+						glog.Error(err)
+						return nil, err
+					}
+				}
 				glog.V(1).Infof("Resize lb type because current lb type '%d' is different with the one in k8s servie spec '%d'", *loadBalancer.LoadBalancerType, loadBalancerType)
 				err := qc.resizeLoadBalancer(*loadBalancer.LoadBalancerID, loadBalancerType)
 				if err != nil {
@@ -171,6 +179,14 @@ func (qc *QingCloud) EnsureLoadBalancer(clusterName string, service *v1.Service,
 					return nil, err
 				}
 				needUpdate = true
+				if loadBalancerType < *loadBalancer.LoadBalancerType {
+					glog.V(1).Infof("Start lb now after resizing it to take effect because previous lb type '%d' is bigger with the one in k8s servie spec '%d', ", *loadBalancer.LoadBalancerType, loadBalancerType)
+					err := qc.startLoadBalancer(*loadBalancer.LoadBalancerID)
+					if err != nil {
+						glog.Error(err)
+						return nil, err
+					}
+				}
 			}
 			// check eip and vxnet
 			if hasEip {
@@ -874,6 +890,29 @@ func (qc *QingCloud) modifyLoadBalancerListenerAttributes(loadBalancerListenerID
 		return err
 	}
 	return nil
+}
+func (qc *QingCloud) stopLoadBalancer(loadBalancerID string) error {
+	glog.V(2).Infof("Starting stop loadBalancer '%s'", loadBalancerID)
+	output, err := qc.lbService.StopLoadBalancers(&qcservice.StopLoadBalancersInput{
+		LoadBalancers: &loadBalancerID,
+	})
+	if err != nil {
+		return err
+	}
+	qcclient.WaitJob(qc.jobService, string(*output.JobID), operationWaitTimeout, waitInterval)
+	return err
+}
+
+func (qc *QingCloud) startLoadBalancer(loadBalancerID string) error {
+	glog.V(2).Infof("Starting start loadBalancer '%s'", loadBalancerID)
+	output, err := qc.lbService.StartLoadBalancers(&qcservice.StartLoadBalancersInput{
+		LoadBalancers: []*string{qcservice.String(loadBalancerID)},
+	})
+	if err != nil {
+		return err
+	}
+	qcclient.WaitJob(qc.jobService, *output.JobID, operationWaitTimeout, waitInterval)
+	return err
 }
 
 //ModifyLoadBalancerListenerAttributes
