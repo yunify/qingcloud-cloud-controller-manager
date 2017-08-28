@@ -272,6 +272,7 @@ func (qc *QingCloud) EnsureLoadBalancer(clusterName string, service *v1.Service,
 				if qyLbListenerPos >= 0 {
 					// so port in spec matches existing listener's port, then check if balance mode is modified in spec, if yes, modify listener's attr
 					if balanceMode != *qyLbListeners[qyLbListenerPos].BalanceMode {
+						glog.V(1).Infof("Calvin ----ppppppppp------- print all mode '%d' ------ '%s'------ '%s'------ '%s'", qyLbListenerPos, *qyLbListeners[qyLbListenerPos].BalanceMode, *qyLbListeners[qyLbListenerPos].LoadBalancerID, *qyLbListeners[qyLbListenerPos].LoadBalancerListenerName)
 						err := qc.modifyLoadBalancerListenerAttributes(*qyLbListeners[qyLbListenerPos].LoadBalancerListenerID, *qyLbListeners[qyLbListenerPos].LoadBalancerListenerName, balanceMode)
 						if err != nil {
 							glog.Error(err)
