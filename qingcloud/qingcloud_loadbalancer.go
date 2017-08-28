@@ -892,9 +892,9 @@ func (qc *QingCloud) modifyLoadBalancerListenerAttributes(loadBalancerListenerID
 	return nil
 }
 func (qc *QingCloud) stopLoadBalancer(loadBalancerID string) error {
-	glog.V(2).Infof("Starting stop loadBalancer '%s'", loadBalancerID)
+	glog.V(2).Infof("Stopping loadBalancer '%s'", loadBalancerID)
 	output, err := qc.lbService.StopLoadBalancers(&qcservice.StopLoadBalancersInput{
-		LoadBalancers: &loadBalancerID,
+		LoadBalancers: []*string{qcservice.String(loadBalancerID)},
 	})
 	if err != nil {
 		return err
@@ -904,7 +904,7 @@ func (qc *QingCloud) stopLoadBalancer(loadBalancerID string) error {
 }
 
 func (qc *QingCloud) startLoadBalancer(loadBalancerID string) error {
-	glog.V(2).Infof("Starting start loadBalancer '%s'", loadBalancerID)
+	glog.V(2).Infof("Starting loadBalancer '%s'", loadBalancerID)
 	output, err := qc.lbService.StartLoadBalancers(&qcservice.StartLoadBalancersInput{
 		LoadBalancers: []*string{qcservice.String(loadBalancerID)},
 	})
