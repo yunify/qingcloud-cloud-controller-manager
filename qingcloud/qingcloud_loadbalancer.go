@@ -152,6 +152,7 @@ func (qc *QingCloud) EnsureLoadBalancer(clusterName string, service *v1.Service,
 	// TODO: Implement a more efficient update strategy for common changes than delete & create
 	// In particular, if we implement nodes update, we can get rid of UpdateHosts
 	if loadBalancer != nil && *loadBalancer.Status != "ceased" {
+		glog.V(1).Infof("Calvin ----0000000------- print only update lb '%s'", *loadBalancer.LoadBalancerID)
 		// enforce the loadBalancer config
 		var needUpdate bool
 		qyEips, qyPrivateIps, qyEipIDs, err := qc.waitLoadBalancerActive(*loadBalancer.LoadBalancerID, operationWaitTimeout)
@@ -204,7 +205,7 @@ func (qc *QingCloud) EnsureLoadBalancer(clusterName string, service *v1.Service,
 				k8sLoadBalancerEipIds := strings.Split(lbEipIds, ",")
 				glog.V(1).Infof("Calvin -------11111---- print all k8sEip '%s'", lbEipIds)
 				for _, qyEipID := range qyEipIDs {
-					glog.V(1).Infof("Calvin ----322222------- print all qyEip '%s'", qyEipID)
+					glog.V(1).Infof("Calvin ----22222------- print all qyEip '%s'", qyEipID)
 				}
 				for _, k8sEipID := range k8sLoadBalancerEipIds {
 					if stringIndex(qyEipIDs, k8sEipID) < 0 {
@@ -315,6 +316,7 @@ func (qc *QingCloud) EnsureLoadBalancer(clusterName string, service *v1.Service,
 		}
 	}
 	glog.Infof("Create loadBalancer '%s' in zone '%s'", loadBalancerName, qc.zone)
+	glog.V(1).Infof("Calvin ----33333------- print only add lb ")
 	var loadBalancerID string
 	if hasEip {
 		if hasVxnet {
@@ -322,6 +324,7 @@ func (qc *QingCloud) EnsureLoadBalancer(clusterName string, service *v1.Service,
 			glog.Error(err)
 			return nil, err
 		}
+		glog.V(1).Infof("Calvin ----444444------- print create lb '%s'", lbEipIds)
 		loadBalancerEipIds := strings.Split(lbEipIds, ",")
 		loadBalancerID, err = qc.createLoadBalancerWithEips(loadBalancerName, loadBalancerType, loadBalancerEipIds)
 		if err != nil {
@@ -349,6 +352,7 @@ func (qc *QingCloud) EnsureLoadBalancer(clusterName string, service *v1.Service,
 			return nil, err
 		}
 	}
+	glog.V(1).Infof("Calvin ----555555------- print only update lb '%s'", loadBalancerID)
 	eips, privateIps, _, err := qc.waitLoadBalancerActive(loadBalancerID, operationWaitTimeout)
 	if err != nil {
 		glog.Error(err)
@@ -811,7 +815,7 @@ func (qc *QingCloud) createLoadBalancerListenerWithBackends(loadBalancerID strin
 }
 
 func (qc *QingCloud) resizeLoadBalancer(loadBalancerID string, loadBalancerType int) error {
-	glog.V(2).Infof("Starting resize loadBalancer '%s'", loadBalancerID)
+	glog.V(2).Infof("Starting to resize loadBalancer '%s'", loadBalancerID)
 	output, err := qc.lbService.ResizeLoadBalancers(&qcservice.ResizeLoadBalancersInput{
 		LoadBalancerType: &loadBalancerType,
 		LoadBalancers:    []*string{qcservice.String(loadBalancerID)},
@@ -824,7 +828,7 @@ func (qc *QingCloud) resizeLoadBalancer(loadBalancerID string, loadBalancerType 
 }
 
 func (qc *QingCloud) associateEipToLoadBalancer(loadBalancerID string, eip string) error {
-	glog.V(2).Infof("Starting associate Eip %s to loadBalancer '%s'", eip, loadBalancerID)
+	glog.V(2).Infof("Starting to associate Eip %s to loadBalancer '%s'", eip, loadBalancerID)
 	output, err := qc.lbService.AssociateEIPsToLoadBalancer(&qcservice.AssociateEIPsToLoadBalancerInput{
 		EIPs:         []*string{qcservice.String(eip)},
 		LoadBalancer: &loadBalancerID,
@@ -836,7 +840,7 @@ func (qc *QingCloud) associateEipToLoadBalancer(loadBalancerID string, eip strin
 	return err
 }
 func (qc *QingCloud) dissociateEipFromLoadBalancer(loadBalancerID string, eip string) error {
-	glog.V(2).Infof("Starting dissociate Eip %s from loadBalancer '%s'", eip, loadBalancerID)
+	glog.V(2).Infof("Starting to dissociate Eip %s from loadBalancer '%s'", eip, loadBalancerID)
 	output, err := qc.lbService.DissociateEIPsFromLoadBalancer(&qcservice.DissociateEIPsFromLoadBalancerInput{
 		EIPs:         []*string{qcservice.String(eip)},
 		LoadBalancer: &loadBalancerID,
@@ -849,7 +853,7 @@ func (qc *QingCloud) dissociateEipFromLoadBalancer(loadBalancerID string, eip st
 }
 
 func (qc *QingCloud) deleteLoadBalancerAndSecurityGrp(loadBalancerID string, securityGroupID *string) error {
-	glog.Infof("Starting delete loadBalancer '%s' before creating", loadBalancerID)
+	glog.Infof("Starting to delete loadBalancer '%s' before creating", loadBalancerID)
 	err := qc.deleteLoadBalancer(loadBalancerID)
 	if err != nil {
 		glog.V(1).Infof("Deleted loadBalancer '%s' error before creating: %v", loadBalancerID, err)
