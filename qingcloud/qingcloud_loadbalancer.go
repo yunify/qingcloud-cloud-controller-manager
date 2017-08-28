@@ -191,6 +191,7 @@ func (qc *QingCloud) EnsureLoadBalancer(clusterName string, service *v1.Service,
 			// check eip and vxnet
 			if hasEip {
 				if *loadBalancer.VxNetID != "" && *loadBalancer.VxNetID != "vxnet-0" {
+					glog.V(1).Infof("This LB '%s' used to assign with vxnet '%s', need to delete this lb and recreate it", *loadBalancer.LoadBalancerID, *loadBalancer.VxNetID)
 					err := qc.deleteLoadBalancerAndSecurityGrp(*loadBalancer.LoadBalancerID, loadBalancer.SecurityGroupID)
 					if err != nil {
 						glog.Error(err)
@@ -201,6 +202,10 @@ func (qc *QingCloud) EnsureLoadBalancer(clusterName string, service *v1.Service,
 				}
 
 				k8sLoadBalancerEipIds := strings.Split(lbEipIds, ",")
+				glog.V(1).Infof("Calvin -------11111---- print all k8sEip '%s'", lbEipIds)
+				for _, qyEipID := range qyEips {
+					glog.V(1).Infof("Calvin ----322222------- print all qyEip '%s'", qyEipID)
+				}
 				for _, k8sEipID := range k8sLoadBalancerEipIds {
 					if stringIndex(qyEips, k8sEipID) < 0 {
 						glog.V(1).Infof("Associate new EIP '%s' to LB '%s'", k8sEipID, *loadBalancer.LoadBalancerID)
@@ -284,6 +289,7 @@ func (qc *QingCloud) EnsureLoadBalancer(clusterName string, service *v1.Service,
 					needUpdate = true
 				}
 			}
+			break
 		}
 		if needUpdate {
 			glog.V(1).Info("Update loadbalance because of service spec change")
