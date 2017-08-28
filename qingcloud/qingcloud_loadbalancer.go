@@ -174,7 +174,7 @@ func (qc *QingCloud) EnsureLoadBalancer(clusterName string, service *v1.Service,
 			}
 			// check eip and vxnet
 			if hasEip {
-				if *loadBalancer.VxNetID != "" {
+				if *loadBalancer.VxNetID != "" && *loadBalancer.VxNetID != "vxnet-0" {
 					err := qc.deleteLoadBalancerAndSecurityGrp(*loadBalancer.LoadBalancerID, loadBalancer.SecurityGroupID)
 					if err != nil {
 						glog.Error(err)
@@ -208,19 +208,7 @@ func (qc *QingCloud) EnsureLoadBalancer(clusterName string, service *v1.Service,
 					}
 				}
 			} else if hasVxnet {
-				if len(qyEips) > 0 {
-					for _, qyEipID := range qyEips {
-						glog.V(1).Infof("dissociate EIP '%s' from LB '%s'", qyEipID, *loadBalancer.LoadBalancerID)
-						err := qc.dissociateEipFromLoadBalancer(*loadBalancer.LoadBalancerID, qyEipID)
-						if err != nil {
-							glog.Error(err)
-							return nil, err
-						}
-						needUpdate = true
-					}
-					needUpdate = true
-				}
-				if vxnetId != *loadBalancer.VxNetID {
+				if vxnetId != *loadBalancer.VxNetID || len(qyEips) > 0 {
 					err := qc.deleteLoadBalancerAndSecurityGrp(*loadBalancer.LoadBalancerID, loadBalancer.SecurityGroupID)
 					if err != nil {
 						glog.Error(err)
@@ -242,10 +230,12 @@ func (qc *QingCloud) EnsureLoadBalancer(clusterName string, service *v1.Service,
 				glog.Error(err)
 				return nil, err
 			}
-			//qyLbListenerPorts := []string{}
+			qyLbListenerPorts := []int{}
 			for _, qyLbListerner := range qyLbListeners {
-				//qyLbListenerPorts = append(qyLbListenerPorts, strconv.Itoa(*qyLbListerner.ListenerPort))
+				// sum all existing listeners' port on qingcloud
+				qyLbListenerPorts = append(qyLbListenerPorts, *qyLbListerner.ListenerPort)
 				if intIndex(k8sTCPPorts, *qyLbListerner.ListenerPort) < 0 {
+					// this listener/port is already remove from spec, so just delete it
 					err := qc.deleteLoadBalancerListener(*qyLbListerner.LoadBalancerListenerID)
 					if err != nil {
 						glog.Error(err)
@@ -253,26 +243,29 @@ func (qc *QingCloud) EnsureLoadBalancer(clusterName string, service *v1.Service,
 					}
 					needUpdate = true
 				}
-				for i, k8sPort := range k8sTCPPorts {
-					// check balance mode
-					if k8sPort == *qyLbListerner.ListenerPort {
-						if balanceMode != *qyLbListerner.BalanceMode {
-							err := qc.modifyLoadBalancerListenerAttributes(*qyLbListerner.LoadBalancerListenerID, *qyLbListerner.LoadBalancerListenerName, balanceMode)
-							if err != nil {
-								glog.Error(err)
-								return nil, err
-							}
-							needUpdate = true
-						}
-					} else {
-						_, err := qc.createLoadBalancerListenerWithBackends(*loadBalancer.LoadBalancerID, k8sPort, k8sNodePorts[i], balanceMode, instances)
+			}
+			for i, k8sPort := range k8sTCPPorts {
+				// this is the index to locate the listener on qingcloud
+				qyLbListenerPos := intIndex(qyLbListenerPorts, k8sPort)
+				if qyLbListenerPos >= 0 {
+					// so port in spec matches existing listener's port, then check if balance mode is modified in spec, if yes, modify listener's attr
+					if balanceMode != *qyLbListeners[qyLbListenerPos].BalanceMode {
+						err := qc.modifyLoadBalancerListenerAttributes(*qyLbListeners[qyLbListenerPos].LoadBalancerListenerID, *qyLbListeners[qyLbListenerPos].LoadBalancerListenerName, balanceMode)
 						if err != nil {
-							glog.Errorf("Couldn't create loadBalancerListener with backends")
 							glog.Error(err)
 							return nil, err
 						}
 						needUpdate = true
 					}
+				} else {
+					// so this is new port from spec, will create a new listener for it with backend nodes
+					_, err := qc.createLoadBalancerListenerWithBackends(*loadBalancer.LoadBalancerID, k8sPort, k8sNodePorts[i], balanceMode, instances)
+					if err != nil {
+						glog.Errorf("Couldn't create loadBalancerListener with backends")
+						glog.Error(err)
+						return nil, err
+					}
+					needUpdate = true
 				}
 			}
 		}
