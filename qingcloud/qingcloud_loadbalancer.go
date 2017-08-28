@@ -154,7 +154,7 @@ func (qc *QingCloud) EnsureLoadBalancer(clusterName string, service *v1.Service,
 	if loadBalancer != nil && *loadBalancer.Status != "ceased" {
 		// enforce the loadBalancer config
 		var needUpdate bool
-		qyEips, qyPrivateIps, err := qc.waitLoadBalancerActive(*loadBalancer.LoadBalancerID, operationWaitTimeout)
+		qyEips, qyPrivateIps, qyEipIDs, err := qc.waitLoadBalancerActive(*loadBalancer.LoadBalancerID, operationWaitTimeout)
 		if err != nil {
 			glog.Error(err)
 			return nil, err
@@ -203,11 +203,11 @@ func (qc *QingCloud) EnsureLoadBalancer(clusterName string, service *v1.Service,
 
 				k8sLoadBalancerEipIds := strings.Split(lbEipIds, ",")
 				glog.V(1).Infof("Calvin -------11111---- print all k8sEip '%s'", lbEipIds)
-				for _, qyEipID := range qyEips {
+				for _, qyEipID := range qyEipIDs {
 					glog.V(1).Infof("Calvin ----322222------- print all qyEip '%s'", qyEipID)
 				}
 				for _, k8sEipID := range k8sLoadBalancerEipIds {
-					if stringIndex(qyEips, k8sEipID) < 0 {
+					if stringIndex(qyEipIDs, k8sEipID) < 0 {
 						glog.V(1).Infof("Associate new EIP '%s' to LB '%s'", k8sEipID, *loadBalancer.LoadBalancerID)
 						err := qc.associateEipToLoadBalancer(*loadBalancer.LoadBalancerID, k8sEipID)
 						if err != nil {
@@ -217,7 +217,7 @@ func (qc *QingCloud) EnsureLoadBalancer(clusterName string, service *v1.Service,
 						needUpdate = true
 					}
 				}
-				for _, qyEipID := range qyEips {
+				for _, qyEipID := range qyEipIDs {
 					if stringIndex(k8sLoadBalancerEipIds, qyEipID) < 0 {
 						glog.V(1).Infof("dissociate EIP '%s' from LB '%s'", qyEipID, *loadBalancer.LoadBalancerID)
 						err := qc.dissociateEipFromLoadBalancer(*loadBalancer.LoadBalancerID, qyEipID)
@@ -229,7 +229,7 @@ func (qc *QingCloud) EnsureLoadBalancer(clusterName string, service *v1.Service,
 					}
 				}
 			} else if hasVxnet {
-				if vxnetId != *loadBalancer.VxNetID || len(qyEips) > 0 {
+				if vxnetId != *loadBalancer.VxNetID || len(qyEipIDs) > 0 {
 					err := qc.deleteLoadBalancerAndSecurityGrp(*loadBalancer.LoadBalancerID, loadBalancer.SecurityGroupID)
 					if err != nil {
 						glog.Error(err)
@@ -349,7 +349,7 @@ func (qc *QingCloud) EnsureLoadBalancer(clusterName string, service *v1.Service,
 			return nil, err
 		}
 	}
-	eips, privateIps, err := qc.waitLoadBalancerActive(loadBalancerID, operationWaitTimeout)
+	eips, privateIps, _, err := qc.waitLoadBalancerActive(loadBalancerID, operationWaitTimeout)
 	if err != nil {
 		glog.Error(err)
 		return nil, err
@@ -681,20 +681,22 @@ func (qc *QingCloud) updateLoadBalancer(loadBalancerID string) error {
 	return nil
 }
 
-func (qc *QingCloud) waitLoadBalancerActive(loadBalancerID string, timeout time.Duration) ([]string, []string, error) {
+func (qc *QingCloud) waitLoadBalancerActive(loadBalancerID string, timeout time.Duration) ([]string, []string, []string, error) {
 	loadBalancer, err := qcclient.WaitLoadBalancerStatus(qc.lbService, loadBalancerID, qcclient.LoadBalancerStatusActive, timeout, waitInterval)
 	if err == nil {
 		eips := []string{}
+		eipIDs := []string{}
 		privateIps := []string{}
 		for _, eip := range loadBalancer.Cluster {
+			eipIDs = append(eipIDs, *eip.EIPID)
 			eips = append(eips, *eip.EIPAddr)
 		}
 		for _, pip := range loadBalancer.PrivateIPs {
 			privateIps = append(privateIps, *pip)
 		}
-		return eips, privateIps, nil
+		return eips, privateIps, eipIDs, nil
 	}
-	return nil, nil, err
+	return nil, nil, nil, err
 }
 
 func (qc *QingCloud) waitLoadBalancerDelete(loadBalancerID string, timeout time.Duration) error {
