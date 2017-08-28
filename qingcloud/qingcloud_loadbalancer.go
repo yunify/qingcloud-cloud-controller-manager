@@ -899,7 +899,7 @@ func (qc *QingCloud) stopLoadBalancer(loadBalancerID string) error {
 	if err != nil {
 		return err
 	}
-	qcclient.WaitJob(qc.jobService, string(*output.JobID), operationWaitTimeout, waitInterval)
+	qcclient.WaitJob(qc.jobService, *output.JobID, operationWaitTimeout, waitInterval)
 	return err
 }
 
