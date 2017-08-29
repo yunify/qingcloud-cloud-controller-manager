@@ -16,6 +16,7 @@ func TestReadConfig(t *testing.T) {
 [Global]
 qyConfigPath = /etc/qingcloud/client.yaml
 zone = pek3a
+vxNetId = vxnet-umltx6a
  `))
 	if err != nil {
 		t.Fatalf("Should succeed when a valid config is provided: %s", err)
@@ -25,6 +26,9 @@ zone = pek3a
 	}
 	if cfg.Global.Zone != "pek3a" {
 		t.Errorf("incorrect zone: %s", cfg.Global.Zone)
+	}
+	if cfg.Global.VxNetId != "vxnet-umltx6a" {
+		t.Errorf("incorrect vxNetId: %s", cfg.Global.VxNetId)
 	}
 }
 
