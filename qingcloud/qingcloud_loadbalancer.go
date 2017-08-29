@@ -272,8 +272,8 @@ func (qc *QingCloud) EnsureLoadBalancer(clusterName string, service *v1.Service,
 				if qyLbListenerPos >= 0 {
 					// so port in spec matches existing listener's port, then check if balance mode is modified in spec, if yes, modify listener's attr
 					if balanceMode != *qyLbListeners[qyLbListenerPos].BalanceMode {
-						glog.V(1).Infof("Calvin ----ppppppppp------- print all mode '%d' ------ '%s'------ '%s'------ '%s'", qyLbListenerPos, *qyLbListeners[qyLbListenerPos].BalanceMode, *qyLbListeners[qyLbListenerPos].LoadBalancerID, *qyLbListeners[qyLbListenerPos].LoadBalancerListenerName)
-						err := qc.modifyLoadBalancerListenerAttributes(*qyLbListeners[qyLbListenerPos].LoadBalancerListenerID, *qyLbListeners[qyLbListenerPos].LoadBalancerListenerName, balanceMode)
+						glog.V(1).Infof("Calvin ----ppppppppp------- print all mode '%d' ------ '%s'------ '%s'------ '%s'", qyLbListenerPos, *qyLbListeners[qyLbListenerPos].BalanceMode, *qyLbListeners[qyLbListenerPos].LoadBalancerID)
+						err := qc.modifyLoadBalancerListenerAttributes(*qyLbListeners[qyLbListenerPos].LoadBalancerListenerID, balanceMode)
 						if err != nil {
 							glog.Error(err)
 							return nil, err
@@ -888,12 +888,11 @@ func (qc *QingCloud) deleteLoadBalancerListener(loadBalancerListenerID string) e
 	return nil
 }
 
-func (qc *QingCloud) modifyLoadBalancerListenerAttributes(loadBalancerListenerID string, loadBalancerListenerName string, balanceMode string) error {
+func (qc *QingCloud) modifyLoadBalancerListenerAttributes(loadBalancerListenerID string, balanceMode string) error {
 	glog.Infof("Modifying balanceMode of LoadBalancerTCPListener :'%s'", loadBalancerListenerID)
 	output, err := qc.lbService.ModifyLoadBalancerListenerAttributes(&qcservice.ModifyLoadBalancerListenerAttributesInput{
-		LoadBalancerListener:     &loadBalancerListenerID,
-		LoadBalancerListenerName: &loadBalancerListenerName,
-		BalanceMode:              &balanceMode,
+		LoadBalancerListener: &loadBalancerListenerID,
+		BalanceMode:          &balanceMode,
 	})
 	if err != nil {
 		return err
