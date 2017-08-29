@@ -16,10 +16,10 @@ import (
 	"github.com/golang/glog"
 	qcclient "github.com/yunify/qingcloud-sdk-go/client"
 	qcservice "github.com/yunify/qingcloud-sdk-go/service"
-	"k8s.io/kubernetes/pkg/cloudprovider"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/kubernetes/pkg/api/v1"
+	"k8s.io/kubernetes/pkg/cloudprovider"
 )
 
 const (
@@ -41,6 +41,8 @@ const (
 	// value "1" means the LB can max support 20000 concurrency connections.
 	// value "2" means the LB can max support 40000 concurrency connections.
 	// value "3" means the LB can max support 100000 concurrency connections.
+	// value "4" means the LB can max support 200000 concurrency connections.
+	// value "5" means the LB can max support 500000 concurrency connections.
 	ServiceAnnotationLoadBalancerType = "service.beta.kubernetes.io/qingcloud-load-balancer-type"
 )
 
@@ -92,58 +94,41 @@ func (qc *QingCloud) GetLoadBalancer(clusterName string, service *v1.Service) (s
 // 1. create a qingcloud loadBalancer;
 // 2. create listeners for the new loadBalancer, number of listeners = number of service ports;
 // 3. add backends to the new loadBalancer.
+// will update this LB for below cases, otherwise, deleting existing one and recreate it
+// 1. LB type is changed
+// 2. balance mode is changed
+// 3. previously use eip and now still use another eip
+// 4. ports is different with previous setting, this will just bring changes on listeners
 func (qc *QingCloud) EnsureLoadBalancer(clusterName string, service *v1.Service, nodes []*v1.Node) (*v1.LoadBalancerStatus, error) {
 	glog.V(3).Infof("EnsureLoadBalancer(%v, %v, %v)", clusterName, service, nodes)
 
 	tcpPortNum := 0
+	k8sTCPPorts := []int{}
+	k8sNodePorts := []int{}
 	for _, port := range service.Spec.Ports {
 		if port.Protocol == v1.ProtocolUDP {
 			glog.Warningf("qingcloud not support udp port, skip [%v]", port.Port)
 		} else {
+			k8sTCPPorts = append(k8sTCPPorts, int(port.Port))
+			k8sNodePorts = append(k8sNodePorts, int(port.NodePort))
 			tcpPortNum++
 		}
 	}
 	if tcpPortNum == 0 {
 		return nil, fmt.Errorf("requested load balancer with no tcp ports")
 	}
-
+	if len(nodes) == 0 {
+		return nil, fmt.Errorf("requested load balancer with empty nodes")
+	}
 	// QingCloud does not support user-specified ip addr for LB. We just
 	// print some log and ignore the public ip.
 	if service.Spec.LoadBalancerIP != "" {
 		glog.Warningf("Public IP[%v] cannot be specified for qingcloud LB", service.Spec.LoadBalancerIP)
 	}
 
-	loadBalancerName := qc.getQingCloudLoadBalancerName(service)
-
-	glog.V(2).Infof("Checking if qingcloud load balancer already exists: %s", loadBalancerName)
-	loadBalancer, err := qc.getLoadBalancerByName(loadBalancerName)
-	if err != nil {
-		return nil, fmt.Errorf("Error checking if qingcloud load balancer already exists: %v", err)
-	}
-
-	// TODO: Implement a more efficient update strategy for common changes than delete & create
-	// In particular, if we implement nodes update, we can get rid of UpdateHosts
-	if loadBalancer != nil {
-		if err = qc.deleteLoadBalancer(*loadBalancer.LoadBalancerID); err != nil {
-			glog.V(1).Infof("Deleted loadBalancer '%s' error before creating: %v", loadBalancerName, err)
-			return nil, err
-		}
-
-		glog.V(2).Infof("Starting delete loadBalancer '%s' before creating", loadBalancerName)
-		err = qc.waitLoadBalancerDelete(*loadBalancer.LoadBalancerID, operationWaitTimeout)
-		if err != nil {
-			glog.Error(err)
-			return nil, err
-		}
-		err = qc.DeleteSecurityGroup(loadBalancer.SecurityGroupID)
-		if err != nil {
-			glog.Errorf("Delete SecurityGroup '%s' err '%s' ", *loadBalancer.SecurityGroupID, err)
-		}
-		glog.V(2).Infof("Done, deleted loadBalancer '%s'", loadBalancerName)
-	}
-
+	// get lb properties from k8s service spec
 	lbType := service.Annotations[ServiceAnnotationLoadBalancerType]
-	if lbType != "0" && lbType != "1" && lbType != "2" && lbType != "3" {
+	if lbType != "0" && lbType != "1" && lbType != "2" && lbType != "3" && lbType != "4" && lbType != "5" {
 		lbType = "0"
 	}
 	loadBalancerType, _ := strconv.Atoi(lbType)
@@ -151,6 +136,200 @@ func (qc *QingCloud) EnsureLoadBalancer(clusterName string, service *v1.Service,
 	lbEipIds, hasEip := service.Annotations[ServiceAnnotationLoadBalancerEipIds]
 	vxnetId, hasVxnet := service.Annotations[ServiceAnnotationLoadBalancerVxnetId]
 
+	balanceMode := "roundrobin"
+	if service.Spec.SessionAffinity == v1.ServiceAffinityClientIP {
+		balanceMode = "source"
+	}
+
+	loadBalancerName := qc.getQingCloudLoadBalancerName(service)
+
+	instances := []string{}
+	for _, node := range nodes {
+		instances = append(instances, NodeNameToInstanceID(types.NodeName(node.Name)))
+	}
+
+	glog.V(2).Infof("Checking if qingcloud load balancer already exists: %s", loadBalancerName)
+	loadBalancer, err := qc.getLoadBalancerByName(loadBalancerName)
+	if err != nil {
+		return nil, fmt.Errorf("Error checking if qingcloud load balancer already exists: %v", err)
+	}
+
+	if loadBalancer != nil && *loadBalancer.Status != qcclient.LoadBalancerStatusCeased {
+		glog.V(1).Infof("LB '%s' is existed in this k8s cluster, will compare any attribute from service spec is changed, if yes, will only update this LB ", *loadBalancer.LoadBalancerID)
+		// enforce the loadBalancer config
+		var needUpdate bool
+		qyEips, qyPrivateIps, qyEipIDs, err := qc.waitLoadBalancerActive(*loadBalancer.LoadBalancerID, operationWaitTimeout)
+		if err != nil {
+			glog.Error(err)
+			return nil, err
+		}
+		sum := 0
+		for {
+			sum++
+			if !hasEip && !hasVxnet {
+				glog.V(1).Infof("No eip or vxnet is specified for this LB '%s', will delete it and create a new one with default vxnet, which is configed in qingcloud.config file", *loadBalancer.LoadBalancerID)
+				err := qc.deleteLoadBalancerAndSecurityGrp(*loadBalancer.LoadBalancerID, loadBalancer.SecurityGroupID)
+				if err != nil {
+					glog.Error(err)
+					return nil, err
+				}
+				needUpdate = false
+				break
+			}
+			// check lb type, if changing lb type to smaller value, qingcloud require to stop LB and then apply change.
+			if loadBalancerType != *loadBalancer.LoadBalancerType {
+				if loadBalancerType < *loadBalancer.LoadBalancerType {
+					glog.V(1).Infof("Stop lb at first before resizing it because current lb type '%d' is bigger with the one in k8s servie spec '%d', ", *loadBalancer.LoadBalancerType, loadBalancerType)
+					err := qc.stopLoadBalancer(*loadBalancer.LoadBalancerID)
+					if err != nil {
+						glog.Error(err)
+						return nil, err
+					}
+				}
+				glog.V(1).Infof("Resize lb type because current lb type '%d' is different with the one in k8s servie spec '%d'", *loadBalancer.LoadBalancerType, loadBalancerType)
+				err := qc.resizeLoadBalancer(*loadBalancer.LoadBalancerID, loadBalancerType)
+				if err != nil {
+					glog.Error(err)
+					return nil, err
+				}
+				needUpdate = true
+				if loadBalancerType < *loadBalancer.LoadBalancerType {
+					glog.V(1).Infof("Start lb now after resizing it to take effect because previous lb type '%d' is bigger with the one in k8s servie spec '%d', ", *loadBalancer.LoadBalancerType, loadBalancerType)
+					err := qc.startLoadBalancer(*loadBalancer.LoadBalancerID)
+					if err != nil {
+						glog.Error(err)
+						return nil, err
+					}
+				}
+			}
+			// check eip and vxnet
+			// if eip is assigned in spec, will check if current lb was previously assigned with vxnet, if yes, delete this LB and recreate it later, otherwise, just dissociate old eip and assiciate new one
+			// if vxnet is asigned i spec, and difference with previous setting, just delete this LB and recreate it later
+			if hasEip {
+				if *loadBalancer.VxNetID != "" && *loadBalancer.VxNetID != "vxnet-0" {
+					glog.V(1).Infof("This LB '%s' used to be assigned with vxnet '%s', need to delete this lb and recreate it", *loadBalancer.LoadBalancerID, *loadBalancer.VxNetID)
+					err := qc.deleteLoadBalancerAndSecurityGrp(*loadBalancer.LoadBalancerID, loadBalancer.SecurityGroupID)
+					if err != nil {
+						glog.Error(err)
+						return nil, err
+					}
+					needUpdate = false
+					break
+				}
+
+				k8sLoadBalancerEipIds := strings.Split(lbEipIds, ",")
+				for _, k8sEipID := range k8sLoadBalancerEipIds {
+					if stringIndex(qyEipIDs, k8sEipID) < 0 {
+						glog.V(1).Infof("Associate new EIP '%s' to LB '%s'", k8sEipID, *loadBalancer.LoadBalancerID)
+						err := qc.associateEipToLoadBalancer(*loadBalancer.LoadBalancerID, k8sEipID)
+						if err != nil {
+							glog.Error(err)
+							return nil, err
+						}
+						needUpdate = true
+					}
+				}
+				for _, qyEipID := range qyEipIDs {
+					if stringIndex(k8sLoadBalancerEipIds, qyEipID) < 0 {
+						glog.V(1).Infof("dissociate EIP '%s' from LB '%s'", qyEipID, *loadBalancer.LoadBalancerID)
+						err := qc.dissociateEipFromLoadBalancer(*loadBalancer.LoadBalancerID, qyEipID)
+						if err != nil {
+							glog.Error(err)
+							return nil, err
+						}
+						needUpdate = true
+					}
+				}
+			} else if hasVxnet {
+				if vxnetId != *loadBalancer.VxNetID || len(qyEipIDs) > 0 {
+					glog.V(1).Infof("Delete this LB '%s' because vxnet in service spec is different with previous setting, will recreate this LB later", *loadBalancer.LoadBalancerID)
+					err := qc.deleteLoadBalancerAndSecurityGrp(*loadBalancer.LoadBalancerID, loadBalancer.SecurityGroupID)
+					if err != nil {
+						glog.Error(err)
+						return nil, err
+					}
+					needUpdate = false
+					break
+				}
+			}
+			// check lisener: balance mode and port, add/update/delete listener
+			qyLbListeners, err := qc.getLoadBalancerListeners(*loadBalancer.LoadBalancerID)
+			if err != nil {
+				glog.Error(err)
+				return nil, err
+			}
+			if len(qyLbListeners) == 0 {
+				err := fmt.Errorf("No listners under this load balancer '%s'", *loadBalancer.LoadBalancerID)
+				glog.Error(err)
+				return nil, err
+			}
+			qyLbListenerPorts := []int{}
+			for _, qyLbListerner := range qyLbListeners {
+				// sum all existing listeners' port on qingcloud
+				qyLbListenerPorts = append(qyLbListenerPorts, *qyLbListerner.ListenerPort)
+				if intIndex(k8sTCPPorts, *qyLbListerner.ListenerPort) < 0 {
+					// this listener/port is already remove from spec, so just delete it
+					glog.V(1).Infof("This LB listener '%s' is not available any more for this LB, so just delete it", *qyLbListerner.LoadBalancerListenerID)
+					err := qc.deleteLoadBalancerListener(*qyLbListerner.LoadBalancerListenerID)
+					if err != nil {
+						glog.Error(err)
+						return nil, err
+					}
+					needUpdate = true
+				}
+			}
+			for i, k8sPort := range k8sTCPPorts {
+				// this is the index to locate the listener on qingcloud
+				qyLbListenerPos := intIndex(qyLbListenerPorts, k8sPort)
+				if qyLbListenerPos >= 0 {
+					// so port in spec matches existing listener's port, then check if balance mode is modified in spec, if yes, modify listener's attr
+					if balanceMode != *qyLbListeners[qyLbListenerPos].BalanceMode {
+						glog.V(1).Infof("Update this LB listener because balanceMode is changed")
+						err := qc.modifyLoadBalancerListenerAttributes(*qyLbListeners[qyLbListenerPos].LoadBalancerListenerID, balanceMode)
+						if err != nil {
+							glog.Error(err)
+							return nil, err
+						}
+						needUpdate = true
+					}
+				} else {
+					// so this is new port from spec, will create a new listener for it with backend nodes
+					glog.V(1).Infof("Create new LB listener because this port '%d' is newly added in service spec", k8sPort)
+					_, err := qc.createLoadBalancerListenerWithBackends(*loadBalancer.LoadBalancerID, k8sPort, k8sNodePorts[i], balanceMode, instances)
+					if err != nil {
+						glog.Errorf("Couldn't create loadBalancerListener with backends")
+						glog.Error(err)
+						return nil, err
+					}
+					needUpdate = true
+				}
+			}
+			break
+		}
+		if needUpdate {
+			glog.V(1).Info("Update loadbalance because of service spec change")
+			err = qc.updateLoadBalancer(*loadBalancer.LoadBalancerID)
+			if err != nil {
+				glog.Errorf("Couldn't update loadBalancer '%s'", *loadBalancer.LoadBalancerID)
+				return nil, err
+			}
+
+			status := &v1.LoadBalancerStatus{}
+			if hasEip {
+				for _, ip := range qyEips {
+					status.Ingress = append(status.Ingress, v1.LoadBalancerIngress{IP: ip})
+				}
+			} else {
+				for _, ip := range qyPrivateIps {
+					status.Ingress = append(status.Ingress, v1.LoadBalancerIngress{IP: ip})
+				}
+			}
+			glog.Infof("Start loadBalancer '%v', ingress ip '%v'", loadBalancerName, status.Ingress)
+
+			return status, nil
+		}
+	}
+	glog.Infof("Create loadBalancer '%s' in zone '%s'", loadBalancerName, qc.zone)
 	var loadBalancerID string
 	if hasEip {
 		if hasVxnet {
@@ -171,64 +350,34 @@ func (qc *QingCloud) EnsureLoadBalancer(clusterName string, service *v1.Service,
 			return nil, err
 		}
 	} else {
-		err := fmt.Errorf("Both ServiceAnnotationLoadBalancerVxnetId and ServiceAnnotationLoadBalancerEipIds are not set. Please set only one of them")
-		glog.Error(err)
-		return nil, err
-	}
-
-	glog.Infof("Create loadBalancer '%s' in zone '%s'", loadBalancerName, qc.zone)
-
-	balanceMode := "roundrobin"
-	if service.Spec.SessionAffinity == v1.ServiceAffinityClientIP {
-		balanceMode = "source"
-	}
-
-	instances := []string{}
-	for _, node := range nodes {
-		instances = append(instances, NodeNameToInstanceID(types.NodeName(node.Name)))
-	}
-
-	// For every port(qingcloud only support tcp), we need a listener.
-	for _, port := range service.Spec.Ports {
-		if port.Protocol == v1.ProtocolUDP {
-			continue
-		}
-
-		glog.V(3).Infof("Create a listener for tcp port: %v", port)
-
-		listenerID, err := qc.addLoadBalancerListener(loadBalancerID, int(port.Port), balanceMode)
-		if err != nil {
-			glog.Errorf("Error create loadBalancer TCP listener (LoadBalancerId:'%s', Port: '%v'): %v", loadBalancerID, port, err)
-			return nil, err
-		}
-		glog.Infof("Created LoadBalancerTCPListener (LoadBalancerId:'%s', Port: '%v')", loadBalancerID, port)
-
-		backends := make([]*qcservice.LoadBalancerBackend, len(instances))
-		for i, instance := range instances {
-			//copy for get address.
-			instanceID := instance
-			backends[i] = &qcservice.LoadBalancerBackend{
-				ResourceID:              &instanceID,
-				LoadBalancerBackendName: &instanceID,
-				Port: qcservice.Int(int(port.NodePort)),
-			}
-		}
-		if len(backends) > 0 {
-			err = qc.addLoadBalancerBackends(listenerID, backends)
+		// use vxnetId of k8s cluster to create new load balancer because no eip or vxnet is specified in service spec
+		if qc.vxNetId != "" {
+			glog.Infof("As no other load balancer properties specified but set vxnet id in qingcloud.config, just create loadBalancer '%s' in zone '%s' with vxnetid '%s", loadBalancerName, qc.zone, qc.vxNetId)
+			loadBalancerID, err = qc.createLoadBalancerWithVxnet(loadBalancerName, loadBalancerType, qc.vxNetId)
 			if err != nil {
-				glog.Errorf("Couldn't add backend servers '%v' to loadBalancer '%v': %v", instances, loadBalancerName, err)
+				glog.Errorf("Error creating loadBalancer '%s': %v", loadBalancerName, err)
 				return nil, err
 			}
-			glog.V(3).Infof("Added backend servers '%v' to loadBalancer '%s'", instances, loadBalancerName)
+		} else {
+			err := fmt.Errorf("Both ServiceAnnotationLoadBalancerVxnetId and ServiceAnnotationLoadBalancerEipIds are not set. Please set only one of them")
+			glog.Error(err)
+			return nil, err
 		}
 	}
-
-	eips,privateIps, err := qc.waitLoadBalancerActive(loadBalancerID, operationWaitTimeout)
+	eips, privateIps, _, err := qc.waitLoadBalancerActive(loadBalancerID, operationWaitTimeout)
 	if err != nil {
 		glog.Error(err)
 		return nil, err
 	}
-
+	// For every port(qingcloud only support tcp), we need a listener.
+	for i, port := range k8sTCPPorts {
+		_, err := qc.createLoadBalancerListenerWithBackends(loadBalancerID, port, k8sNodePorts[i], balanceMode, instances)
+		if err != nil {
+			glog.Errorf("Couldn't create loadBalancerListener with backends")
+			glog.Error(err)
+			return nil, err
+		}
+	}
 	// enforce the loadBalancer config
 	err = qc.updateLoadBalancer(loadBalancerID)
 	if err != nil {
@@ -241,7 +390,7 @@ func (qc *QingCloud) EnsureLoadBalancer(clusterName string, service *v1.Service,
 		for _, ip := range eips {
 			status.Ingress = append(status.Ingress, v1.LoadBalancerIngress{IP: ip})
 		}
-	}else{
+	} else {
 		for _, ip := range privateIps {
 			status.Ingress = append(status.Ingress, v1.LoadBalancerIngress{IP: ip})
 		}
@@ -472,7 +621,7 @@ func (qc *QingCloud) addLoadBalancerListener(loadBalancerID string, listenerPort
 }
 
 func (qc *QingCloud) getLoadBalancerByName(name string) (*qcservice.LoadBalancer, error) {
-	status := []*string{qcservice.String("pending"), qcservice.String("active"), qcservice.String("stopped")}
+	status := []*string{qcservice.String("pending"), qcservice.String("active"), qcservice.String("stopped"), qcservice.String("ceased")}
 	output, err := qc.lbService.DescribeLoadBalancers(&qcservice.DescribeLoadBalancersInput{
 		Status:     status,
 		SearchWord: &name,
@@ -547,20 +696,22 @@ func (qc *QingCloud) updateLoadBalancer(loadBalancerID string) error {
 	return nil
 }
 
-func (qc *QingCloud) waitLoadBalancerActive(loadBalancerID string, timeout time.Duration) ([]string,[]string, error) {
+func (qc *QingCloud) waitLoadBalancerActive(loadBalancerID string, timeout time.Duration) ([]string, []string, []string, error) {
 	loadBalancer, err := qcclient.WaitLoadBalancerStatus(qc.lbService, loadBalancerID, qcclient.LoadBalancerStatusActive, timeout, waitInterval)
 	if err == nil {
 		eips := []string{}
+		eipIDs := []string{}
 		privateIps := []string{}
 		for _, eip := range loadBalancer.Cluster {
+			eipIDs = append(eipIDs, *eip.EIPID)
 			eips = append(eips, *eip.EIPAddr)
 		}
 		for _, pip := range loadBalancer.PrivateIPs {
 			privateIps = append(privateIps, *pip)
 		}
-		return eips,privateIps, nil
+		return eips, privateIps, eipIDs, nil
 	}
-	return nil,nil, err
+	return nil, nil, nil, err
 }
 
 func (qc *QingCloud) waitLoadBalancerDelete(loadBalancerID string, timeout time.Duration) error {
@@ -620,7 +771,7 @@ func (qc *QingCloud) createSecurityGroup(sgName *string, rules []*qcservice.Secu
 	if err != nil {
 		return sg, err
 	}
-	qc.securityGroupService.ApplySecurityGroup(&qcservice.ApplySecurityGroupInput{SecurityGroup:sg.SecurityGroupID})
+	qc.securityGroupService.ApplySecurityGroup(&qcservice.ApplySecurityGroupInput{SecurityGroup: sg.SecurityGroupID})
 	return sg, nil
 }
 
@@ -642,3 +793,148 @@ func (qc *QingCloud) DeleteSecurityGroup(sgID *string) error {
 	}
 	return nil
 }
+
+func (qc *QingCloud) createLoadBalancerListenerWithBackends(loadBalancerID string, port int, nodePort int, balanceMode string, instances []string) (string, error) {
+	listenerID, err := qc.addLoadBalancerListener(loadBalancerID, port, balanceMode)
+
+	if err != nil || listenerID == "" {
+		glog.Errorf("Error create loadBalancer TCP listener (LoadBalancerId:'%s', Port: '%v'): %v", loadBalancerID, port, err)
+		return "", err
+	}
+	glog.Infof("Created LoadBalancerTCPListener (LoadBalancerId:'%s', Port: '%v', listenerID: '%s')", loadBalancerID, port, listenerID)
+
+	backends := make([]*qcservice.LoadBalancerBackend, len(instances))
+	for j, instance := range instances {
+		//copy for get address.
+		instanceID := instance
+		backends[j] = &qcservice.LoadBalancerBackend{
+			ResourceID:              &instanceID,
+			LoadBalancerBackendName: &instanceID,
+			Port: qcservice.Int(int(nodePort)),
+		}
+	}
+	if len(backends) > 0 {
+		err = qc.addLoadBalancerBackends(listenerID, backends)
+		if err != nil {
+			glog.Errorf("Couldn't add backend servers '%v' to loadBalancer with id '%v': %v", instances, loadBalancerID, err)
+			return "", err
+		}
+		glog.V(3).Infof("Added backend servers '%v' to loadBalancer with id '%s'", instances, loadBalancerID)
+	}
+
+	return listenerID, nil
+}
+
+func (qc *QingCloud) resizeLoadBalancer(loadBalancerID string, loadBalancerType int) error {
+	glog.V(2).Infof("Starting to resize loadBalancer '%s'", loadBalancerID)
+	output, err := qc.lbService.ResizeLoadBalancers(&qcservice.ResizeLoadBalancersInput{
+		LoadBalancerType: &loadBalancerType,
+		LoadBalancers:    []*string{qcservice.String(loadBalancerID)},
+	})
+	if err != nil {
+		return err
+	}
+	qcclient.WaitJob(qc.jobService, *output.JobID, operationWaitTimeout, waitInterval)
+	return err
+}
+
+func (qc *QingCloud) associateEipToLoadBalancer(loadBalancerID string, eip string) error {
+	glog.V(2).Infof("Starting to associate Eip %s to loadBalancer '%s'", eip, loadBalancerID)
+	output, err := qc.lbService.AssociateEIPsToLoadBalancer(&qcservice.AssociateEIPsToLoadBalancerInput{
+		EIPs:         []*string{qcservice.String(eip)},
+		LoadBalancer: &loadBalancerID,
+	})
+	if err != nil {
+		return err
+	}
+	qcclient.WaitJob(qc.jobService, *output.JobID, operationWaitTimeout, waitInterval)
+	return err
+}
+func (qc *QingCloud) dissociateEipFromLoadBalancer(loadBalancerID string, eip string) error {
+	glog.V(2).Infof("Starting to dissociate Eip %s from loadBalancer '%s'", eip, loadBalancerID)
+	output, err := qc.lbService.DissociateEIPsFromLoadBalancer(&qcservice.DissociateEIPsFromLoadBalancerInput{
+		EIPs:         []*string{qcservice.String(eip)},
+		LoadBalancer: &loadBalancerID,
+	})
+	if err != nil {
+		return err
+	}
+	qcclient.WaitJob(qc.jobService, *output.JobID, operationWaitTimeout, waitInterval)
+	return err
+}
+
+func (qc *QingCloud) deleteLoadBalancerAndSecurityGrp(loadBalancerID string, securityGroupID *string) error {
+	glog.Infof("Starting to delete loadBalancer '%s' before creating", loadBalancerID)
+	err := qc.deleteLoadBalancer(loadBalancerID)
+	if err != nil {
+		glog.V(1).Infof("Deleted loadBalancer '%s' error before creating: %v", loadBalancerID, err)
+		return err
+	}
+	err = qc.waitLoadBalancerDelete(loadBalancerID, operationWaitTimeout)
+	if err != nil {
+		glog.Error(err)
+		return err
+	}
+	err = qc.DeleteSecurityGroup(securityGroupID)
+	if err != nil {
+		glog.Errorf("Delete SecurityGroup '%v' err '%s' ", &securityGroupID, err)
+	}
+	glog.Infof("Done, deleted loadBalancer '%s'", loadBalancerID)
+	return nil
+}
+
+func (qc *QingCloud) deleteLoadBalancerListener(loadBalancerListenerID string) error {
+	glog.Infof("Deleting LoadBalancerTCPListener :'%s'", loadBalancerListenerID)
+	output, err := qc.lbService.DeleteLoadBalancerListeners(&qcservice.DeleteLoadBalancerListenersInput{
+		LoadBalancerListeners: []*string{qcservice.String(loadBalancerListenerID)},
+	})
+	if err != nil {
+		return err
+	}
+	if *output.RetCode != 0 {
+		err := fmt.Errorf("Fail to delete loadbalancer lisener '%s' because of '%s'", loadBalancerListenerID, *output.Message)
+		return err
+	}
+	return nil
+}
+
+func (qc *QingCloud) modifyLoadBalancerListenerAttributes(loadBalancerListenerID string, balanceMode string) error {
+	glog.Infof("Modifying balanceMode of LoadBalancerTCPListener :'%s'", loadBalancerListenerID)
+	output, err := qc.lbService.ModifyLoadBalancerListenerAttributes(&qcservice.ModifyLoadBalancerListenerAttributesInput{
+		LoadBalancerListener: &loadBalancerListenerID,
+		BalanceMode:          &balanceMode,
+	})
+	if err != nil {
+		return err
+	}
+	if *output.RetCode != 0 {
+		err := fmt.Errorf("Fail to modify balanceMode of loadbalancer lisener '%s' because of '%s'", loadBalancerListenerID, *output.Message)
+		return err
+	}
+	return nil
+}
+func (qc *QingCloud) stopLoadBalancer(loadBalancerID string) error {
+	glog.V(2).Infof("Stopping loadBalancer '%s'", loadBalancerID)
+	output, err := qc.lbService.StopLoadBalancers(&qcservice.StopLoadBalancersInput{
+		LoadBalancers: []*string{qcservice.String(loadBalancerID)},
+	})
+	if err != nil {
+		return err
+	}
+	qcclient.WaitJob(qc.jobService, *output.JobID, operationWaitTimeout, waitInterval)
+	return err
+}
+
+func (qc *QingCloud) startLoadBalancer(loadBalancerID string) error {
+	glog.V(2).Infof("Starting loadBalancer '%s'", loadBalancerID)
+	output, err := qc.lbService.StartLoadBalancers(&qcservice.StartLoadBalancersInput{
+		LoadBalancers: []*string{qcservice.String(loadBalancerID)},
+	})
+	if err != nil {
+		return err
+	}
+	qcclient.WaitJob(qc.jobService, *output.JobID, operationWaitTimeout, waitInterval)
+	return err
+}
+
+//ModifyLoadBalancerListenerAttributes

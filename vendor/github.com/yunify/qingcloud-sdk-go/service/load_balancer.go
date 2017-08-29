@@ -1709,12 +1709,12 @@ func (s *LoadBalancerService) StopLoadBalancers(i *StopLoadBalancersInput) (*Sto
 }
 
 type StopLoadBalancersInput struct {
-	LoadBalancers *string `json:"loadbalancers" name:"loadbalancers" location:"params"` // Required
+	LoadBalancers []*string `json:"loadbalancers" name:"loadbalancers" location:"params"` // Required
 }
 
 func (v *StopLoadBalancersInput) Validate() error {
 
-	if v.LoadBalancers == nil {
+	if len(v.LoadBalancers) == 0 {
 		return errors.ParameterRequiredError{
 			ParameterName: "LoadBalancers",
 			ParentName:    "StopLoadBalancersInput",
@@ -1727,7 +1727,7 @@ func (v *StopLoadBalancersInput) Validate() error {
 type StopLoadBalancersOutput struct {
 	Message *string `json:"message" name:"message"`
 	Action  *string `json:"action" name:"action" location:"elements"`
-	JobID   *int    `json:"job_id" name:"job_id" location:"elements"`
+	JobID   *string `json:"job_id" name:"job_id" location:"elements"`
 	RetCode *int    `json:"ret_code" name:"ret_code" location:"elements"`
 }
 

@@ -4,16 +4,17 @@ package qingcloud
 // and must pay attention to your account resource quota limit.
 
 import (
-"fmt"
-"io"
+	"fmt"
+	"io"
 
-"gopkg.in/gcfg.v1"
+	"gopkg.in/gcfg.v1"
 
-"github.com/golang/glog"
-qcconfig "github.com/yunify/qingcloud-sdk-go/config"
-qcservice "github.com/yunify/qingcloud-sdk-go/service"
-"k8s.io/kubernetes/pkg/cloudprovider"
-"io/ioutil"
+	"io/ioutil"
+
+	"github.com/golang/glog"
+	qcconfig "github.com/yunify/qingcloud-sdk-go/config"
+	qcservice "github.com/yunify/qingcloud-sdk-go/service"
+	"k8s.io/kubernetes/pkg/cloudprovider"
 	"k8s.io/kubernetes/pkg/controller"
 )
 
@@ -23,8 +24,9 @@ const (
 
 type Config struct {
 	Global struct {
-		QYConfigPath    string `gcfg:"qyConfigPath"`
-		Zone			string `gcfg:"zone"`
+		QYConfigPath string `gcfg:"qyConfigPath"`
+		Zone         string `gcfg:"zone"`
+		VxNetId      string `gcfg:"vxNetId"`
 	}
 }
 
@@ -38,6 +40,7 @@ type QingCloud struct {
 	securityGroupService *qcservice.SecurityGroupService
 	zone                 string
 	selfInstance         *qcservice.Instance
+	vxNetId              string
 }
 
 func init() {
@@ -103,6 +106,7 @@ func newQingCloud(config Config) (cloudprovider.Interface, error) {
 		jobService:           jobService,
 		securityGroupService: securityGroupService,
 		zone:                 config.Global.Zone,
+		vxNetId:              config.Global.VxNetId,
 	}
 	host, err := getHostname()
 	if err != nil {
@@ -132,7 +136,7 @@ func (qc *QingCloud) Instances() (cloudprovider.Instances, bool) {
 	return qc, true
 }
 
-func (qc *QingCloud) Initialize(clientBuilder controller.ControllerClientBuilder){
+func (qc *QingCloud) Initialize(clientBuilder controller.ControllerClientBuilder) {
 
 }
 
