@@ -163,6 +163,16 @@ func (qc *QingCloud) EnsureLoadBalancer(clusterName string, service *v1.Service,
 		sum := 0
 		for {
 			sum++
+			if !hasEip && !hasVxnet {
+				glog.V(1).Infof("No eip or vxnet is specified for this LB '%s', will delete it and create a new one with default vxnet, which is configed in qingcloud.config file", *loadBalancer.LoadBalancerID)
+				err := qc.deleteLoadBalancerAndSecurityGrp(*loadBalancer.LoadBalancerID, loadBalancer.SecurityGroupID)
+				if err != nil {
+					glog.Error(err)
+					return nil, err
+				}
+				needUpdate = false
+				break
+			}
 			// check lb type
 			if loadBalancerType != *loadBalancer.LoadBalancerType {
 				if loadBalancerType < *loadBalancer.LoadBalancerType {
