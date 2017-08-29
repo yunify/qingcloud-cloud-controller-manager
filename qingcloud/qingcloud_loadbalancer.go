@@ -154,7 +154,7 @@ func (qc *QingCloud) EnsureLoadBalancer(clusterName string, service *v1.Service,
 		return nil, fmt.Errorf("Error checking if qingcloud load balancer already exists: %v", err)
 	}
 
-	if loadBalancer != nil && *loadBalancer.Status != "ceased" {
+	if loadBalancer != nil && *loadBalancer.Status != qcclient.LoadBalancerStatusCeased {
 		glog.V(1).Infof("LB '%s' is existed in this k8s cluster, will compare any attribute from service spec is changed, if yes, will only update this LB ", *loadBalancer.LoadBalancerID)
 		// enforce the loadBalancer config
 		var needUpdate bool
