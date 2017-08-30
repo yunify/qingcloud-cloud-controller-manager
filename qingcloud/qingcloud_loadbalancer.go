@@ -284,7 +284,10 @@ func (qc *QingCloud) EnsureLoadBalancer(clusterName string, service *v1.Service,
 			return nil, err
 		}
 	}
-	// enforce the loadBalancer config
+	loadBalancer, err = qc.getLoadBalancerByName(loadBalancerName)
+	if err != nil {
+		return nil, fmt.Errorf("Error getting lb object after recreating it: %v", err)
+	}
 	status, err := qc.updateLoadBalancer(loadBalancer)
 	if err != nil {
 		glog.Errorf("Couldn't update loadBalancer '%v'", loadBalancerID)
