@@ -24,9 +24,9 @@ const (
 
 type Config struct {
 	Global struct {
-		QYConfigPath string `gcfg:"qyConfigPath"`
-		Zone         string `gcfg:"zone"`
-		VxNetId      string `gcfg:"vxNetId"`
+		QYConfigPath      string `gcfg:"qyConfigPath"`
+		Zone              string `gcfg:"zone"`
+		DefaultVxNetForLB string `gcfg:"defaultVxNetForLB"`
 	}
 }
 
@@ -40,7 +40,7 @@ type QingCloud struct {
 	securityGroupService *qcservice.SecurityGroupService
 	zone                 string
 	selfInstance         *qcservice.Instance
-	vxNetId              string
+	defaultVxNetForLB    string
 }
 
 func init() {
@@ -106,7 +106,7 @@ func newQingCloud(config Config) (cloudprovider.Interface, error) {
 		jobService:           jobService,
 		securityGroupService: securityGroupService,
 		zone:                 config.Global.Zone,
-		vxNetId:              config.Global.VxNetId,
+		defaultVxNetForLB:    config.Global.DefaultVxNetForLB,
 	}
 	host, err := getHostname()
 	if err != nil {

@@ -1,9 +1,19 @@
 package qingcloud
 
 import (
+	"fmt"
 	"strings"
 	"testing"
+
+	//"k8s.io/client-go/pkg/api"
 	//"github.com/stretchr/testify/assert"
+	"bytes"
+	"encoding/json"
+
+	qcservice "github.com/yunify/qingcloud-sdk-go/service"
+	machineryv1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"k8s.io/kubernetes/pkg/api/v1"
 )
 
 func TestReadConfig(t *testing.T) {
@@ -16,7 +26,7 @@ func TestReadConfig(t *testing.T) {
 [Global]
 qyConfigPath = /etc/qingcloud/client.yaml
 zone = pek3a
-vxNetId = vxnet-umltx6a
+defaultVxNetForLB = vxnet-umltx6a
  `))
 	if err != nil {
 		t.Fatalf("Should succeed when a valid config is provided: %s", err)
@@ -27,8 +37,8 @@ vxNetId = vxnet-umltx6a
 	if cfg.Global.Zone != "pek3a" {
 		t.Errorf("incorrect zone: %s", cfg.Global.Zone)
 	}
-	if cfg.Global.VxNetId != "vxnet-umltx6a" {
-		t.Errorf("incorrect vxNetId: %s", cfg.Global.VxNetId)
+	if cfg.Global.DefaultVxNetForLB != "vxnet-umltx6a" {
+		t.Errorf("incorrect defaultVxNetForLB: %s", cfg.Global.DefaultVxNetForLB)
 	}
 }
 
@@ -48,6 +58,173 @@ func TestZones(t *testing.T) {
 	if zone.Region != qc.zone {
 		t.Fatalf("GetZone() returned wrong region (%s)", zone)
 	}
+}
+
+func TestCompareSpecAndLoadBalancer(t *testing.T) {
+
+	qc := QingCloud{}
+
+	loadBalancer, _, err := getTestQingCloud()
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	//clusterName := "test_cluster"
+	serviceEip := &v1.Service{
+		ObjectMeta: machineryv1.ObjectMeta{Name: "myservice", UID: "myserviceid",
+			Annotations: map[string]string{
+				ServiceAnnotationLoadBalancerEipIds: "eip-qrivjcov",
+				ServiceAnnotationLoadBalancerType:   "0",
+			},
+		},
+		Spec: v1.ServiceSpec{
+			Ports: []v1.ServicePort{
+				{
+					Protocol: v1.ProtocolTCP,
+					Port:     80,
+					NodePort: 8080,
+				},
+			},
+		},
+	}
+
+	serviceVxnet := &v1.Service{
+		ObjectMeta: machineryv1.ObjectMeta{Name: "myservice", UID: "myserviceid",
+			Annotations: map[string]string{
+				ServiceAnnotationLoadBalancerVxnetId: "vxnet-umltx6a",
+				ServiceAnnotationLoadBalancerType:    "0",
+			},
+		},
+		Spec: v1.ServiceSpec{
+			Ports: []v1.ServicePort{
+				{
+					Protocol: v1.ProtocolTCP,
+					Port:     80,
+					NodePort: 8080,
+				},
+			},
+		},
+	}
+
+	for _, lb := range loadBalancer.LoadBalancerSet {
+		result, err := qc.compareSpecAndLoadBalancer(serviceEip, lb)
+		if err != nil {
+			t.Fatal(err)
+		}
+		fmt.Println(result)
+		serviceEip.SetAnnotations(map[string]string{
+			ServiceAnnotationLoadBalancerEipIds: "eip-ekre2wcl",
+			ServiceAnnotationLoadBalancerType:   "0",
+		})
+		result, err = qc.compareSpecAndLoadBalancer(serviceEip, lb)
+		if err != nil {
+			t.Fatal(err)
+		}
+		fmt.Println(result)
+		//result, err = qc.compareSpecAndLoadBalancerListeners()
+		//fmt.Println(result)
+	}
+	fmt.Println(serviceEip.Spec.Ports)
+	fmt.Println(serviceVxnet.Annotations)
+}
+func getTestQingCloud() (*qcservice.DescribeLoadBalancersOutput, *qcservice.DescribeLoadBalancerListenersOutput, error) {
+	fakedLoadBalancerOutput := `
+	{
+		"action": "DescribeLoadBalancersResponse",
+		"total_count": 1,
+		"loadbalancer_set": [
+		  {
+			"is_applied": 1,
+			"vxnet_id": "vxnet-0",
+			"console_id": "qingcloud",
+			"cluster": [
+			  {
+				"eip_name": "ip01",
+				"eip_addr": "139.198.11.67",
+				"eip_id": "eip-ekre2wcl",
+				"instances": [
+				  {
+					"instance_id": "i-xngoyk71",
+					"vgw_mgmt_ip": "100.64.0.10"
+				  }
+				]
+			  }
+			],
+			"create_time": "2017-05-31T06:06:45Z",
+			"rsyslog": "",
+			"owner": "usr-gEDGfgZJ",
+			"place_group_id": "plg-00000000",
+			"features": 0,
+			"sub_code": 0,
+			"security_group_id": "sg-lufujop2",
+			"loadbalancer_type": 0,
+			"loadbalancer_name": "lb02",
+			"memory": 320,
+			"status_time": "2017-08-28T03:17:48Z",
+			"node_count": 1,
+			"status": "active",
+			"description": "",
+			"tags": [],
+			"transition_status": "",
+			"eips": [],
+			"controller": "self",
+			"repl": "rpp-00000000",
+			"private_ips": [
+			  "198.19.0.100"
+			],
+			"hypervisor": "",
+			"loadbalancer_id": "lb-lmld6diw",
+			"root_user_id": "usr-gEDGfgZJ",
+			"http_header_size": null,
+			"mode": 1,
+			"cpu": 1
+		  }
+		],
+		"ret_code": 0
+	  }`
+	fakedLoadBalancerListenersOutput := `{
+		"action": "DescribeLoadBalancerListenersResponse",
+		"total_count": 1,
+		"loadbalancer_listener_set": [
+		  {
+			"forwardfor": 0,
+			"listener_option": 2,
+			"listener_protocol": "http",
+			"server_certificate_id": "",
+			"backend_protocol": "http",
+			"healthy_check_method": "tcp",
+			"session_sticky": "insert|",
+			"controller": "self",
+			"console_id": "qingcloud",
+			"disabled": 0,
+			"balance_mode": "roundrobin",
+			"root_user_id": "usr-gEDGfgZJ",
+			"create_time": "2017-05-31T06:09:39Z",
+			"healthy_check_option": "20|5|2|5",
+			"timeout": 50,
+			"owner": "usr-gEDGfgZJ",
+			"loadbalancer_listener_id": "lbl-0b307ovo",
+			"loadbalancer_listener_name": "httpMonitor",
+			"loadbalancer_id": "lb-lmld6diw",
+			"listener_port": 80
+		  }
+		],
+		"ret_code": 0
+	  }`
+	bufferLB := bytes.NewBufferString(fakedLoadBalancerOutput)
+	respLB := qcservice.DescribeLoadBalancersOutput{}
+	bufferListeners := bytes.NewBufferString(fakedLoadBalancerListenersOutput)
+	respListeners := qcservice.DescribeLoadBalancerListenersOutput{}
+	err := json.Unmarshal(bufferLB.Bytes(), &respLB)
+	if err != nil {
+		return nil, nil, err
+	}
+	err = json.Unmarshal(bufferListeners.Bytes(), &respListeners)
+	if err != nil {
+		return nil, nil, err
+	}
+	return &respLB, &respListeners, nil
 }
 
 //func TestLoadBalancer(t *testing.T) {
