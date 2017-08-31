@@ -179,6 +179,13 @@ func (qc *QingCloud) EnsureLoadBalancer(clusterName string, service *v1.Service,
 					glog.Error(err)
 					return nil, err
 				}
+				glog.V(1).Info("Update loadbalance because of service spec change")
+				status, err := qc.updateLoadBalancer(loadBalancer)
+				if err != nil {
+					glog.Errorf("Couldn't update loadBalancer '%s'", *loadBalancer.LoadBalancerID)
+					return nil, err
+				}
+				return status, nil
 			}
 		case "delete":
 			err := qc.deleteLoadBalancerAndSecurityGrp(*loadBalancer.LoadBalancerID, loadBalancer.SecurityGroupID)
