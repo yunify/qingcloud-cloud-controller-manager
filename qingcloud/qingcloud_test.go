@@ -16,119 +16,7 @@ import (
 	"k8s.io/kubernetes/pkg/api/v1"
 )
 
-func TestReadConfig(t *testing.T) {
-	_, err := readConfig(nil)
-	if err == nil {
-		t.Errorf("Should fail when no config is provided: %s", err)
-	}
-
-	cfg, err := readConfig(strings.NewReader(`
-[Global]
-qyConfigPath = /etc/qingcloud/client.yaml
-zone = pek3a
-defaultVxNetForLB = vxnet-umltx6a
- `))
-	if err != nil {
-		t.Fatalf("Should succeed when a valid config is provided: %s", err)
-	}
-	if cfg.Global.QYConfigPath != "/etc/qingcloud/client.yaml" {
-		t.Errorf("incorrect config path: %s", cfg.Global.QYConfigPath)
-	}
-	if cfg.Global.Zone != "pek3a" {
-		t.Errorf("incorrect zone: %s", cfg.Global.Zone)
-	}
-	if cfg.Global.DefaultVxNetForLB != "vxnet-umltx6a" {
-		t.Errorf("incorrect defaultVxNetForLB: %s", cfg.Global.DefaultVxNetForLB)
-	}
-}
-
-func TestZones(t *testing.T) {
-	qc := QingCloud{zone: "ap1"}
-
-	z, ok := qc.Zones()
-	if !ok {
-		t.Fatalf("Zones() returned false")
-	}
-
-	zone, err := z.GetZone()
-	if err != nil {
-		t.Fatalf("GetZone() returned error: %s", err)
-	}
-
-	if zone.Region != qc.zone {
-		t.Fatalf("GetZone() returned wrong region (%s)", zone)
-	}
-}
-
-func TestCompareSpecAndLoadBalancer(t *testing.T) {
-
-	qc := QingCloud{}
-
-	loadBalancer, _, err := getTestQingCloud()
-
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	//clusterName := "test_cluster"
-	serviceEip := &v1.Service{
-		ObjectMeta: machineryv1.ObjectMeta{Name: "myservice", UID: "myserviceid",
-			Annotations: map[string]string{
-				ServiceAnnotationLoadBalancerEipIds: "eip-qrivjcov",
-				ServiceAnnotationLoadBalancerType:   "0",
-			},
-		},
-		Spec: v1.ServiceSpec{
-			Ports: []v1.ServicePort{
-				{
-					Protocol: v1.ProtocolTCP,
-					Port:     80,
-					NodePort: 8080,
-				},
-			},
-		},
-	}
-
-	serviceVxnet := &v1.Service{
-		ObjectMeta: machineryv1.ObjectMeta{Name: "myservice", UID: "myserviceid",
-			Annotations: map[string]string{
-				ServiceAnnotationLoadBalancerVxnetId: "vxnet-umltx6a",
-				ServiceAnnotationLoadBalancerType:    "0",
-			},
-		},
-		Spec: v1.ServiceSpec{
-			Ports: []v1.ServicePort{
-				{
-					Protocol: v1.ProtocolTCP,
-					Port:     80,
-					NodePort: 8080,
-				},
-			},
-		},
-	}
-
-	for _, lb := range loadBalancer.LoadBalancerSet {
-		result, err := qc.compareSpecAndLoadBalancer(serviceEip, lb)
-		if err != nil {
-			t.Fatal(err)
-		}
-		fmt.Println(result)
-		serviceEip.SetAnnotations(map[string]string{
-			ServiceAnnotationLoadBalancerEipIds: "eip-ekre2wcl",
-			ServiceAnnotationLoadBalancerType:   "0",
-		})
-		result, err = qc.compareSpecAndLoadBalancer(serviceEip, lb)
-		if err != nil {
-			t.Fatal(err)
-		}
-		fmt.Println(result)
-		//result, err = qc.compareSpecAndLoadBalancerListeners()
-		//fmt.Println(result)
-	}
-	fmt.Println(serviceEip.Spec.Ports)
-	fmt.Println(serviceVxnet.Annotations)
-}
-func getTestQingCloud() (*qcservice.DescribeLoadBalancersOutput, *qcservice.DescribeLoadBalancerListenersOutput, error) {
+func getMockupQingCloud() (*qcservice.DescribeLoadBalancersOutput, *qcservice.DescribeLoadBalancerListenersOutput, error) {
 	fakedLoadBalancerOutput := `
 	{
 		"action": "DescribeLoadBalancersResponse",
@@ -225,6 +113,205 @@ func getTestQingCloud() (*qcservice.DescribeLoadBalancersOutput, *qcservice.Desc
 		return nil, nil, err
 	}
 	return &respLB, &respListeners, nil
+}
+func getMockupServiceSpec() (srEip *v1.Service, srVxNet *v1.Service) {
+	serviceEip := &v1.Service{
+		ObjectMeta: machineryv1.ObjectMeta{Name: "myservice", UID: "myserviceid",
+			Annotations: map[string]string{
+				ServiceAnnotationLoadBalancerEipIds: "eip-qrivjcov",
+				ServiceAnnotationLoadBalancerType:   "0",
+			},
+		},
+		Spec: v1.ServiceSpec{
+			Ports: []v1.ServicePort{
+				{
+					Protocol: v1.ProtocolTCP,
+					Port:     80,
+					NodePort: 8080,
+				},
+			},
+		},
+	}
+
+	serviceVxnet := &v1.Service{
+		ObjectMeta: machineryv1.ObjectMeta{Name: "myservice", UID: "myserviceid",
+			Annotations: map[string]string{
+				ServiceAnnotationLoadBalancerVxnetId: "vxnet-umltx6a",
+				ServiceAnnotationLoadBalancerType:    "0",
+			},
+		},
+		Spec: v1.ServiceSpec{
+			Ports: []v1.ServicePort{
+				{
+					Protocol: v1.ProtocolTCP,
+					Port:     80,
+					NodePort: 8080,
+				},
+			},
+		},
+	}
+	return serviceEip, serviceVxnet
+}
+func TestReadConfig(t *testing.T) {
+	_, err := readConfig(nil)
+	if err == nil {
+		t.Errorf("Should fail when no config is provided: %s", err)
+	}
+
+	cfg, err := readConfig(strings.NewReader(`
+[Global]
+qyConfigPath = /etc/qingcloud/client.yaml
+zone = pek3a
+defaultVxNetForLB = vxnet-umltx6a
+ `))
+	if err != nil {
+		t.Fatalf("Should succeed when a valid config is provided: %s", err)
+	}
+	if cfg.Global.QYConfigPath != "/etc/qingcloud/client.yaml" {
+		t.Errorf("incorrect config path: %s", cfg.Global.QYConfigPath)
+	}
+	if cfg.Global.Zone != "pek3a" {
+		t.Errorf("incorrect zone: %s", cfg.Global.Zone)
+	}
+	if cfg.Global.DefaultVxNetForLB != "vxnet-umltx6a" {
+		t.Errorf("incorrect defaultVxNetForLB: %s", cfg.Global.DefaultVxNetForLB)
+	}
+}
+
+func TestZones(t *testing.T) {
+	qc := QingCloud{zone: "ap1"}
+
+	z, ok := qc.Zones()
+	if !ok {
+		t.Fatalf("Zones() returned false")
+	}
+
+	zone, err := z.GetZone()
+	if err != nil {
+		t.Fatalf("GetZone() returned error: %s", err)
+	}
+
+	if zone.Region != qc.zone {
+		t.Fatalf("GetZone() returned wrong region (%s)", zone)
+	}
+}
+
+func TestCompareSpecAndLoadBalancer(t *testing.T) {
+
+	qc := QingCloud{}
+
+	loadBalancer, _, err := getMockupQingCloud()
+	serviceEip, serviceVxNet := getMockupServiceSpec()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	//clusterName := "test_cluster"
+	fmt.Println("-------------- Start testing of FUNC compareSpecAndLoadBalancer")
+	for _, lb := range loadBalancer.LoadBalancerSet {
+		result, err := qc.compareSpecAndLoadBalancer(serviceEip, lb)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if result != "update" {
+			t.Fatalf("Compare eip data but get rong result from FUNC compareSpecAndLoadBalancer, expected is 'update'")
+		}
+
+		serviceEip.SetAnnotations(map[string]string{
+			ServiceAnnotationLoadBalancerEipIds: "eip-ekre2wcl",
+			ServiceAnnotationLoadBalancerType:   "0",
+		})
+		result, err = qc.compareSpecAndLoadBalancer(serviceEip, lb)
+		if err != nil {
+			t.Fatal(err)
+		}
+		//fmt.Println(result)
+		if result != "skip" {
+			t.Fatalf("Compare eip data but get wrong result from FUNC compareSpecAndLoadBalancer, expected is 'skip'")
+		}
+		result, err = qc.compareSpecAndLoadBalancer(serviceVxNet, lb)
+		if err != nil {
+			t.Fatal(err)
+		}
+		//fmt.Println(result)
+		if result != "delete" {
+			t.Fatalf("Compare vxnet data but get wrong result from FUNC compareSpecAndLoadBalancer, expected is 'delete'")
+		}
+
+		serviceVxNet.SetAnnotations(map[string]string{
+			ServiceAnnotationLoadBalancerVxnetId: "vxnet-umltx6b",
+			ServiceAnnotationLoadBalancerType:    "0",
+		})
+
+		*lb.VxNetID = "vxnet-umltx6b"
+
+		result, err = qc.compareSpecAndLoadBalancer(serviceVxNet, lb)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if result != "delete" {
+			t.Fatalf("Compare vxnet data but get wrong result from FUNC compareSpecAndLoadBalancer, expected is 'delete'")
+		}
+
+		for _, eip := range lb.Cluster {
+			*eip.EIPID = ""
+		}
+		result, err = qc.compareSpecAndLoadBalancer(serviceVxNet, lb)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if result != "skip" {
+			t.Fatalf("Compare vxnet data but get wrong result from FUNC compareSpecAndLoadBalancer, expected is 'skip'")
+		}
+		//result, err = qc.compareSpecAndLoadBalancerListeners()
+		//fmt.Println(result)
+	}
+	fmt.Println("-------------- End testing of FUNC compareSpecAndLoadBalancer")
+	fmt.Println("-------------- Start testing of FUNC compareSpecAndLoadBalancerListeners")
+	_, qyLBListenersOutput, err := getMockupQingCloud()
+	serviceEip, serviceVxNet = getMockupServiceSpec()
+	if err != nil {
+		t.Fatal(err)
+	}
+	qyLBListeners := []*qcservice.LoadBalancerListener{}
+	qyLBListeners = append(qyLBListeners, qyLBListenersOutput.LoadBalancerListenerSet...)
+	k8sTCPPorts := []int{80}
+	result := qc.compareSpecAndLoadBalancerListeners(qyLBListeners, k8sTCPPorts, "roundrobin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	//fmt.Println(result)
+	if result != "skip" {
+		t.Fatalf("Compare eip data but get rong result from FUNC compareSpecAndLoadBalancerListeners, expected is 'skip'")
+	}
+	result = qc.compareSpecAndLoadBalancerListeners(qyLBListeners, k8sTCPPorts, "source")
+	if err != nil {
+		t.Fatal(err)
+	}
+	//fmt.Println(result)
+	if result != "update" {
+		t.Fatalf("Compare eip data but get rong result from FUNC compareSpecAndLoadBalancerListeners, expected is 'update'")
+	}
+	k8sTCPPorts = []int{81}
+	result = qc.compareSpecAndLoadBalancerListeners(qyLBListeners, k8sTCPPorts, "roundrobin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	//fmt.Println(result)
+	if result != "update" {
+		t.Fatalf("Compare eip data but get rong result from FUNC compareSpecAndLoadBalancerListeners, expected is 'update'")
+	}
+	k8sTCPPorts = []int{80, 81}
+	result = qc.compareSpecAndLoadBalancerListeners(qyLBListeners, k8sTCPPorts, "roundrobin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	//fmt.Println(result)
+	if result != "update" {
+		t.Fatalf("Compare eip data but get rong result from FUNC compareSpecAndLoadBalancerListeners, expected is 'update'")
+	}
+	fmt.Println("-------------- End testing of FUNC compareSpecAndLoadBalancerListeners")
 }
 
 //func TestLoadBalancer(t *testing.T) {

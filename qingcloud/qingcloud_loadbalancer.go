@@ -1044,8 +1044,10 @@ func (qc *QingCloud) getLoadBalancerNetConfig(loadBalancer *qcservice.LoadBalanc
 	eipIDs := []string{}
 	privateIps := []string{}
 	for _, eip := range loadBalancer.Cluster {
-		eipIDs = append(eipIDs, *eip.EIPID)
-		eips = append(eips, *eip.EIPAddr)
+		if *eip.EIPID != "" {
+			eipIDs = append(eipIDs, *eip.EIPID)
+			eips = append(eips, *eip.EIPAddr)
+		}
 	}
 	for _, pip := range loadBalancer.PrivateIPs {
 		privateIps = append(privateIps, *pip)
