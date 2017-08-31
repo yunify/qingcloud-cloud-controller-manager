@@ -179,6 +179,13 @@ func (qc *QingCloud) EnsureLoadBalancer(clusterName string, service *v1.Service,
 					glog.Error(err)
 					return nil, err
 				}
+				glog.V(1).Info("Update loadbalance because of service spec change")
+				status, err := qc.updateLoadBalancer(loadBalancer)
+				if err != nil {
+					glog.Errorf("Couldn't update loadBalancer '%s'", *loadBalancer.LoadBalancerID)
+					return nil, err
+				}
+				return status, nil
 			}
 		case "delete":
 			err := qc.deleteLoadBalancerAndSecurityGrp(*loadBalancer.LoadBalancerID, loadBalancer.SecurityGroupID)
@@ -862,7 +869,7 @@ func (qc *QingCloud) compareSpecAndLoadBalancer(service *v1.Service, loadBalance
 		}
 	}
 	// get lb properties from k8s service spec
-	lbType := service.Annotations[ServiceAnnotationLoadBalancerType]
+	lbType, hasType := service.Annotations[ServiceAnnotationLoadBalancerType]
 	if lbType != "0" && lbType != "1" && lbType != "2" && lbType != "3" && lbType != "4" && lbType != "5" {
 		lbType = "0"
 	}
@@ -878,7 +885,7 @@ func (qc *QingCloud) compareSpecAndLoadBalancer(service *v1.Service, loadBalance
 		glog.V(1).Infof("No eip or vxnet is specified for this LB '%s', will keep this LB as it is", *loadBalancer.LoadBalancerID)
 		//return "delete", nil
 	}
-	if loadBalancerType != *loadBalancer.LoadBalancerType {
+	if hasType && loadBalancerType != *loadBalancer.LoadBalancerType {
 		glog.V(1).Infof("LB type is changed")
 		result = "update"
 	}

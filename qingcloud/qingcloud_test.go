@@ -12,7 +12,6 @@ import (
 
 	qcservice "github.com/yunify/qingcloud-sdk-go/service"
 	machineryv1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
 	"k8s.io/kubernetes/pkg/api/v1"
 )
 
@@ -213,7 +212,6 @@ func TestCompareSpecAndLoadBalancer(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-
 		if result != "update" {
 			t.Fatalf("Compare eip data but get rong result from FUNC compareSpecAndLoadBalancer, expected is 'update'")
 		}
@@ -264,8 +262,6 @@ func TestCompareSpecAndLoadBalancer(t *testing.T) {
 		if result != "skip" {
 			t.Fatalf("Compare vxnet data but get wrong result from FUNC compareSpecAndLoadBalancer, expected is 'skip'")
 		}
-		//result, err = qc.compareSpecAndLoadBalancerListeners()
-		//fmt.Println(result)
 	}
 	fmt.Println("-------------- End testing of FUNC compareSpecAndLoadBalancer")
 	fmt.Println("-------------- Start testing of FUNC compareSpecAndLoadBalancerListeners")
