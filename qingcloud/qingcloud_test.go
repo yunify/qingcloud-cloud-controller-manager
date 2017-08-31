@@ -10,9 +10,9 @@ import (
 	"bytes"
 	"encoding/json"
 
+	"github.com/stretchr/testify/assert"
 	qcservice "github.com/yunify/qingcloud-sdk-go/service"
 	machineryv1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
 	"k8s.io/kubernetes/pkg/api/v1"
 )
 
@@ -213,7 +213,7 @@ func TestCompareSpecAndLoadBalancer(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-
+		assert.Equal(t, "update", result)
 		if result != "update" {
 			t.Fatalf("Compare eip data but get rong result from FUNC compareSpecAndLoadBalancer, expected is 'update'")
 		}
@@ -227,6 +227,7 @@ func TestCompareSpecAndLoadBalancer(t *testing.T) {
 			t.Fatal(err)
 		}
 		//fmt.Println(result)
+		assert.Equal(t, "skip", result)
 		if result != "skip" {
 			t.Fatalf("Compare eip data but get wrong result from FUNC compareSpecAndLoadBalancer, expected is 'skip'")
 		}
@@ -234,6 +235,7 @@ func TestCompareSpecAndLoadBalancer(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		assert.Equal(t, "delete", result)
 		//fmt.Println(result)
 		if result != "delete" {
 			t.Fatalf("Compare vxnet data but get wrong result from FUNC compareSpecAndLoadBalancer, expected is 'delete'")
@@ -250,6 +252,7 @@ func TestCompareSpecAndLoadBalancer(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		assert.Equal(t, "delete", result)
 		if result != "delete" {
 			t.Fatalf("Compare vxnet data but get wrong result from FUNC compareSpecAndLoadBalancer, expected is 'delete'")
 		}
@@ -261,6 +264,7 @@ func TestCompareSpecAndLoadBalancer(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		assert.Equal(t, "skip", result)
 		if result != "skip" {
 			t.Fatalf("Compare vxnet data but get wrong result from FUNC compareSpecAndLoadBalancer, expected is 'skip'")
 		}
@@ -282,6 +286,7 @@ func TestCompareSpecAndLoadBalancer(t *testing.T) {
 		t.Fatal(err)
 	}
 	//fmt.Println(result)
+	assert.Equal(t, "skip", result)
 	if result != "skip" {
 		t.Fatalf("Compare eip data but get rong result from FUNC compareSpecAndLoadBalancerListeners, expected is 'skip'")
 	}
@@ -290,6 +295,7 @@ func TestCompareSpecAndLoadBalancer(t *testing.T) {
 		t.Fatal(err)
 	}
 	//fmt.Println(result)
+	assert.Equal(t, "update", result)
 	if result != "update" {
 		t.Fatalf("Compare eip data but get rong result from FUNC compareSpecAndLoadBalancerListeners, expected is 'update'")
 	}
@@ -299,6 +305,7 @@ func TestCompareSpecAndLoadBalancer(t *testing.T) {
 		t.Fatal(err)
 	}
 	//fmt.Println(result)
+	assert.Equal(t, "update", result)
 	if result != "update" {
 		t.Fatalf("Compare eip data but get rong result from FUNC compareSpecAndLoadBalancerListeners, expected is 'update'")
 	}
@@ -308,6 +315,7 @@ func TestCompareSpecAndLoadBalancer(t *testing.T) {
 		t.Fatal(err)
 	}
 	//fmt.Println(result)
+	assert.Equal(t, "update", result)
 	if result != "update" {
 		t.Fatalf("Compare eip data but get rong result from FUNC compareSpecAndLoadBalancerListeners, expected is 'update'")
 	}
