@@ -4,7 +4,7 @@
 # Vars describing project
 NAME= qingcloud-cloud-controller-manager
 GIT_REPOSITORY= github.com/yunify/qingcloud-cloud-controller-manager
-DOCKER_IMAGE_NAME?= dockerhub.qingcloud.com/qingcloud/qingcloud-cloud-controller-manager
+DOCKER_IMAGE_NAME?= qingcloud/qingcloud-cloud-controller-manager
 
 # Generate vars to be included from external script
 # Allows using bash to generate complex vars, such as project versions
