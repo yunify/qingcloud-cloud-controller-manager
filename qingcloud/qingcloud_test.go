@@ -206,7 +206,7 @@ func TestCompareSpecAndLoadBalancer(t *testing.T) {
 	}
 
 	//clusterName := "test_cluster"
-	fmt.Println("-------------- Start testing of FUNC compareSpecAndLoadBalancer")
+	fmt.Println("-------------- Start testing of FUNC compareSpecAndLoadBalancer -----------")
 	for _, lb := range loadBalancer.LoadBalancerSet {
 		result, err := qc.compareSpecAndLoadBalancer(serviceEip, lb)
 		if err != nil {
@@ -263,8 +263,8 @@ func TestCompareSpecAndLoadBalancer(t *testing.T) {
 			t.Fatalf("Compare vxnet data but get wrong result from FUNC compareSpecAndLoadBalancer, expected is 'skip'")
 		}
 	}
-	fmt.Println("-------------- End testing of FUNC compareSpecAndLoadBalancer")
-	fmt.Println("-------------- Start testing of FUNC compareSpecAndLoadBalancerListeners")
+	fmt.Println("-------------- End testing of FUNC compareSpecAndLoadBalancer -----------")
+	fmt.Println("-------------- Start testing of FUNC compareSpecAndLoadBalancerListeners -----------")
 	_, qyLBListenersOutput, err := getMockupQingCloud()
 	serviceEip, serviceVxNet = getMockupServiceSpec()
 	if err != nil {
@@ -307,7 +307,7 @@ func TestCompareSpecAndLoadBalancer(t *testing.T) {
 	if result != "update" {
 		t.Fatalf("Compare eip data but get rong result from FUNC compareSpecAndLoadBalancerListeners, expected is 'update'")
 	}
-	fmt.Println("-------------- End testing of FUNC compareSpecAndLoadBalancerListeners")
+	fmt.Println("-------------- End testing of FUNC compareSpecAndLoadBalancerListeners -----------")
 }
 
 //func TestLoadBalancer(t *testing.T) {
