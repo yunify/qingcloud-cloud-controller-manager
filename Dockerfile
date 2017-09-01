@@ -1,7 +1,7 @@
 FROM alpine:edge AS build
 RUN apk update
 RUN apk upgrade
-RUN apk add go gcc make git bash
+RUN apk add go gcc make git linux-headers bash
 WORKDIR /app
 ENV GOPATH /app
 ADD . /app/src/github.com/yunify/qingcloud-cloud-controller-manager
