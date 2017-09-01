@@ -10,8 +10,6 @@ before_install:
   - sudo apt-get update
   - sudo apt-get -y install docker-ce
 
-install:
-- IMAGE_LABLE=$TRAVIS_BRANCH make release
 script:
 - echo "test skip"
 
