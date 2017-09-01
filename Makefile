@@ -66,10 +66,10 @@ go-build						: bin/qingcloud-cloud-controller-manager
 bin/qingcloud-cloud-controller-manager                     : $(foreach dir,$(qingcloud-cloud-controller-manager_pkg),$(wildcard $(dir)/*.go)) Makefile
 								go build -o bin/qingcloud-cloud-controller-manager $(GO_BUILD_FLAGS) $(GIT_REPOSITORY)
 
-bin/.docker-images-build-timestamp   : bin/qingcloud-cloud-controller-manager Makefile Dockerfile
+release                         : bin/qingcloud-cloud-controller-manager Makefile Dockerfile
 								docker build -q -t $(DOCKER_IMAGE_NAME):$(VERSION) -t $(DOCKER_IMAGE_NAME):latest -t dockerhub.qingcloud.com/$(DOCKER_IMAGE_NAME):$(VERSION) -t dockerhub.qingcloud.com/$(DOCKER_IMAGE_NAME):latest . > bin/.docker-images-build-timestamp
 
-install-docker                  : bin/.docker-images-build-timestamp
+install-docker                  : release
 								docker push $(DOCKER_IMAGE_NAME):$(VERSION)
 								docker push $(DOCKER_IMAGE_NAME):latest
 								docker push dockerhub.qingcloud.com/$(DOCKER_IMAGE_NAME):$(VERSION)
