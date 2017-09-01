@@ -69,7 +69,7 @@ bin/qingcloud-cloud-controller-manager                     : $(foreach dir,$(qin
 bin/.docker-images-build-timestamp   : bin/qingcloud-cloud-controller-manager Makefile Dockerfile
 								docker build -q -t $(DOCKER_IMAGE_NAME):$(VERSION) -t $(DOCKER_IMAGE_NAME):latest -t dockerhub.qingcloud.com/$(DOCKER_IMAGE_NAME):$(VERSION) -t dockerhub.qingcloud.com/$(DOCKER_IMAGE_NAME):latest . > bin/.docker-images-build-timestamp
 
-install-docker                  : release
+install-docker                  :
 								docker push $(DOCKER_IMAGE_NAME):$(VERSION)
 								docker push $(DOCKER_IMAGE_NAME):latest
 								docker push dockerhub.qingcloud.com/$(DOCKER_IMAGE_NAME):$(VERSION)
