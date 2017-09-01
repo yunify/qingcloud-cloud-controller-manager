@@ -16,8 +16,4 @@ script:
 - echo "test skip"
 
 after_success:
-  - if [ "$TRAVIS_BRANCH" == "master" ]; then
-    docker login -u="$DOCKER_USERNAME" -p="$DOCKER_PASSWORD";
-    docker login -u="$QING_DOCKER_USER" -p="$QING_DOCKER_PASSWD" dockerhub.qingcloud.com
-    make install-docker
-fi
+  - if [ "$TRAVIS_BRANCH" == "master" ]; then docker login -u="$DOCKER_USERNAME" -p="$DOCKER_PASSWORD"; docker login -u="$QING_DOCKER_USER" -p="$QING_DOCKER_PASSWD" dockerhub.qingcloud.com; make install-docker; fi
