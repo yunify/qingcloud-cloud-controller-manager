@@ -11,5 +11,4 @@ FROM alpine:latest
 MAINTAINER calvinyu <calvinyu@yunify.com>
 
 COPY --from=build /app/src/github.com/yunify/qingcloud-cloud-controller-manager/bin/qingcloud-cloud-controller-manager /bin/qingcloud-cloud-controller-manager
-
-ENTRYPOINT ["/bin/qingcloud-cloud-controller-manager"]
+ENV PATH "/bin/qingcloud-cloud-controller-manager:$PATH"

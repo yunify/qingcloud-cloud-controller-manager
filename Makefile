@@ -54,6 +54,9 @@ GO_BUILD_FLAGS					= -a -tags netgo -installsuffix nocgo -ldflags "$(GO_LDFLAGS)
 #src
 qingcloud-cloud-controller-manager_pkg = $(subst $(GIT_REPOSITORY)/,,$(shell go list -f '{{ join .Deps "\n" }}' $(GIT_REPOSITORY) | grep "^$(GIT_REPOSITORY)" |grep -v "^$(GIT_REPOSITORY)/vendor/" ))
 qingcloud-cloud-controller-manager_pkg += .
+TEST_PACKAGES = $(shell go list -f '{{ join .Deps "\n" }}' $(GIT_REPOSITORY) | grep "^$(GIT_REPOSITORY)" |grep -v "^$(GIT_REPOSITORY)/vendor/" )
+TEST_PACKAGES += $(GIT_REPOSITORY)
+
 # default just build binary
 default							: go-build
 
@@ -79,6 +82,6 @@ install-docker                  : bin/.docker-images-build-timestamp
 clean                           :
 								rm -rf bin/ && if -f bin/.docker-images-build-timestamp then docker rmi `cat bin/.docker-images-build-timestamp`
 test                            :  
-								go test 
+								go test -cover $(TEST_PACKAGES)
 								
-.PHONY							: default all go-build clean install-docker 
+.PHONY							: default all go-build clean install-docker test
