@@ -79,6 +79,6 @@ install-docker                  : bin/.docker-images-build-timestamp
 clean                           :
 								rm -rf bin/ && if -f bin/.docker-images-build-timestamp then docker rmi `cat bin/.docker-images-build-timestamp`
 test                            :  
-								go test 
+								cd qingcloud && go test 
 								
-.PHONY							: default all go-build clean install-docker 
+.PHONY							: default all go-build clean install-docker test
