@@ -71,13 +71,18 @@ bin/qingcloud-cloud-controller-manager                     : $(foreach dir,$(qin
 								go build -o bin/qingcloud-cloud-controller-manager $(GO_BUILD_FLAGS) $(GIT_REPOSITORY)
 
 bin/.docker-images-build-timestamp                         : bin/qingcloud-cloud-controller-manager Makefile Dockerfile
-								docker build -q -t $(DOCKER_IMAGE_NAME):$(IMAGE_LABLE) -t $(DOCKER_IMAGE_NAME):latest -t dockerhub.qingcloud.com/$(DOCKER_IMAGE_NAME):$(IMAGE_LABLE) -t dockerhub.qingcloud.com/$(DOCKER_IMAGE_NAME):latest . > bin/.docker-images-build-timestamp
+								docker build -q -t $(DOCKER_IMAGE_NAME):$(IMAGE_LABLE) -t dockerhub.qingcloud.com/$(DOCKER_IMAGE_NAME):$(IMAGE_LABLE) . > bin/.docker-images-build-timestamp
 
-install-docker                  : bin/.docker-images-build-timestamp
+bin/.docker_label               : bin/.docker-images-build-timestamp
 								docker push $(DOCKER_IMAGE_NAME):$(IMAGE_LABLE)
 								docker push dockerhub.qingcloud.com/$(DOCKER_IMAGE_NAME):$(IMAGE_LABLE)
+								echo $(DOCKER_IMAGE_NAME):$(IMAGE_LABLE) > bin/.docker_label
 
-publish                         : install-docker
+install-docker                  : bin/.docker_label
+
+publish                         : bin/.docker_label
+								docker tag `cat bin/.docker_label` $(DOCKER_IMAGE_NAME):latest
+								docker tag `cat bin/.docker_label` dockerhub.qingcloud.com/$(DOCKER_IMAGE_NAME):latest
 								docker push $(DOCKER_IMAGE_NAME):latest
 								docker push dockerhub.qingcloud.com/$(DOCKER_IMAGE_NAME):latest
 
