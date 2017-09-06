@@ -13,6 +13,12 @@ before_install:
 script:
 - echo "test skip"
 
+deploy:
+  - provider: script
+    script: IMAGE_LABLE=$TRAVIS_BRANCH make publish
+    on:
+      tags: true
+
 after_success:
   - docker login -u="$DOCKER_USERNAME" -p="$DOCKER_PASSWORD"
   - docker login -u="$QING_DOCKER_USER" -p="$QING_DOCKER_PASSWD" dockerhub.qingcloud.com
