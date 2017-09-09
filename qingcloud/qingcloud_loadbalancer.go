@@ -155,7 +155,7 @@ func (qc *QingCloud) EnsureLoadBalancer(clusterName string, service *v1.Service,
 
 	if loadBalancer != nil && *loadBalancer.Status != qcclient.LoadBalancerStatusCeased {
 		glog.V(1).Infof("LB '%s' is existed in this k8s cluster, will compare LB settng with related attributes in service spec, if anything is changed, , will update this LB ", *loadBalancer.LoadBalancerID)
-		_, _, qyEipIDs := qc.getLoadBalancerNetConfig(loadBalancer)
+		qyEips, qyPrivateIps, qyEipIDs := qc.getLoadBalancerNetConfig(loadBalancer)
 		// check lisener: balance mode and port, add/update/delete listener
 		qyLbListeners, err := qc.getLoadBalancerListeners(*loadBalancer.LoadBalancerID)
 		if err != nil {
@@ -172,7 +172,17 @@ func (qc *QingCloud) EnsureLoadBalancer(clusterName string, service *v1.Service,
 		case "skip":
 			switch comparedListeners {
 			case "skip":
-				return nil, nil
+				status := &v1.LoadBalancerStatus{}
+				if len(qyEips) > 0 {
+					for _, ip := range qyEips {
+						status.Ingress = append(status.Ingress, v1.LoadBalancerIngress{IP: ip})
+					}
+				} else {
+					for _, ip := range qyPrivateIps {
+						status.Ingress = append(status.Ingress, v1.LoadBalancerIngress{IP: ip})
+					}
+				}
+				return status, nil
 			case "update":
 				err := qc.updateLoadBalancerListenersFromServiceSpec(*loadBalancer.LoadBalancerID, qyLbListeners, k8sTCPPorts, k8sNodePorts, balanceMode, instances)
 				if err != nil {
