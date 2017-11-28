@@ -1,16 +1,12 @@
 package: github.com/yunify/qingcloud-cloud-controller-manager
 import:
 - package: k8s.io/kubernetes
-  version: v1.7.3
+  version: v1.8.2
 - package: k8s.io/client-go
-  version: release-4.0
+  version: 1fb83015bea362f028381bc0fcfb2a4e3eb7390b
 - package: k8s.io/apimachinery
-  version: release-1.7
+  version: 019ae5ada31de202164b118aee88ee2d14075c31
 - package: github.com/yunify/qingcloud-sdk-go
-  version: v2.0.0-alpha.8
+  version: v2.0.0-alpha.14
 - package: github.com/sirupsen/logrus
-  version: 1.0.2
-- package: github.com/Sirupsen/logrus
-  repo: git@github.com:/sirupsen/logrus
-  vcs: git
-  version: 1.0.2
+  version: 1.0.3

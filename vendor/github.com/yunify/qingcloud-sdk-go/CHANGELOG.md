@@ -1,6 +1,22 @@
 # Change Log
 All notable changes to QingCloud SDK for Go will be documented in this file.
 
+## [v2.0.0-alpha.10] - 2017-08-28
+
+### Fixed
+
+- Fixed loadbalancers section in request of StopLoadBalancers
+
+## [v2.0.0-alpha.9] - 2017-08-23
+
+### Added
+
+- Add vxnetid and loadbalancertype parms for load balancer
+
+### Fixed
+
+- Fixed vxnet section in response of DescribeInstances
+
 ## [v2.0.0-alpha.8] - 2017-08-13
 
 ### Added
@@ -61,6 +77,9 @@ All notable changes to QingCloud SDK for Go will be documented in this file.
 ### Added
 
 - QingCloud SDK for the Go programming language.
+[v2.0.0-alpha.10]: https://github.com/yunify/qingcloud-sdk-go/compare/v2.0.0-alpha.9...v2.0.0-alpha.10
+[v2.0.0-alpha.9]: https://github.com/yunify/qingcloud-sdk-go/compare/v2.0.0-alpha.8...v2.0.0-alpha.9
+[v2.0.0-alpha.8]: https://github.com/yunify/qingcloud-sdk-go/compare/v2.0.0-alpha.7...v2.0.0-alpha.8
 [v2.0.0-alpha.7]: https://github.com/yunify/qingcloud-sdk-go/compare/v2.0.0-alpha.6...v2.0.0-alpha.7
 [v2.0.0-alpha.6]: https://github.com/yunify/qingcloud-sdk-go/compare/v2.0.0-alpha.5...v2.0.0-alpha.6
 [v2.0.0-alpha.5]: https://github.com/yunify/qingcloud-sdk-go/compare/v2.0.0-alpha.4...v2.0.0-alpha.5
