@@ -15,7 +15,7 @@ script:
 
 deploy:
   - provider: script
-    script: IMAGE_LABLE=$TRAVIS_BRANCH make publish
+    script: IMAGE_LABLE=${TRAVIS_PULL_REQUEST_BRANCH:-$TRAVIS_BRANCH} make publish
     skip_cleanup: true
     on:
       tags: true
@@ -23,4 +23,4 @@ deploy:
 after_success:
   - docker login -u="$DOCKER_USERNAME" -p="$DOCKER_PASSWORD"
   - docker login -u="$QING_DOCKER_USER" -p="$QING_DOCKER_PASSWD" dockerhub.qingcloud.com
-  - IMAGE_LABLE=$TRAVIS_BRANCH make install-docker
+  - IMAGE_LABLE=${TRAVIS_PULL_REQUEST_BRANCH:-$TRAVIS_BRANCH} make install-docker
