@@ -11,8 +11,8 @@ import (
 	"encoding/json"
 
 	qcservice "github.com/yunify/qingcloud-sdk-go/service"
+	"k8s.io/api/core/v1"
 	machineryv1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/kubernetes/pkg/api/v1"
 )
 
 func getMockupQingCloud() (*qcservice.DescribeLoadBalancersOutput, *qcservice.DescribeLoadBalancerListenersOutput, error) {

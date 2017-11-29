@@ -631,10 +631,10 @@ func (s *SecurityGroupService) DescribeSecurityGroupRules(i *DescribeSecurityGro
 type DescribeSecurityGroupRulesInput struct {
 
 	// Direction's available values: 0, 1
-	Direction          *int      `json:"direction" name:"direction" default:"0" location:"params"`
+	Direction          *int      `json:"direction" name:"direction" location:"params"`
 	Limit              *int      `json:"limit" name:"limit" default:"20" location:"params"`
 	Offset             *int      `json:"offset" name:"offset" default:"0" location:"params"`
-	SecurityGroup      *string   `json:"security_group" name:"security_group" location:"params"` // Required
+	SecurityGroup      *string   `json:"security_group" name:"security_group" location:"params"`
 	SecurityGroupRules []*string `json:"security_group_rules" name:"security_group_rules" location:"params"`
 }
 
@@ -657,13 +657,6 @@ func (v *DescribeSecurityGroupRulesInput) Validate() error {
 				ParameterValue: directionParameterValue,
 				AllowedValues:  directionValidValues,
 			}
-		}
-	}
-
-	if v.SecurityGroup == nil {
-		return errors.ParameterRequiredError{
-			ParameterName: "SecurityGroup",
-			ParentName:    "DescribeSecurityGroupRulesInput",
 		}
 	}
 
@@ -920,9 +913,9 @@ type ModifySecurityGroupRuleAttributesInput struct {
 	SecurityGroup         *string `json:"security_group" name:"security_group" location:"params"`
 	SecurityGroupRule     *string `json:"security_group_rule" name:"security_group_rule" location:"params"` // Required
 	SecurityGroupRuleName *string `json:"security_group_rule_name" name:"security_group_rule_name" location:"params"`
-	Val1                  *int    `json:"val1" name:"val1" location:"params"`
-	Val2                  *int    `json:"val2" name:"val2" location:"params"`
-	Val3                  *int    `json:"val3" name:"val3" location:"params"`
+	Val1                  *string `json:"val1" name:"val1" location:"params"`
+	Val2                  *string `json:"val2" name:"val2" location:"params"`
+	Val3                  *string `json:"val3" name:"val3" location:"params"`
 }
 
 func (v *ModifySecurityGroupRuleAttributesInput) Validate() error {

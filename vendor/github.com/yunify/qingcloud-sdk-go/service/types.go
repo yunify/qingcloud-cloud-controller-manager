@@ -798,11 +798,11 @@ type Instance struct {
 	SubCode    *int       `json:"sub_code" name:"sub_code"`
 	Tags       []*Tag     `json:"tags" name:"tags"`
 	// TransitionStatus's available values: creating, starting, stopping, restarting, suspending, resuming, terminating, recovering, resetting
-	TransitionStatus *string   `json:"transition_status" name:"transition_status"`
-	VCPUsCurrent     *int      `json:"vcpus_current" name:"vcpus_current"`
-	VolumeIDs        []*string `json:"volume_ids" name:"volume_ids"`
-	Volumes          []*Volume `json:"volumes" name:"volumes"`
-	VxNets           []*VxNet  `json:"vxnets" name:"vxnets"`
+	TransitionStatus *string          `json:"transition_status" name:"transition_status"`
+	VCPUsCurrent     *int             `json:"vcpus_current" name:"vcpus_current"`
+	VolumeIDs        []*string        `json:"volume_ids" name:"volume_ids"`
+	Volumes          []*Volume        `json:"volumes" name:"volumes"`
+	VxNets           []*InstanceVxNet `json:"vxnets" name:"vxnets"`
 }
 
 func (v *Instance) Validate() error {
@@ -941,6 +941,41 @@ func (v *InstanceType) Validate() error {
 				ParameterName:  "Status",
 				ParameterValue: statusParameterValue,
 				AllowedValues:  statusValidValues,
+			}
+		}
+	}
+
+	return nil
+}
+
+type InstanceVxNet struct {
+	NICID     *string `json:"nic_id" name:"nic_id"`
+	PrivateIP *string `json:"private_ip" name:"private_ip"`
+	Role      *int    `json:"role" name:"role"`
+	VxNetID   *string `json:"vxnet_id" name:"vxnet_id"`
+	VxNetName *string `json:"vxnet_name" name:"vxnet_name"`
+	// VxNetType's available values: 0, 1
+	VxNetType *int `json:"vxnet_type" name:"vxnet_type"`
+}
+
+func (v *InstanceVxNet) Validate() error {
+
+	if v.VxNetType != nil {
+		vxnetTypeValidValues := []string{"0", "1"}
+		vxnetTypeParameterValue := fmt.Sprint(*v.VxNetType)
+
+		vxnetTypeIsValid := false
+		for _, value := range vxnetTypeValidValues {
+			if value == vxnetTypeParameterValue {
+				vxnetTypeIsValid = true
+			}
+		}
+
+		if !vxnetTypeIsValid {
+			return errors.ParameterValueNotAllowedError{
+				ParameterName:  "VxNetType",
+				ParameterValue: vxnetTypeParameterValue,
+				AllowedValues:  vxnetTypeValidValues,
 			}
 		}
 	}
@@ -1304,6 +1339,7 @@ type Mongo struct {
 	Status      *string    `json:"status" name:"status"`
 	StatusTime  *time.Time `json:"status_time" name:"status_time" format:"ISO 8601"`
 	StorageSize *int       `json:"storage_size" name:"storage_size"`
+	Tags        []*Tag     `json:"tags" name:"tags"`
 	// TransitionStatus's available values: creating, stopping, starting, deleting, resizing, suspending, vxnet-changing, snapshot-creating, instances-adding, instances-removing, pg-applying
 	TransitionStatus *string `json:"transition_status" name:"transition_status"`
 	VxNet            *VxNet  `json:"vxnet" name:"vxnet"`
@@ -1347,6 +1383,14 @@ func (v *Mongo) Validate() error {
 				ParameterName:  "Status",
 				ParameterValue: statusParameterValue,
 				AllowedValues:  statusValidValues,
+			}
+		}
+	}
+
+	if len(v.Tags) > 0 {
+		for _, property := range v.Tags {
+			if err := property.Validate(); err != nil {
+				return err
 			}
 		}
 	}
@@ -1992,6 +2036,8 @@ type RouterStatic struct {
 	Val2       *string `json:"val2" name:"val2"`
 	Val3       *string `json:"val3" name:"val3"`
 	Val4       *string `json:"val4" name:"val4"`
+	Val5       *string `json:"val5" name:"val5"`
+	Val6       *string `json:"val6" name:"val6"`
 	VxNetID    *string `json:"vxnet_id" name:"vxnet_id"`
 }
 
@@ -2077,6 +2123,7 @@ type S2Server struct {
 	// Status's available values: pending, active, poweroffed, suspended, deleted, ceased
 	Status     *string    `json:"status" name:"status"`
 	StatusTime *time.Time `json:"status_time" name:"status_time" format:"ISO 8601"`
+	Tags       []*Tag     `json:"tags" name:"tags"`
 	// TransitionStatus's available values: creating, updating, suspending, resuming, poweroffing
 	TransitionStatus *string `json:"transition_status" name:"transition_status"`
 	VxNet            *VxNet  `json:"vxnet" name:"vxnet"`
@@ -2160,6 +2207,14 @@ func (v *S2Server) Validate() error {
 				ParameterName:  "Status",
 				ParameterValue: statusParameterValue,
 				AllowedValues:  statusValidValues,
+			}
+		}
+	}
+
+	if len(v.Tags) > 0 {
+		for _, property := range v.Tags {
+			if err := property.Validate(); err != nil {
+				return err
 			}
 		}
 	}
@@ -2298,14 +2353,17 @@ func (v *SecurityGroupIPSet) Validate() error {
 
 type SecurityGroupRule struct {
 	// Action's available values: accept, drop
-	Action              *string `json:"action" name:"action"`
-	Priority            *int    `json:"priority" name:"priority"`
-	Protocol            *string `json:"protocol" name:"protocol"`
-	SecurityGroupID     *string `json:"security_group_id" name:"security_group_id"`
-	SecurityGroupRuleID *string `json:"security_group_rule_id" name:"security_group_rule_id"`
-	Val1                *string `json:"val1" name:"val1"`
-	Val2                *string `json:"val2" name:"val2"`
-	Val3                *string `json:"val3" name:"val3"`
+	Action *string `json:"action" name:"action"`
+	// Direction's available values: 0, 1
+	Direction             *int    `json:"direction" name:"direction"`
+	Priority              *int    `json:"priority" name:"priority"`
+	Protocol              *string `json:"protocol" name:"protocol"`
+	SecurityGroupID       *string `json:"security_group_id" name:"security_group_id"`
+	SecurityGroupRuleID   *string `json:"security_group_rule_id" name:"security_group_rule_id"`
+	SecurityGroupRuleName *string `json:"security_group_rule_name" name:"security_group_rule_name"`
+	Val1                  *string `json:"val1" name:"val1"`
+	Val2                  *string `json:"val2" name:"val2"`
+	Val3                  *string `json:"val3" name:"val3"`
 }
 
 func (v *SecurityGroupRule) Validate() error {
@@ -2326,6 +2384,26 @@ func (v *SecurityGroupRule) Validate() error {
 				ParameterName:  "Action",
 				ParameterValue: actionParameterValue,
 				AllowedValues:  actionValidValues,
+			}
+		}
+	}
+
+	if v.Direction != nil {
+		directionValidValues := []string{"0", "1"}
+		directionParameterValue := fmt.Sprint(*v.Direction)
+
+		directionIsValid := false
+		for _, value := range directionValidValues {
+			if value == directionParameterValue {
+				directionIsValid = true
+			}
+		}
+
+		if !directionIsValid {
+			return errors.ParameterValueNotAllowedError{
+				ParameterName:  "Direction",
+				ParameterValue: directionParameterValue,
+				AllowedValues:  directionValidValues,
 			}
 		}
 	}
@@ -2693,10 +2771,7 @@ type VxNet struct {
 	CreateTime       *time.Time `json:"create_time" name:"create_time" format:"ISO 8601"`
 	Description      *string    `json:"description" name:"description"`
 	InstanceIDs      []*string  `json:"instance_ids" name:"instance_ids"`
-	NICID            *string    `json:"nic_id" name:"nic_id"`
 	Owner            *string    `json:"owner" name:"owner"`
-	PrivateIP        *string    `json:"private_ip" name:"private_ip"`
-	Role             *int       `json:"role" name:"role"`
 	Router           *Router    `json:"router" name:"router"`
 	Tags             []*Tag     `json:"tags" name:"tags"`
 	VpcRouterID      *string    `json:"vpc_router_id" name:"vpc_router_id"`

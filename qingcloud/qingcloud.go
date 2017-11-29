@@ -4,6 +4,7 @@ package qingcloud
 // and must pay attention to your account resource quota limit.
 
 import (
+	"errors"
 	"fmt"
 	"io"
 
@@ -14,6 +15,7 @@ import (
 	"github.com/golang/glog"
 	qcconfig "github.com/yunify/qingcloud-sdk-go/config"
 	qcservice "github.com/yunify/qingcloud-sdk-go/service"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/kubernetes/pkg/cloudprovider"
 	"k8s.io/kubernetes/pkg/controller"
 )
@@ -173,4 +175,31 @@ func getHostname() (string, error) {
 		return "", err
 	}
 	return string(content), nil
+}
+
+// HasClusterID returns true if the cluster has a clusterID
+func (qc *QingCloud) HasClusterID() bool {
+	return false
+}
+
+// GetZoneByNodeName implements Zones.GetZoneByNodeName
+// This is particularly useful in external cloud providers where the kubelet
+// does not initialize node data.
+func (qc *QingCloud) GetZoneByNodeName(nodeName types.NodeName) (cloudprovider.Zone, error) {
+	glog.V(4).Infof("GetZoneByNodeName() called, current zone is %v, and return zone directly as temporary solution", qc.zone)
+	return cloudprovider.Zone{Region: qc.zone}, nil
+}
+
+// GetZoneByProviderID implements Zones.GetZoneByProviderID
+// This is particularly useful in external cloud providers where the kubelet
+// does not initialize node data.
+func (qc *QingCloud) GetZoneByProviderID(providerID string) (cloudprovider.Zone, error) {
+	glog.V(4).Infof("GetZoneByProviderID() called, current zone is %v, and return zone directly as temporary solution", qc.zone)
+	return cloudprovider.Zone{Region: qc.zone}, nil
+}
+
+// InstanceExistsByProviderID returns true if the instance with the given provider id still exists and is running.
+// If false is returned with no error, the instance will be immediately deleted by the cloud controller manager.
+func (qc *QingCloud) InstanceExistsByProviderID(providerID string) (bool, error) {
+	return false, errors.New("unimplemented")
 }

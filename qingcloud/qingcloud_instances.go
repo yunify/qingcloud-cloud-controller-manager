@@ -7,9 +7,9 @@ import (
 
 	"github.com/golang/glog"
 	qcservice "github.com/yunify/qingcloud-sdk-go/service"
-	"k8s.io/kubernetes/pkg/cloudprovider"
+	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/kubernetes/pkg/api/v1"
+	"k8s.io/kubernetes/pkg/cloudprovider"
 )
 
 // NodeAddresses returns the addresses of the specified instance.
@@ -17,7 +17,7 @@ func (qc *QingCloud) NodeAddresses(nodeName types.NodeName) ([]v1.NodeAddress, e
 	return qc.instanceAddress(NodeNameToInstanceID(nodeName))
 }
 
-func (qc *QingCloud) NodeAddressesByProviderID(providerId string) ([]v1.NodeAddress, error){
+func (qc *QingCloud) NodeAddressesByProviderID(providerId string) ([]v1.NodeAddress, error) {
 	return qc.instanceAddress(providerId)
 }
 
@@ -60,7 +60,7 @@ func (qc *QingCloud) InstanceType(name types.NodeName) (string, error) {
 	return qc.instanceType(NodeNameToInstanceID(name))
 }
 
-func (qc *QingCloud) InstanceTypeByProviderID(providerID string) (string, error){
+func (qc *QingCloud) InstanceTypeByProviderID(providerID string) (string, error) {
 	return qc.instanceType(providerID)
 }
 
@@ -104,7 +104,7 @@ func (qc *QingCloud) CurrentNodeName(hostname string) (types.NodeName, error) {
 	return types.NodeName(hostname), nil
 }
 
-func (qc *QingCloud) GetSelf() (*qcservice.Instance) {
+func (qc *QingCloud) GetSelf() *qcservice.Instance {
 	return qc.selfInstance
 }
 
@@ -118,9 +118,9 @@ func (qc *QingCloud) GetInstanceByID(instanceID string) (*qcservice.Instance, er
 	status := []*string{qcservice.String("pending"), qcservice.String("running"), qcservice.String("stopped")}
 	verbose := qcservice.Int(1)
 	output, err := qc.instanceService.DescribeInstances(&qcservice.DescribeInstancesInput{
-		Instances: []*string{&instanceID},
-		Status:    status,
-		Verbose:   verbose,
+		Instances:     []*string{&instanceID},
+		Status:        status,
+		Verbose:       verbose,
 		IsClusterNode: qcservice.Int(1),
 	})
 	if err != nil {
