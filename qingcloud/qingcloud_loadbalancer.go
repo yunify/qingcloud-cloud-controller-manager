@@ -413,14 +413,16 @@ func (qc *QingCloud) EnsureLoadBalancerDeleted(clusterName string, service *v1.S
 	if loadBalancer == nil {
 		return nil
 	}
-
-	err = qc.deleteLoadBalancer(*loadBalancer.LoadBalancerID)
-	if err != nil {
-		return err
+	glog.Infof("Try to delete loadBalancer by its id '%s'", *loadBalancer.LoadBalancerID)
+	errDelLoadbalancer := qc.deleteLoadBalancer(*loadBalancer.LoadBalancerID)
+	glog.Infof("Try to delete security group by its id '%s'", *loadBalancer.SecurityGroupID)
+	errDelSecurityGrp := qc.DeleteSecurityGroup(loadBalancer.SecurityGroupID)
+	if errDelLoadbalancer != nil {
+		glog.Errorf("Delete loadBalancer '%s' err '%s' ", *loadBalancer.LoadBalancerID, errDelLoadbalancer)
+		return errDelLoadbalancer
 	}
-	err = qc.DeleteSecurityGroup(loadBalancer.SecurityGroupID)
-	if err != nil {
-		glog.Errorf("Delete SecurityGroup '%s' err '%s' ", *loadBalancer.SecurityGroupID, err)
+	if errDelSecurityGrp != nil {
+		glog.Errorf("Delete SecurityGroup '%s' err '%s' ", *loadBalancer.SecurityGroupID, errDelSecurityGrp)
 	}
 	glog.Infof("Delete loadBalancer '%s' in zone '%s'", loadBalancerName, qc.zone)
 
