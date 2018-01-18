@@ -157,7 +157,7 @@ func (qc *QingCloud) EnsureLoadBalancer(clusterName string, service *v1.Service,
 		return nil, fmt.Errorf("Error checking if qingcloud load balancer already exists: %v", err)
 	}
 
-	if loadBalancer != nil && *loadBalancer.Status != qcclient.LoadBalancerStatusCeased {
+	if loadBalancer != nil {
 		glog.V(1).Infof("LB '%s' is existed in this k8s cluster, will compare LB settng with related attributes in service spec, if anything is changed, , will update this LB ", *loadBalancer.LoadBalancerID)
 		qyEips, qyPrivateIps, qyEipIDs := qc.getLoadBalancerNetConfig(loadBalancer)
 		// check lisener: balance mode and port, add/update/delete listener
