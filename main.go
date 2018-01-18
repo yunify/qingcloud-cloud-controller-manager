@@ -17,8 +17,8 @@ import (
 
 	_ "github.com/yunify/qingcloud-cloud-controller-manager/qingcloud"
 
-	"github.com/spf13/pflag"
 	goflag "flag"
+	"github.com/spf13/pflag"
 )
 
 func init() {
@@ -37,7 +37,7 @@ func main() {
 	defer logs.FlushLogs()
 
 	verflag.PrintAndExitIfRequested()
-	fmt.Fprintf(os.Stderr,"final flag: %+v\n", s)
+	fmt.Fprintf(os.Stderr, "final flag: %+v\n", s)
 	cloud, err := cloudprovider.InitCloudProvider("qingcloud", s.CloudConfigFile)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Cloud provider could not be initialized: %v", err)

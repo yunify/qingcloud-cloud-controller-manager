@@ -515,7 +515,7 @@ func (qc *QingCloud) addLoadBalancerListener(loadBalancerID string, listenerPort
 }
 
 func (qc *QingCloud) getLoadBalancerByName(name string) (*qcservice.LoadBalancer, error) {
-	status := []*string{qcservice.String("pending"), qcservice.String("active"), qcservice.String("stopped"), qcservice.String("ceased")}
+	status := []*string{qcservice.String("pending"), qcservice.String("active"), qcservice.String("stopped")}
 	output, err := qc.lbService.DescribeLoadBalancers(&qcservice.DescribeLoadBalancersInput{
 		Status:     status,
 		SearchWord: &name,
