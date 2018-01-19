@@ -1,3 +1,7 @@
+// Copyright 2017 Yunify Inc. All rights reserved.
+// Use of this source code is governed by a Apache license
+// that can be found in the LICENSE file.
+
 package qingcloud
 
 // See https://docs.qingcloud.com/api/lb/index.html
@@ -153,7 +157,7 @@ func (qc *QingCloud) EnsureLoadBalancer(clusterName string, service *v1.Service,
 		return nil, fmt.Errorf("Error checking if qingcloud load balancer already exists: %v", err)
 	}
 
-	if loadBalancer != nil && *loadBalancer.Status != qcclient.LoadBalancerStatusCeased {
+	if loadBalancer != nil {
 		glog.V(1).Infof("LB '%s' is existed in this k8s cluster, will compare LB settng with related attributes in service spec, if anything is changed, , will update this LB ", *loadBalancer.LoadBalancerID)
 		qyEips, qyPrivateIps, qyEipIDs := qc.getLoadBalancerNetConfig(loadBalancer)
 		// check lisener: balance mode and port, add/update/delete listener
@@ -413,14 +417,16 @@ func (qc *QingCloud) EnsureLoadBalancerDeleted(clusterName string, service *v1.S
 	if loadBalancer == nil {
 		return nil
 	}
-
-	err = qc.deleteLoadBalancer(*loadBalancer.LoadBalancerID)
-	if err != nil {
-		return err
+	glog.Infof("Try to delete loadBalancer by its id '%s'", *loadBalancer.LoadBalancerID)
+	errDelLoadbalancer := qc.deleteLoadBalancer(*loadBalancer.LoadBalancerID)
+	glog.Infof("Try to delete security group by its id '%s'", *loadBalancer.SecurityGroupID)
+	errDelSecurityGrp := qc.DeleteSecurityGroup(loadBalancer.SecurityGroupID)
+	if errDelLoadbalancer != nil {
+		glog.Errorf("Delete loadBalancer '%s' err '%s' ", *loadBalancer.LoadBalancerID, errDelLoadbalancer)
+		return errDelLoadbalancer
 	}
-	err = qc.DeleteSecurityGroup(loadBalancer.SecurityGroupID)
-	if err != nil {
-		glog.Errorf("Delete SecurityGroup '%s' err '%s' ", *loadBalancer.SecurityGroupID, err)
+	if errDelSecurityGrp != nil {
+		glog.Errorf("Delete SecurityGroup '%s' err '%s' ", *loadBalancer.SecurityGroupID, errDelSecurityGrp)
 	}
 	glog.Infof("Delete loadBalancer '%s' in zone '%s'", loadBalancerName, qc.zone)
 
@@ -515,7 +521,7 @@ func (qc *QingCloud) addLoadBalancerListener(loadBalancerID string, listenerPort
 }
 
 func (qc *QingCloud) getLoadBalancerByName(name string) (*qcservice.LoadBalancer, error) {
-	status := []*string{qcservice.String("pending"), qcservice.String("active"), qcservice.String("stopped"), qcservice.String("ceased")}
+	status := []*string{qcservice.String("pending"), qcservice.String("active"), qcservice.String("stopped")}
 	output, err := qc.lbService.DescribeLoadBalancers(&qcservice.DescribeLoadBalancersInput{
 		Status:     status,
 		SearchWord: &name,
