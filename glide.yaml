@@ -7,6 +7,6 @@ import:
 - package: k8s.io/apimachinery
   version: 019ae5ada31de202164b118aee88ee2d14075c31
 - package: github.com/yunify/qingcloud-sdk-go
-  version: v2.0.0-alpha.14
+  version: v2.0.0-alpha.30
 - package: github.com/sirupsen/logrus
   version: 1.0.3
