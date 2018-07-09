@@ -348,9 +348,11 @@ func (s *LoadBalancerService) CreateLoadBalancer(i *CreateLoadBalancerInput) (*C
 
 type CreateLoadBalancerInput struct {
 	EIPs             []*string `json:"eips" name:"eips" location:"params"`
+	HTTPHeaderSize   *int      `json:"http_header_size" name:"http_header_size" location:"params"`
 	LoadBalancerName *string   `json:"loadbalancer_name" name:"loadbalancer_name" location:"params"`
 	// LoadBalancerType's available values: 0, 1, 2, 3, 4, 5
 	LoadBalancerType *int    `json:"loadbalancer_type" name:"loadbalancer_type" default:"0" location:"params"`
+	NodeCount        *int    `json:"node_count" name:"node_count" location:"params"`
 	PrivateIP        *string `json:"private_ip" name:"private_ip" location:"params"`
 	SecurityGroup    *string `json:"security_group" name:"security_group" location:"params"`
 	VxNet            *string `json:"vxnet" name:"vxnet" location:"params"`
@@ -469,7 +471,7 @@ func (s *LoadBalancerService) CreateServerCertificate(i *CreateServerCertificate
 		Config:        s.Config,
 		Properties:    s.Properties,
 		APIName:       "CreateServerCertificate",
-		RequestMethod: "GET",
+		RequestMethod: "POST",
 	}
 
 	x := &CreateServerCertificateOutput{}
@@ -840,12 +842,12 @@ func (s *LoadBalancerService) DescribeLoadBalancerBackends(i *DescribeLoadBalanc
 }
 
 type DescribeLoadBalancerBackendsInput struct {
-	Limit                *int    `json:"limit" name:"limit" default:"20" location:"params"`
-	LoadBalancer         *string `json:"loadbalancer" name:"loadbalancer" location:"params"`
-	LoadBalancerBackends *string `json:"loadbalancer_backends" name:"loadbalancer_backends" location:"params"`
-	LoadBalancerListener *string `json:"loadbalancer_listener" name:"loadbalancer_listener" location:"params"`
-	Offset               *int    `json:"offset" name:"offset" default:"0" location:"params"`
-	Verbose              *int    `json:"verbose" name:"verbose" location:"params"`
+	Limit                *int      `json:"limit" name:"limit" default:"20" location:"params"`
+	LoadBalancer         *string   `json:"loadbalancer" name:"loadbalancer" location:"params"`
+	LoadBalancerBackends []*string `json:"loadbalancer_backends" name:"loadbalancer_backends" location:"params"`
+	LoadBalancerListener *string   `json:"loadbalancer_listener" name:"loadbalancer_listener" location:"params"`
+	Offset               *int      `json:"offset" name:"offset" default:"0" location:"params"`
+	Verbose              *int      `json:"verbose" name:"verbose" location:"params"`
 }
 
 func (v *DescribeLoadBalancerBackendsInput) Validate() error {
@@ -1074,11 +1076,11 @@ func (s *LoadBalancerService) DescribeServerCertificates(i *DescribeServerCertif
 }
 
 type DescribeServerCertificatesInput struct {
-	Limit              *int    `json:"limit" name:"limit" default:"20" location:"params"`
-	Offset             *int    `json:"offset" name:"offset" default:"0" location:"params"`
-	SearchWord         *string `json:"search_word" name:"search_word" location:"params"`
-	ServerCertificates *string `json:"server_certificates" name:"server_certificates" location:"params"`
-	Verbose            *int    `json:"verbose" name:"verbose" default:"0" location:"params"`
+	Limit              *int      `json:"limit" name:"limit" default:"20" location:"params"`
+	Offset             *int      `json:"offset" name:"offset" default:"0" location:"params"`
+	SearchWord         *string   `json:"search_word" name:"search_word" location:"params"`
+	ServerCertificates []*string `json:"server_certificates" name:"server_certificates" location:"params"`
+	Verbose            *int      `json:"verbose" name:"verbose" default:"0" location:"params"`
 }
 
 func (v *DescribeServerCertificatesInput) Validate() error {
@@ -1269,8 +1271,10 @@ func (s *LoadBalancerService) ModifyLoadBalancerAttributes(i *ModifyLoadBalancer
 
 type ModifyLoadBalancerAttributesInput struct {
 	Description      *string `json:"description" name:"description" location:"params"`
+	HTTPHeaderSize   *int    `json:"http_header_size" name:"http_header_size" location:"params"`
 	LoadBalancer     *string `json:"loadbalancer" name:"loadbalancer" location:"params"` // Required
 	LoadBalancerName *string `json:"loadbalancer_name" name:"loadbalancer_name" location:"params"`
+	NodeCount        *int    `json:"node_count" name:"node_count" location:"params"`
 	PrivateIP        *string `json:"private_ip" name:"private_ip" location:"params"`
 	SecurityGroup    *string `json:"security_group" name:"security_group" location:"params"`
 }
@@ -1326,8 +1330,8 @@ type ModifyLoadBalancerBackendAttributesInput struct {
 	LoadBalancerBackend     *string `json:"loadbalancer_backend" name:"loadbalancer_backend" location:"params"`
 	LoadBalancerBackendName *string `json:"loadbalancer_backend_name" name:"loadbalancer_backend_name" location:"params"`
 	LoadBalancerPolicyID    *string `json:"loadbalancer_policy_id" name:"loadbalancer_policy_id" location:"params"`
-	Port                    *string `json:"port" name:"port" location:"params"`
-	Weight                  *string `json:"weight" name:"weight" location:"params"`
+	Port                    *int    `json:"port" name:"port" location:"params"`
+	Weight                  *int    `json:"weight" name:"weight" location:"params"`
 }
 
 func (v *ModifyLoadBalancerBackendAttributesInput) Validate() error {
@@ -1388,14 +1392,16 @@ func (s *LoadBalancerService) ModifyLoadBalancerListenerAttributes(i *ModifyLoad
 }
 
 type ModifyLoadBalancerListenerAttributesInput struct {
-	BalanceMode              *string `json:"balance_mode" name:"balance_mode" location:"params"`
-	Forwardfor               *int    `json:"forwardfor" name:"forwardfor" location:"params"`
-	HealthyCheckMethod       *string `json:"healthy_check_method" name:"healthy_check_method" location:"params"`
-	HealthyCheckOption       *string `json:"healthy_check_option" name:"healthy_check_option" location:"params"`
-	LoadBalancerListener     *string `json:"loadbalancer_listener" name:"loadbalancer_listener" location:"params"` // Required
-	LoadBalancerListenerName *string `json:"loadbalancer_listener_name" name:"loadbalancer_listener_name" location:"params"`
-	ServerCertificateID      *string `json:"server_certificate_id" name:"server_certificate_id" location:"params"`
-	SessionSticky            *string `json:"session_sticky" name:"session_sticky" location:"params"`
+	BalanceMode              *string   `json:"balance_mode" name:"balance_mode" location:"params"`
+	Forwardfor               *int      `json:"forwardfor" name:"forwardfor" location:"params"`
+	HealthyCheckMethod       *string   `json:"healthy_check_method" name:"healthy_check_method" location:"params"`
+	HealthyCheckOption       *string   `json:"healthy_check_option" name:"healthy_check_option" location:"params"`
+	ListenerOption           *int      `json:"listener_option" name:"listener_option" location:"params"`
+	LoadBalancerListener     *string   `json:"loadbalancer_listener" name:"loadbalancer_listener" location:"params"` // Required
+	LoadBalancerListenerName *string   `json:"loadbalancer_listener_name" name:"loadbalancer_listener_name" location:"params"`
+	ServerCertificateID      []*string `json:"server_certificate_id" name:"server_certificate_id" location:"params"`
+	SessionSticky            *string   `json:"session_sticky" name:"session_sticky" location:"params"`
+	Timeout                  *int      `json:"timeout" name:"timeout" location:"params"`
 }
 
 func (v *ModifyLoadBalancerListenerAttributesInput) Validate() error {

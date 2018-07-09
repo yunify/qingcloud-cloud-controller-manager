@@ -1,5 +1,5 @@
-hash: 2fa243aa4e8c43ac1b31efb2fc7af1b16ed830002921db370bd252f05f8f8399
-updated: 2017-11-28T08:55:43.080253094Z
+hash: 1ef49d41c8d18a2a2695463b28824f5e2f72792f730281e195d943a62d5cbd8e
+updated: 2018-07-09T16:55:22.278099723+08:00
 imports:
 - name: cloud.google.com/go
   version: 3b1ae45394a234c385be014e9a488f2bb6eef821
@@ -332,7 +332,7 @@ imports:
   subpackages:
   - cloudstack
 - name: github.com/yunify/qingcloud-sdk-go
-  version: 89180cfe0754ebb7ca4be4eac9dce2dda88eaf0f
+  version: 2ca02f74c8874af9aa66e2b01c927a88d7b0aea9
   subpackages:
   - client
   - config
