@@ -10,5 +10,6 @@ RUN cd /app/src/github.com/yunify/qingcloud-cloud-controller-manager && rm -rf b
 FROM alpine:latest
 MAINTAINER calvinyu <calvinyu@yunify.com>
 
+RUN apk add --no-cache ca-certificates
 COPY --from=build /app/src/github.com/yunify/qingcloud-cloud-controller-manager/bin/qingcloud-cloud-controller-manager /bin/qingcloud-cloud-controller-manager
 ENV PATH "/bin/qingcloud-cloud-controller-manager:$PATH"
