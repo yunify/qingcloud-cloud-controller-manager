@@ -68,7 +68,7 @@ print-%							:
 go-build						: bin/qingcloud-cloud-controller-manager
 
 bin/qingcloud-cloud-controller-manager                     : $(foreach dir,$(qingcloud-cloud-controller-manager_pkg),$(wildcard $(dir)/*.go)) Makefile
-								go build -o bin/qingcloud-cloud-controller-manager $(GO_BUILD_FLAGS) $(GIT_REPOSITORY)
+								go build -o bin/qingcloud-cloud-controller-manager $(GO_BUILD_FLAGS) $(GIT_REPOSITORY) ./cmd/go
 
 bin/.docker-images-build-timestamp                         : bin/qingcloud-cloud-controller-manager Makefile Dockerfile
 								docker build -q -t $(DOCKER_IMAGE_NAME):$(IMAGE_LABLE) -t dockerhub.qingcloud.com/$(DOCKER_IMAGE_NAME):$(IMAGE_LABLE) . > bin/.docker-images-build-timestamp
@@ -90,5 +90,6 @@ clean                           :
 								rm -rf bin/ && if -f bin/.docker-images-build-timestamp then docker rmi `cat bin/.docker-images-build-timestamp`
 test                            :  
 								go test -cover $(TEST_PACKAGES)
-								
+vet:
+								go vet ./qingcloud/ ./cmd/
 .PHONY							: default all go-build clean install-docker test
