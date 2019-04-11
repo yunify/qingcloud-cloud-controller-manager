@@ -174,6 +174,7 @@ type DescribeInstancesInput struct {
 	IsClusterNode *int      `json:"is_cluster_node" name:"is_cluster_node" default:"0" location:"params"`
 	Limit         *int      `json:"limit" name:"limit" default:"20" location:"params"`
 	Offset        *int      `json:"offset" name:"offset" default:"0" location:"params"`
+	Owner         *string   `json:"owner" name:"owner" location:"params"`
 	SearchWord    *string   `json:"search_word" name:"search_word" location:"params"`
 	Status        []*string `json:"status" name:"status" location:"params"`
 	Tags          []*string `json:"tags" name:"tags" location:"params"`
@@ -416,10 +417,13 @@ type ResizeInstancesInput struct {
 
 	// CPU's available values: 1, 2, 4, 8, 16
 	CPU          *int      `json:"cpu" name:"cpu" location:"params"`
+	CPUModel     *string   `json:"cpu_model" name:"cpu_model" location:"params"`
+	Gpu          *int      `json:"gpu" name:"gpu" location:"params"`
 	InstanceType *string   `json:"instance_type" name:"instance_type" location:"params"`
 	Instances    []*string `json:"instances" name:"instances" location:"params"` // Required
 	// Memory's available values: 1024, 2048, 4096, 6144, 8192, 12288, 16384, 24576, 32768
-	Memory *int `json:"memory" name:"memory" location:"params"`
+	Memory     *int `json:"memory" name:"memory" location:"params"`
+	OSDiskSize *int `json:"os_disk_size" name:"os_disk_size" location:"params"`
 }
 
 func (v *ResizeInstancesInput) Validate() error {
@@ -568,7 +572,7 @@ type RunInstancesInput struct {
 	Gpu      *int    `json:"gpu" name:"gpu" default:"0" location:"params"`
 	Hostname *string `json:"hostname" name:"hostname" location:"params"`
 	ImageID  *string `json:"image_id" name:"image_id" location:"params"` // Required
-	// InstanceClass's available values: 0, 1
+	// InstanceClass's available values: 0, 1, 2, 3, 4, 5, 6, 100, 101, 200, 201, 300, 301
 	InstanceClass *int    `json:"instance_class" name:"instance_class" location:"params"`
 	InstanceName  *string `json:"instance_name" name:"instance_name" location:"params"`
 	InstanceType  *string `json:"instance_type" name:"instance_type" location:"params"`
@@ -584,6 +588,7 @@ type RunInstancesInput struct {
 	NeedNewSID *int `json:"need_newsid" name:"need_newsid" default:"0" location:"params"`
 	// NeedUserdata's available values: 0, 1
 	NeedUserdata  *int    `json:"need_userdata" name:"need_userdata" default:"0" location:"params"`
+	OSDiskSize    *int    `json:"os_disk_size" name:"os_disk_size" location:"params"`
 	SecurityGroup *string `json:"security_group" name:"security_group" location:"params"`
 	UIType        *string `json:"ui_type" name:"ui_type" location:"params"`
 	UserdataFile  *string `json:"userdata_file" name:"userdata_file" default:"/etc/rc.local" location:"params"`
@@ -665,7 +670,7 @@ func (v *RunInstancesInput) Validate() error {
 	}
 
 	if v.InstanceClass != nil {
-		instanceClassValidValues := []string{"0", "1"}
+		instanceClassValidValues := []string{"0", "1", "2", "3", "4", "5", "6", "100", "101", "200", "201", "300", "301"}
 		instanceClassParameterValue := fmt.Sprint(*v.InstanceClass)
 
 		instanceClassIsValid := false

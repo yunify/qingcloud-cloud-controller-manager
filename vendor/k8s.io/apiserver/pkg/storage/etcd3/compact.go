@@ -17,18 +17,17 @@ limitations under the License.
 package etcd3
 
 import (
+	"context"
 	"strconv"
 	"sync"
 	"time"
 
 	"github.com/coreos/etcd/clientv3"
-	"github.com/golang/glog"
-	"golang.org/x/net/context"
+	"k8s.io/klog"
 )
 
 const (
-	compactInterval = 5 * time.Minute
-	compactRevKey   = "compact_rev_key"
+	compactRevKey = "compact_rev_key"
 )
 
 var (
@@ -44,7 +43,7 @@ func init() {
 // By default, we save the most recent 10 minutes data and compact versions > 10minutes ago.
 // It should be enough for slow watchers and to tolerate burst.
 // TODO: We might keep a longer history (12h) in the future once storage API can take advantage of past version of keys.
-func StartCompactor(ctx context.Context, client *clientv3.Client) {
+func StartCompactor(ctx context.Context, client *clientv3.Client, compactInterval time.Duration) {
 	endpointsMapMu.Lock()
 	defer endpointsMapMu.Unlock()
 
@@ -52,7 +51,7 @@ func StartCompactor(ctx context.Context, client *clientv3.Client) {
 	// Currently we rely on endpoints to differentiate clusters.
 	for _, ep := range client.Endpoints() {
 		if _, ok := endpointsMap[ep]; ok {
-			glog.V(4).Infof("compactor already exists for endpoints %v", client.Endpoints())
+			klog.V(4).Infof("compactor already exists for endpoints %v", client.Endpoints())
 			return
 		}
 	}
@@ -60,7 +59,9 @@ func StartCompactor(ctx context.Context, client *clientv3.Client) {
 		endpointsMap[ep] = struct{}{}
 	}
 
-	go compactor(ctx, client, compactInterval)
+	if compactInterval != 0 {
+		go compactor(ctx, client, compactInterval)
+	}
 }
 
 // compactor periodically compacts historical versions of keys in etcd.
@@ -120,7 +121,7 @@ func compactor(ctx context.Context, client *clientv3.Client, interval time.Durat
 
 		compactTime, rev, err = compact(ctx, client, compactTime, rev)
 		if err != nil {
-			glog.Errorf("etcd: endpoint (%v) compact failed: %v", client.Endpoints(), err)
+			klog.Errorf("etcd: endpoint (%v) compact failed: %v", client.Endpoints(), err)
 			continue
 		}
 	}
@@ -156,6 +157,6 @@ func compact(ctx context.Context, client *clientv3.Client, t, rev int64) (int64,
 	if _, err = client.Compact(ctx, rev); err != nil {
 		return curTime, curRev, err
 	}
-	glog.V(4).Infof("etcd: compacted rev (%d), endpoints (%v)", rev, client.Endpoints())
+	klog.V(4).Infof("etcd: compacted rev (%d), endpoints (%v)", rev, client.Endpoints())
 	return curTime, curRev, nil
 }

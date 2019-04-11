@@ -30,12 +30,17 @@ type pluginInitializer struct {
 }
 
 // New creates an instance of admission plugins initializer.
-func New(extClientset kubernetes.Interface, extInformers informers.SharedInformerFactory, authz authorizer.Authorizer) (pluginInitializer, error) {
+// TODO(p0lyn0mial): make the parameters public, this construction seems to be redundant.
+func New(
+	extClientset kubernetes.Interface,
+	extInformers informers.SharedInformerFactory,
+	authz authorizer.Authorizer,
+) pluginInitializer {
 	return pluginInitializer{
 		externalClient:    extClientset,
 		externalInformers: extInformers,
 		authorizer:        authz,
-	}, nil
+	}
 }
 
 // Initialize checks the initialization interfaces implemented by a plugin

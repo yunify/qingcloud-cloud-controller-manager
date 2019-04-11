@@ -5,6 +5,7 @@
 package qingcloud
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"testing"
@@ -189,7 +190,7 @@ func TestZones(t *testing.T) {
 		t.Fatalf("Zones() returned false")
 	}
 
-	zone, err := z.GetZone()
+	zone, err := z.GetZone(context.TODO())
 	if err != nil {
 		t.Fatalf("GetZone() returned error: %s", err)
 	}

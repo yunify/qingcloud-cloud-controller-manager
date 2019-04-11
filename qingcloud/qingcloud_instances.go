@@ -7,29 +7,30 @@ package qingcloud
 // See https://docs.qingcloud.com/api/instance/index.html
 
 import (
+	"context"
 	"errors"
 
-	"github.com/golang/glog"
 	qcservice "github.com/yunify/qingcloud-sdk-go/service"
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/kubernetes/pkg/cloudprovider"
+	cloudprovider "k8s.io/cloud-provider"
+	"k8s.io/klog"
 )
 
 // NodeAddresses returns the addresses of the specified instance.
-func (qc *QingCloud) NodeAddresses(nodeName types.NodeName) ([]v1.NodeAddress, error) {
+func (qc *QingCloud) NodeAddresses(ctx context.Context, nodeName types.NodeName) ([]v1.NodeAddress, error) {
 	return qc.instanceAddress(NodeNameToInstanceID(nodeName))
 }
 
-func (qc *QingCloud) NodeAddressesByProviderID(providerId string) ([]v1.NodeAddress, error) {
+func (qc *QingCloud) NodeAddressesByProviderID(ctx context.Context, providerId string) ([]v1.NodeAddress, error) {
 	return qc.instanceAddress(providerId)
 }
 
 func (qc *QingCloud) instanceAddress(instanceID string) ([]v1.NodeAddress, error) {
-	glog.V(9).Infof("instanceAddress(%v) called", instanceID)
-	ins, err := qc.GetInstanceByID(instanceID)
+	klog.V(9).Infof("instanceAddress(%v) called", instanceID)
+	ins, err := qc.GetInstanceByID(context.TODO(), instanceID)
 	if err != nil {
-		glog.Errorf("error getting instance '%v': %v", instanceID, err)
+		klog.Errorf("error getting instance '%v': %v", instanceID, err)
 		return nil, err
 	}
 
@@ -49,28 +50,28 @@ func (qc *QingCloud) instanceAddress(instanceID string) ([]v1.NodeAddress, error
 
 // ExternalID returns the cloud provider ID of the specified instance (deprecated).
 // Note that if the instance does not exist or is no longer running, we must return ("", cloudprovider.InstanceNotFound)
-func (qc *QingCloud) ExternalID(nodeName types.NodeName) (string, error) {
+func (qc *QingCloud) ExternalID(ctx context.Context, nodeName types.NodeName) (string, error) {
 	return NodeNameToInstanceID(nodeName), nil
 }
 
 // InstanceID returns the cloud provider ID of the specified instance.
-func (qc *QingCloud) InstanceID(nodeName types.NodeName) (string, error) {
-	glog.V(9).Infof("InstanceID(%v) called", nodeName)
+func (qc *QingCloud) InstanceID(ctx context.Context, nodeName types.NodeName) (string, error) {
+	klog.V(9).Infof("InstanceID(%v) called", nodeName)
 	return NodeNameToInstanceID(nodeName), nil
 }
 
 // InstanceType returns the type of the specified instance.
-func (qc *QingCloud) InstanceType(name types.NodeName) (string, error) {
+func (qc *QingCloud) InstanceType(ctx context.Context, name types.NodeName) (string, error) {
 	return qc.instanceType(NodeNameToInstanceID(name))
 }
 
-func (qc *QingCloud) InstanceTypeByProviderID(providerID string) (string, error) {
+func (qc *QingCloud) InstanceTypeByProviderID(ctx context.Context, providerID string) (string, error) {
 	return qc.instanceType(providerID)
 }
 
 func (qc *QingCloud) instanceType(instanceID string) (string, error) {
-	glog.V(9).Infof("instanceType(%v) called", instanceID)
-	ins, err := qc.GetInstanceByID(instanceID)
+	klog.V(9).Infof("instanceType(%v) called", instanceID)
+	ins, err := qc.GetInstanceByID(context.TODO(), instanceID)
 	if err != nil {
 		return "", err
 	}
@@ -79,11 +80,11 @@ func (qc *QingCloud) instanceType(instanceID string) (string, error) {
 
 // List lists instances that match 'filter' which is a regular expression which must match the entire instance name (fqdn)
 func (qc *QingCloud) List(filter string) ([]types.NodeName, error) {
-	glog.V(9).Infof("List(%v) called", filter)
+	klog.V(9).Infof("List(%v) called", filter)
 
 	instances, err := qc.getInstancesByFilter(filter)
 	if err != nil {
-		glog.Errorf("error getting instances by filter '%s': %v", filter, err)
+		klog.Errorf("error getting instances by filter '%s': %v", filter, err)
 		return nil, err
 	}
 	result := []types.NodeName{}
@@ -91,20 +92,20 @@ func (qc *QingCloud) List(filter string) ([]types.NodeName, error) {
 		result = append(result, types.NodeName(*ins.InstanceID))
 	}
 
-	glog.V(9).Infof("List instances: %v", result)
+	klog.V(9).Infof("List instances: %v", result)
 
 	return result, nil
 }
 
 // AddSSHKeyToAllInstances adds an SSH public key as a legal identity for all instances.
 // The method is currently only used in gce.
-func (qc *QingCloud) AddSSHKeyToAllInstances(user string, keyData []byte) error {
+func (qc *QingCloud) AddSSHKeyToAllInstances(ctx context.Context, user string, keyData []byte) error {
 	return errors.New("Unimplemented")
 }
 
 // CurrentNodeName returns the name of the node we are currently running on
 // On most clouds (e.g. GCE) this is the hostname, so we provide the hostname
-func (qc *QingCloud) CurrentNodeName(hostname string) (types.NodeName, error) {
+func (qc *QingCloud) CurrentNodeName(ctx context.Context, hostname string) (types.NodeName, error) {
 	return types.NodeName(hostname), nil
 }
 
@@ -113,7 +114,7 @@ func (qc *QingCloud) GetSelf() *qcservice.Instance {
 }
 
 // GetInstanceByID get instance.Instance by instanceId
-func (qc *QingCloud) GetInstanceByID(instanceID string) (*qcservice.Instance, error) {
+func (qc *QingCloud) GetInstanceByID(ctx context.Context, instanceID string) (*qcservice.Instance, error) {
 
 	if qc.selfInstance != nil && *qc.selfInstance.InstanceID == instanceID {
 		return qc.selfInstance, nil
@@ -168,4 +169,9 @@ func (qc *QingCloud) getInstancesByFilter(filter string) ([]*qcservice.Instance,
 	}
 
 	return instances, nil
+}
+
+func (qc *QingCloud) InstanceShutdownByProviderID(ctx context.Context, providerID string) (bool, error) {
+	//TODO (magicsong)
+	return false, nil
 }
