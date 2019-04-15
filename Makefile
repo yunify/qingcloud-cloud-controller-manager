@@ -91,5 +91,8 @@ clean                           :
 test                            :  
 								go test -cover $(TEST_PACKAGES)
 vet:
-								go vet ./qingcloud/ ./cmd/
+								go vet ./qingcloud/... ./cmd/...
+
+debug:
+								./hack/e2e.sh
 .PHONY							: default all go-build clean install-docker test

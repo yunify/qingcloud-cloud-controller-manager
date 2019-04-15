@@ -15,3 +15,6 @@
 .idea
 qingcloud-cloud-controller-manager
 bin/
+
+.DS_Store
+test/*.yaml
