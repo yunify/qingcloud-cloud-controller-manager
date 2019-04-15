@@ -28,7 +28,7 @@ pipeline {
     stage('Test') {
       steps {
         sh """
-            ./hack/e2e.sh
+            ./hack/e2e.sh -s
           """
       }
     }
