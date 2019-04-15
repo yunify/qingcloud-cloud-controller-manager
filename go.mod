@@ -4,8 +4,11 @@ go 1.12
 
 require (
 	github.com/docker/distribution v2.7.1+incompatible // indirect
+	github.com/onsi/ginkgo v1.8.0
+	github.com/onsi/gomega v0.0.0-20190113212917-5533ce8a0da3
 	github.com/opencontainers/go-digest v1.0.0-rc1 // indirect
 	github.com/sirupsen/logrus v1.4.1 // indirect
+	github.com/spf13/afero v1.2.2 // indirect
 	github.com/spf13/cobra v0.0.3 // indirect
 	github.com/yunify/qingcloud-sdk-go v2.0.0-alpha.35+incompatible
 	gopkg.in/gcfg.v1 v1.2.3

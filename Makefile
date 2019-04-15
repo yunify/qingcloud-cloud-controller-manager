@@ -88,11 +88,11 @@ publish                         : bin/.docker_label
 
 clean                           :
 								rm -rf bin/ && if -f bin/.docker-images-build-timestamp then docker rmi `cat bin/.docker-images-build-timestamp`
-test                            :  
+test                            : vet
 								go test -cover $(TEST_PACKAGES)
 vet:
-								go vet ./qingcloud/... ./cmd/...
+								go vet ./qingcloud/... ./cmd/... ./test/pkg/...
 
 debug:
-								./hack/e2e.sh
+								./hack/debug.sh
 .PHONY							: default all go-build clean install-docker test
