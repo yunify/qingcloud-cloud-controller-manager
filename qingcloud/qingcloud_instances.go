@@ -11,15 +11,19 @@ import (
 	"errors"
 
 	qcservice "github.com/yunify/qingcloud-sdk-go/service"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	cloudprovider "k8s.io/cloud-provider"
 	"k8s.io/klog"
 )
 
+const (
+	NodeAnnotationInstanceID = "node.beta.kubernetes.io/instance-id"
+)
+
 // NodeAddresses returns the addresses of the specified instance.
 func (qc *QingCloud) NodeAddresses(ctx context.Context, nodeName types.NodeName) ([]v1.NodeAddress, error) {
-	return qc.instanceAddress(NodeNameToInstanceID(nodeName))
+	return qc.instanceAddress(qc.NodeNameToInstanceID(nodeName))
 }
 
 func (qc *QingCloud) NodeAddressesByProviderID(ctx context.Context, providerId string) ([]v1.NodeAddress, error) {
@@ -27,8 +31,8 @@ func (qc *QingCloud) NodeAddressesByProviderID(ctx context.Context, providerId s
 }
 
 func (qc *QingCloud) instanceAddress(instanceID string) ([]v1.NodeAddress, error) {
-	klog.V(9).Infof("instanceAddress(%v) called", instanceID)
 	ins, err := qc.GetInstanceByID(context.TODO(), instanceID)
+	//TODO  cannot get instance if hostname has been changed
 	if err != nil {
 		klog.Errorf("error getting instance '%v': %v", instanceID, err)
 		return nil, err
@@ -51,18 +55,18 @@ func (qc *QingCloud) instanceAddress(instanceID string) ([]v1.NodeAddress, error
 // ExternalID returns the cloud provider ID of the specified instance (deprecated).
 // Note that if the instance does not exist or is no longer running, we must return ("", cloudprovider.InstanceNotFound)
 func (qc *QingCloud) ExternalID(ctx context.Context, nodeName types.NodeName) (string, error) {
-	return NodeNameToInstanceID(nodeName), nil
+	return qc.NodeNameToInstanceID(nodeName), nil
 }
 
 // InstanceID returns the cloud provider ID of the specified instance.
 func (qc *QingCloud) InstanceID(ctx context.Context, nodeName types.NodeName) (string, error) {
 	klog.V(9).Infof("InstanceID(%v) called", nodeName)
-	return NodeNameToInstanceID(nodeName), nil
+	return qc.NodeNameToInstanceID(nodeName), nil
 }
 
 // InstanceType returns the type of the specified instance.
 func (qc *QingCloud) InstanceType(ctx context.Context, name types.NodeName) (string, error) {
-	return qc.instanceType(NodeNameToInstanceID(name))
+	return qc.instanceType(qc.NodeNameToInstanceID(name))
 }
 
 func (qc *QingCloud) InstanceTypeByProviderID(ctx context.Context, providerID string) (string, error) {
@@ -115,7 +119,6 @@ func (qc *QingCloud) GetSelf() *qcservice.Instance {
 
 // GetInstanceByID get instance.Instance by instanceId
 func (qc *QingCloud) GetInstanceByID(ctx context.Context, instanceID string) (*qcservice.Instance, error) {
-
 	if qc.selfInstance != nil && *qc.selfInstance.InstanceID == instanceID {
 		return qc.selfInstance, nil
 	}

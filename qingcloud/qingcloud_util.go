@@ -7,8 +7,10 @@ package qingcloud
 import (
 	"time"
 
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/klog"
 )
 
 const (
@@ -19,8 +21,16 @@ const (
 
 // Make sure qingcloud instance hostname or override-hostname (if provided) is equal to InstanceId
 // Recommended to use override-hostname
-func NodeNameToInstanceID(name types.NodeName) string {
-	return string(name)
+func (qc *QingCloud) NodeNameToInstanceID(name types.NodeName) string {
+	node, err := qc.k8sclient.CoreV1().Nodes().Get(string(name), metav1.GetOptions{})
+	if err != nil {
+		klog.Errorf("Failed to get instance id of node %s, err:", name, err.Error())
+		return ""
+	}
+	if instanceid, ok := node.GetAnnotations()[NodeAnnotationInstanceID]; ok {
+		return instanceid
+	}
+	return node.Name
 }
 
 func getNodePort(service *v1.Service, port int32, protocol v1.Protocol) (nodePort int32, found bool) {

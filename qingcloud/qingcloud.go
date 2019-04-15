@@ -18,6 +18,8 @@ import (
 	qcservice "github.com/yunify/qingcloud-sdk-go/service"
 	gcfg "gopkg.in/gcfg.v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 	cloudprovider "k8s.io/cloud-provider"
 	"k8s.io/klog"
 )
@@ -31,6 +33,7 @@ type Config struct {
 		QYConfigPath      string `gcfg:"qyConfigPath"`
 		Zone              string `gcfg:"zone"`
 		DefaultVxNetForLB string `gcfg:"defaultVxNetForLB"`
+		ClusterID         string `gcfg:"clusterID"`
 	}
 }
 
@@ -45,6 +48,9 @@ type QingCloud struct {
 	zone                 string
 	selfInstance         *qcservice.Instance
 	defaultVxNetForLB    string
+	clusterID            string
+
+	k8sclient *kubernetes.Clientset
 }
 
 func init() {
@@ -103,6 +109,18 @@ func newQingCloud(config Config) (cloudprovider.Interface, error) {
 		return nil, err
 	}
 
+	//init k8sclientset
+	k8sconfig, err := rest.InClusterConfig()
+	if err != nil {
+		klog.Errorln("Failed to load in cluster config")
+		return nil, err
+	}
+	// creates the clientset
+	clientset, err := kubernetes.NewForConfig(k8sconfig)
+	if err != nil {
+		klog.Errorln("Failed to generate k8s clientset")
+		return nil, err
+	}
 	qc := QingCloud{
 		instanceService:      instanceService,
 		lbService:            lbService,
@@ -111,6 +129,8 @@ func newQingCloud(config Config) (cloudprovider.Interface, error) {
 		securityGroupService: securityGroupService,
 		zone:                 config.Global.Zone,
 		defaultVxNetForLB:    config.Global.DefaultVxNetForLB,
+		clusterID:            config.Global.ClusterID,
+		k8sclient:            clientset,
 	}
 	host, err := getHostname()
 	if err != nil {
@@ -181,7 +201,7 @@ func getHostname() (string, error) {
 
 // HasClusterID returns true if the cluster has a clusterID
 func (qc *QingCloud) HasClusterID() bool {
-	return false
+	return qc.clusterID != ""
 }
 
 // GetZoneByNodeName implements Zones.GetZoneByNodeName

@@ -110,7 +110,7 @@ func (qc *QingCloud) GetLoadBalancerName(ctx context.Context, clusterName string
 // 3. previously use eip and now still use another eip
 // 4. ports is different with previous setting, this will just bring changes on listeners
 func (qc *QingCloud) EnsureLoadBalancer(ctx context.Context, clusterName string, service *v1.Service, nodes []*v1.Node) (*v1.LoadBalancerStatus, error) {
-	klog.V(3).Infof("EnsureLoadBalancer(%v, %v, %v)", clusterName, service, nodes)
+	klog.V(2).Infof("EnsureLoadBalancer(%v, %v)", clusterName, service.Name)
 
 	tcpPortNum := 0
 	k8sTCPPorts := []int{}
@@ -154,7 +154,7 @@ func (qc *QingCloud) EnsureLoadBalancer(ctx context.Context, clusterName string,
 
 	instances := []string{}
 	for _, node := range nodes {
-		instances = append(instances, NodeNameToInstanceID(types.NodeName(node.Name)))
+		instances = append(instances, qc.NodeNameToInstanceID(types.NodeName(node.Name)))
 	}
 
 	klog.V(2).Infof("Checking if qingcloud load balancer already exists: %s", loadBalancerName)
@@ -320,7 +320,7 @@ func (qc *QingCloud) UpdateLoadBalancer(ctx context.Context, clusterName string,
 	// Expected instances for the load balancer.
 	expected := sets.NewString()
 	for _, node := range nodes {
-		instanceID := NodeNameToInstanceID(types.NodeName(node.Name))
+		instanceID := qc.NodeNameToInstanceID(types.NodeName(node.Name))
 		expected.Insert(instanceID)
 	}
 
@@ -362,7 +362,7 @@ func (qc *QingCloud) UpdateLoadBalancer(ctx context.Context, clusterName string,
 				backends[i] = &qcservice.LoadBalancerBackend{
 					ResourceID:              &instanceID,
 					LoadBalancerBackendName: &instanceID,
-					Port: qcservice.Int(int(port)),
+					Port:                    qcservice.Int(int(port)),
 				}
 			}
 			err := qc.addLoadBalancerBackends(listenerID, backends)
@@ -730,7 +730,7 @@ func (qc *QingCloud) createLoadBalancerListenerWithBackends(loadBalancerID strin
 		backends[j] = &qcservice.LoadBalancerBackend{
 			ResourceID:              &instanceID,
 			LoadBalancerBackendName: &instanceID,
-			Port: qcservice.Int(int(nodePort)),
+			Port:                    qcservice.Int(int(nodePort)),
 		}
 	}
 	if len(backends) > 0 {

@@ -17,10 +17,12 @@ spec:
       annotations:
         scheduler.alpha.kubernetes.io/critical-pod: ''
     spec:
+      nodeSelector:
+        node-role.kubernetes.io/master: ""
       containers:
       - command:
         - /manager
-        - --v=${KUBE_LOG_LEVEL}
+        - --v=3
         - --cloud-provider=qingcloud
         - --cloud-config=/etc/kubernetes/qingcloud.conf
         - --allocate-node-cidrs=true
@@ -90,6 +92,17 @@ rules:
 - apiGroups:
   - ""
   resources:
+  - configmaps
+  verbs:
+  - get
+  - list
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - ""
+  resources:
   - nodes
   verbs:
   - '*'
@@ -123,15 +136,6 @@ rules:
   - serviceaccounts
   verbs:
   - create
-- apiGroups:
-  - ""
-  resources:
-  - persistentvolumes
-  verbs:
-  - get
-  - list
-  - update
-  - watch
 - apiGroups:
   - ""
   resources:
