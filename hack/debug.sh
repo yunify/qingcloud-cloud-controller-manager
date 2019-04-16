@@ -5,7 +5,8 @@ tag=`git rev-parse --short HEAD`
 IMG=magicsong/cloud-manager:$tag
 DEST=test/manager.yaml
 #build binary
-
+echo "Delete yamls before test"
+kubectl delete -f $DEST > /dev/null
 set -e
 
 while [[ $# -gt 0 ]]

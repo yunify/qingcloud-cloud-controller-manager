@@ -8,18 +8,14 @@ package qingcloud
 // and must pay attention to your account resource quota limit.
 
 import (
-	"context"
-	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 
 	qcconfig "github.com/yunify/qingcloud-sdk-go/config"
 	qcservice "github.com/yunify/qingcloud-sdk-go/service"
 	gcfg "gopkg.in/gcfg.v1"
-	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
+	"k8s.io/client-go/informers"
+	corev1informer "k8s.io/client-go/informers/core/v1"
 	cloudprovider "k8s.io/cloud-provider"
 	"k8s.io/klog"
 )
@@ -37,6 +33,8 @@ type Config struct {
 	}
 }
 
+var _ cloudprovider.Interface = &QingCloud{}
+
 // A single Kubernetes cluster can run in multiple zones,
 // but only within the same region (and cloud provider).
 type QingCloud struct {
@@ -46,11 +44,11 @@ type QingCloud struct {
 	jobService           *qcservice.JobService
 	securityGroupService *qcservice.SecurityGroupService
 	zone                 string
-	selfInstance         *qcservice.Instance
 	defaultVxNetForLB    string
 	clusterID            string
 
-	k8sclient *kubernetes.Clientset
+	nodeInformer    corev1informer.NodeInformer
+	serviceInformer corev1informer.ServiceInformer
 }
 
 func init() {
@@ -109,18 +107,6 @@ func newQingCloud(config Config) (cloudprovider.Interface, error) {
 		return nil, err
 	}
 
-	//init k8sclientset
-	k8sconfig, err := rest.InClusterConfig()
-	if err != nil {
-		klog.Errorln("Failed to load in cluster config")
-		return nil, err
-	}
-	// creates the clientset
-	clientset, err := kubernetes.NewForConfig(k8sconfig)
-	if err != nil {
-		klog.Errorln("Failed to generate k8s clientset")
-		return nil, err
-	}
 	qc := QingCloud{
 		instanceService:      instanceService,
 		lbService:            lbService,
@@ -130,42 +116,22 @@ func newQingCloud(config Config) (cloudprovider.Interface, error) {
 		zone:                 config.Global.Zone,
 		defaultVxNetForLB:    config.Global.DefaultVxNetForLB,
 		clusterID:            config.Global.ClusterID,
-		k8sclient:            clientset,
 	}
-	host, err := getHostname()
-	if err != nil {
-		return nil, err
-	}
-	ins, err := qc.GetInstanceByID(context.TODO(), host)
-	if err != nil {
-		klog.Errorf("Get self instance fail, id: %s, err: %s", host, err.Error())
-		return nil, err
-	}
-	qc.selfInstance = ins
 
-	klog.V(1).Infof("QingCloud provider init finish, zone: %v, selfInstance: %+v", qc.zone, qc.selfInstance)
-
+	klog.V(1).Infof("QingCloud provider init done")
 	return &qc, nil
 }
 
 func (qc *QingCloud) Initialize(clientBuilder cloudprovider.ControllerClientBuilder, stop <-chan struct{}) {
+	clientset := clientBuilder.ClientOrDie("do-shared-informers")
+	sharedInformer := informers.NewSharedInformerFactory(clientset, 0)
+	nodeinformer := sharedInformer.Core().V1().Nodes()
+	go nodeinformer.Informer().Run(stop)
+	qc.nodeInformer = nodeinformer
 
-}
-
-// LoadBalancer returns an implementation of LoadBalancer for QingCloud.
-func (qc *QingCloud) LoadBalancer() (cloudprovider.LoadBalancer, bool) {
-	klog.V(4).Info("LoadBalancer() called")
-	return qc, true
-}
-
-// Instances returns an implementation of Instances for QingCloud.
-func (qc *QingCloud) Instances() (cloudprovider.Instances, bool) {
-	klog.V(4).Info("Instances() called")
-	return qc, true
-}
-
-func (qc *QingCloud) Zones() (cloudprovider.Zones, bool) {
-	return qc, true
+	serviceInformer := sharedInformer.Core().V1().Services()
+	go serviceInformer.Informer().Run(stop)
+	qc.serviceInformer = serviceInformer
 }
 
 func (qc *QingCloud) Clusters() (cloudprovider.Clusters, bool) {
@@ -180,48 +146,7 @@ func (qc *QingCloud) ProviderName() string {
 	return ProviderName
 }
 
-// ScrubDNS filters DNS settings for pods.
-func (qc *QingCloud) ScrubDNS(nameservers, searches []string) (nsOut, srchOut []string) {
-	return nameservers, searches
-}
-
-func (qc *QingCloud) GetZone(ctx context.Context) (cloudprovider.Zone, error) {
-	klog.V(4).Infof("GetZone() called, current zone is %v", qc.zone)
-
-	return cloudprovider.Zone{Region: qc.zone}, nil
-}
-
-func getHostname() (string, error) {
-	content, err := ioutil.ReadFile("/etc/qingcloud/instance-id")
-	if err != nil {
-		return "", err
-	}
-	return string(content), nil
-}
-
 // HasClusterID returns true if the cluster has a clusterID
 func (qc *QingCloud) HasClusterID() bool {
 	return qc.clusterID != ""
-}
-
-// GetZoneByNodeName implements Zones.GetZoneByNodeName
-// This is particularly useful in external cloud providers where the kubelet
-// does not initialize node data.
-func (qc *QingCloud) GetZoneByNodeName(ctx context.Context, nodeName types.NodeName) (cloudprovider.Zone, error) {
-	klog.V(4).Infof("GetZoneByNodeName() called, current zone is %v, and return zone directly as temporary solution", qc.zone)
-	return cloudprovider.Zone{Region: qc.zone}, nil
-}
-
-// GetZoneByProviderID implements Zones.GetZoneByProviderID
-// This is particularly useful in external cloud providers where the kubelet
-// does not initialize node data.
-func (qc *QingCloud) GetZoneByProviderID(ctx context.Context, providerID string) (cloudprovider.Zone, error) {
-	klog.V(4).Infof("GetZoneByProviderID() called, current zone is %v, and return zone directly as temporary solution", qc.zone)
-	return cloudprovider.Zone{Region: qc.zone}, nil
-}
-
-// InstanceExistsByProviderID returns true if the instance with the given provider id still exists and is running.
-// If false is returned with no error, the instance will be immediately deleted by the cloud controller manager.
-func (qc *QingCloud) InstanceExistsByProviderID(ctx context.Context, providerID string) (bool, error) {
-	return false, errors.New("unimplemented")
 }

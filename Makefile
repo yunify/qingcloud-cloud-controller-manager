@@ -91,8 +91,9 @@ clean                           :
 test                            : vet
 								go test -cover $(TEST_PACKAGES)
 vet:
-								go vet ./qingcloud/... ./cmd/... ./test/pkg/...
+								go vet ./pkg/... ./cmd/... ./test/pkg/...
 
 debug:
 								./hack/debug.sh
+								
 .PHONY							: default all go-build clean install-docker test

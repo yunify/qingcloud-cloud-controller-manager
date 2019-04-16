@@ -34,6 +34,14 @@ pipeline {
     }
   }
   post {
+        failure {
+          echo "Detect failure .Save logs "
+          sh """
+            podname=`kubectl get pod -n cloud-test-$tag -l app=tide -o jsonpath="{.items[0].metadata.name}"`
+            kubectl logs $podname -n cloud-test-$tag > cloud_controller.log
+          """
+          archiveArtifacts artifacts: 'cloud_controller.log'
+        }
         always {
             echo 'Clean images'
             archiveArtifacts artifacts: 'test/*.yaml', fingerprint: true
