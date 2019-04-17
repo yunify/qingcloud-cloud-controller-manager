@@ -38,7 +38,7 @@ pipeline {
             echo 'Clean images'
             archiveArtifacts artifacts: 'test/*.yaml', fingerprint: true
             sh """
-              docker rmi $IMG
+              docker rmi $IMG  || echo "No image to remove"
             """
         }
     }
