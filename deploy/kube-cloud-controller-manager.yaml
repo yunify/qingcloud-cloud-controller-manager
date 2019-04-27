@@ -63,9 +63,9 @@ spec:
       - hostPath:
           path: /etc/ssl/certs
         name: certs
-      - hostPath:
-          path: /etc/qingcloud
-        name: qingcloud
+      - name:  qingcloud
+        secret:
+          secretName: qcsecret
 
 ---
 apiVersion: v1
@@ -146,6 +146,7 @@ rules:
   - list
   - watch
   - update
+
 ---
 kind: ClusterRoleBinding
 apiVersion: rbac.authorization.k8s.io/v1

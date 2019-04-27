@@ -14,6 +14,7 @@ function cleanup(){
     result=$?
     set +e
     echo "Cleaning Namespace"
+    kubectl delete secret qcsecret -n $TEST_NS
     kubectl delete ns $TEST_NS > /dev/null
     if [ $SKIP_BUILD == "no" ]; then
         docker  rmi $IMG
@@ -67,6 +68,7 @@ fi
 sed -e 's@image: .*@image: '"${IMG}"'@' -e 's/kube-system/'"$TEST_NS"'/g' deploy/kube-cloud-controller-manager.yaml > $DEST
 
 kubectl create ns $TEST_NS
+kubectl create secret generic qcsecret --from-file=${HOME}/.qingcloud/config.yaml -n $TEST_NS
 kubectl apply -f $DEST
 export TEST_NS
 
