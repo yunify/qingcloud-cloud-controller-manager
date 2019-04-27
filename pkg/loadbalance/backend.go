@@ -15,7 +15,7 @@ type Backend struct {
 }
 
 type BackendSpec struct {
-	listener   *Listener
+	Listener   *Listener
 	Weight     int
 	Port       int
 	InstanceID string
@@ -35,7 +35,7 @@ func NewBackendList(lb *LoadBalancer, listener *Listener) *BackendList {
 			lbapi: lb.GetLBAPI(),
 			Name:  fmt.Sprintf("backend_%s_%s", listener.Name, instance),
 			Spec: BackendSpec{
-				listener:   listener,
+				Listener:   listener,
 				Weight:     1,
 				Port:       listener.NodePort,
 				InstanceID: instance,
@@ -60,8 +60,8 @@ func (b *Backend) toQcBackendInput() *qcservice.LoadBalancerBackend {
 
 func (b *Backend) LoadQcBackend() error {
 	input := &qcservice.DescribeLoadBalancerBackendsInput{
-		LoadBalancerListener: b.Spec.listener.Status.LoadBalancerListenerID,
-		LoadBalancer:         b.Spec.listener.Status.LoadBalancerID,
+		LoadBalancerListener: b.Spec.Listener.Status.LoadBalancerListenerID,
+		LoadBalancer:         b.Spec.Listener.Status.LoadBalancerID,
 	}
 	output, err := b.lbapi.DescribeLoadBalancerBackends(input)
 	if err != nil {

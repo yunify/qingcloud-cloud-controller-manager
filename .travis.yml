@@ -1,0 +1,7 @@
+language: go
+go: 
+ - "1.12.x"
+
+install: true
+
+script: go test -v -mod=vendor ./pkg/...
