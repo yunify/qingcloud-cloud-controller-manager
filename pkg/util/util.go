@@ -23,7 +23,7 @@ func GetPortsOfService(service *v1.Service) ([]int, []int) {
 	k8sTCPPorts := []int{}
 	k8sNodePorts := []int{}
 	for _, port := range service.Spec.Ports {
-		if port.Protocol == v1.ProtocolUDP {
+		if port.Protocol == v1.ProtocolUDP{
 			klog.Warningf("qingcloud not support udp port, skip [%v]", port.Port)
 		} else {
 			k8sTCPPorts = append(k8sTCPPorts, int(port.Port))

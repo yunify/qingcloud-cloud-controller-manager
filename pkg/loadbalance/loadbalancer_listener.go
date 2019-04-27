@@ -176,6 +176,10 @@ func (l *Listener) CreateQingCloudListener() error {
 	return err
 }
 
+func (l *Listener) GetBackends() *BackendList {
+	return l.backendList
+}
+
 func (l *Listener) DeleteQingCloudListener() error {
 	if l.Status == nil {
 		return fmt.Errorf("Could not delete noexit listener")

@@ -11,7 +11,6 @@ import (
 	qcclient "github.com/yunify/qingcloud-sdk-go/client"
 	qcservice "github.com/yunify/qingcloud-sdk-go/service"
 	corev1 "k8s.io/api/core/v1"
-	v1 "k8s.io/api/core/v1"
 	corev1lister "k8s.io/client-go/listers/core/v1"
 	"k8s.io/klog"
 )
@@ -510,10 +509,10 @@ func (l *LoadBalancer) GenerateK8sLoadBalancer() error {
 	}
 	status := &corev1.LoadBalancerStatus{}
 	for _, eip := range l.Status.QcLoadBalancer.Cluster {
-		status.Ingress = append(status.Ingress, v1.LoadBalancerIngress{IP: *eip.EIPAddr})
+		status.Ingress = append(status.Ingress, corev1.LoadBalancerIngress{IP: *eip.EIPAddr})
 	}
 	for _, ip := range l.Status.QcLoadBalancer.EIPs {
-		status.Ingress = append(status.Ingress, v1.LoadBalancerIngress{IP: *ip.EIPAddr})
+		status.Ingress = append(status.Ingress, corev1.LoadBalancerIngress{IP: *ip.EIPAddr})
 	}
 	if len(status.Ingress) == 0 {
 		return fmt.Errorf("Have no ip yet")
