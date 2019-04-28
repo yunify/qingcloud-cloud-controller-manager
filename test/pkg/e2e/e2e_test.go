@@ -16,6 +16,7 @@ import (
 )
 
 var testip = "139.198.121.161"
+var ipchange = "139.198.121.98"
 var _ = Describe("E2e", func() {
 	It("Should work as expected in ReUse Mode", func() {
 		servicePath := workspace + "/test/test_cases/reuse/case.yaml"
@@ -56,11 +57,14 @@ var _ = Describe("E2e", func() {
 			lbService, _ := qcService.LoadBalancer("ap2a")
 			Eventually(func() error { return e2eutil.WaitForLoadBalancerDeleted(lbService) }, time.Minute*1, time.Second*15).Should(Succeed())
 		}()
+		log.Println("Just wait 2 minutes before tests because following procedure is so so so slow ")
+		time.Sleep(2 * time.Minute)
+		log.Println("Wake up, we can test now")
 		Eventually(func() error {
 			return e2eutil.ServiceHasEIP(k8sclient, serviceName, "default", testip)
 		}, 3*time.Minute, 20*time.Second).Should(Succeed())
 		log.Println("Successfully assign a ip")
-		Eventually(func() int { return e2eutil.GerServiceResponse(testip, 8088) }, time.Second*20, time.Minute*5).Should(Equal(http.StatusOK))
+		Eventually(func() int { return e2eutil.GerServiceResponse(testip, 8088) }, time.Second*20, time.Second*5).Should(Equal(http.StatusOK))
 		log.Println("Successfully get a 200 response")
 
 		//update size
@@ -68,9 +72,12 @@ var _ = Describe("E2e", func() {
 		Expect(err).ShouldNot(HaveOccurred())
 		expectedType := 2
 		svc.Annotations[loadbalance.ServiceAnnotationLoadBalancerType] = strconv.Itoa(expectedType)
+		svc.Annotations[loadbalance.ServiceAnnotationLoadBalancerEipIds] = "eip-e5fxdepa"
 		svc, err = k8sclient.CoreV1().Services("default").Update(svc)
 		Expect(err).ShouldNot(HaveOccurred(), "Failed to update svc")
-		Eventually(func() int { return e2eutil.GerServiceResponse(testip, 8088) }, time.Second*20, time.Minute*5).Should(Equal(http.StatusOK))
+		log.Println("Just wait 3 minutes before tests because following procedure is so so so slow ")
+		time.Sleep(3 * time.Minute)
+		log.Println("Wake up, we can test now")
 		lbService, _ := qcService.LoadBalancer("ap2a")
 		name := loadbalance.GetLoadBalancerName("kubernetes", svc)
 		Eventually(func() error {
@@ -83,10 +90,13 @@ var _ = Describe("E2e", func() {
 				return err
 			}
 			if len(output.LoadBalancerSet) == 1 && *output.LoadBalancerSet[0].LoadBalancerType == expectedType {
-				return nil
+				if len(output.LoadBalancerSet[0].Cluster) == 1 && *output.LoadBalancerSet[0].Cluster[0].EIPAddr == ipchange {
+					return nil
+				}
 			}
-			return fmt.Errorf("Lb type is not changed")
-		}, 20*time.Second, 4*time.Second).Should(Succeed())
+			return fmt.Errorf("Lb type is not changed or ip not change")
+		}, 3*time.Minute, 20*time.Second).Should(Succeed())
+		Eventually(func() int { return e2eutil.GerServiceResponse(ipchange, 8088) }, time.Second*20, time.Second*2).Should(Equal(http.StatusOK))
 		log.Println("Successfully get a 200 response after resizing")
 	})
 })
