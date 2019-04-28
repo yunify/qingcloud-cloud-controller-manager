@@ -1,0 +1,15 @@
+kind: Service
+apiVersion: v1
+metadata:
+  name:  mylbapp
+  annotations:
+    service.beta.kubernetes.io/qingcloud-load-balancer-eip-ids: "eip-e5fxdepa"
+    service.beta.kubernetes.io/qingcloud-load-balancer-type: "2"
+spec:
+  selector:
+    app:  mylbapp
+  type:  LoadBalancer 
+  ports:
+  - name:  http
+    port:  8088
+    targetPort:  80

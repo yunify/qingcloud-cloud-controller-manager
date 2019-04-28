@@ -82,4 +82,4 @@ kubectl apply -f $DEST
 export TEST_NS
 export secret_file
 
-go test -v -mod=vendor ./test/pkg/e2e/
+go test -timeout 20m -v -mod=vendor ./test/pkg/e2e/

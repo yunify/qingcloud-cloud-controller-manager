@@ -7,6 +7,7 @@ DEST=test/manager.yaml
 #build binary
 echo "Delete yamls before test"
 kubectl delete -f $DEST > /dev/null
+kubectl create secret generic qcsecret --from-file=${HOME}/.qingcloud/config.yaml -n kube-system
 set -e
 
 while [[ $# -gt 0 ]]
@@ -47,9 +48,9 @@ if [ $SKIP_BUILD == "no" ]; then
     docker build -t $IMG  -f deploy/Dockerfile bin/
     echo "Push images"
     docker push $IMG
-    echo "Generating yaml"
-
+    
 fi
+
+echo "Generating yaml"
 sed -e 's@image: .*@image: '"${IMG}"'@' deploy/kube-cloud-controller-manager.yaml > $DEST
-kubectl create secret generic qcsecret --from-file=${HOME}/.qingcloud/config.yaml -n kube-system
 kubectl apply -f $DEST

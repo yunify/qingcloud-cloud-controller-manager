@@ -306,6 +306,32 @@ func (l *LoadBalancer) NeedResize() bool {
 	return false
 }
 
+func (l *LoadBalancer) NeedChangeIP() (yes bool, toadd []string, todelete []string) {
+	if l.Status.QcLoadBalancer == nil {
+		return
+	}
+	yes = true
+	new := strings.Split(l.service.Annotations[ServiceAnnotationLoadBalancerEipIds], ",")
+	old := make([]string, 0)
+	for _, ip := range l.Status.QcLoadBalancer.Cluster {
+		old = append(old, *ip.EIPID)
+	}
+	for _, ip := range new {
+		if util.StringIndex(old, ip) == -1 {
+			toadd = append(toadd, ip)
+		}
+	}
+	for _, ip := range old {
+		if util.StringIndex(new, ip) == -1 {
+			todelete = append(todelete, ip)
+		}
+	}
+	if len(toadd) == 0 && len(todelete) == 0 {
+		yes = false
+	}
+	return
+}
+
 // CreateQingCloudLB do create a lb in qingcloud
 func (l *LoadBalancer) CreateQingCloudLB() error {
 	err := l.EnsureLoadBalancerSecurityGroup()
@@ -365,6 +391,7 @@ func (l *LoadBalancer) Resize() error {
 		if err != nil {
 			klog.Errorf("Failed to stop lb %s when try to resize", l.Name)
 		}
+		klog.V(2).Infof("Resizing the lb %s", l.Name)
 		output, err := l.lbapi.ResizeLoadBalancers(&qcservice.ResizeLoadBalancersInput{
 			LoadBalancerType: &l.Type,
 			LoadBalancers:    []*string{l.Status.QcLoadBalancer.LoadBalancerID},
@@ -384,6 +411,10 @@ func (l *LoadBalancer) Resize() error {
 
 // UpdateQingCloudLB update some attrs of qingcloud lb
 func (l *LoadBalancer) UpdateQingCloudLB() error {
+	if l.Status.QcLoadBalancer == nil {
+		klog.Warningf("Nothing can do before loading qingcloud loadBalancer %s", l.Name)
+		return nil
+	}
 	if l.NeedResize() {
 		err := l.Resize()
 		if err != nil {
@@ -391,6 +422,21 @@ func (l *LoadBalancer) UpdateQingCloudLB() error {
 			return err
 		}
 	}
+
+	if yes, toadd, todelete := l.NeedChangeIP(); yes {
+		klog.V(2).Infof("Adding eips %s to and deleting %s from lb %s", toadd, todelete, l.Name)
+		err := l.AssociateEipToLoadBalancer(toadd...)
+		if err != nil {
+			klog.Errorf("Failed to add eips %s to lb %s", toadd, l.Name)
+			return err
+		}
+		err = l.DissociateEipFromLoadBalancer(todelete...)
+		if err != nil {
+			klog.Errorf("Failed to add eips %s to lb %s", todelete, l.Name)
+			return err
+		}
+	}
+
 	if l.NeedUpdate() {
 		output, err := l.lbapi.ModifyLoadBalancerAttributes(&qcservice.ModifyLoadBalancerAttributesInput{
 			LoadBalancerName: &l.Name,
@@ -423,6 +469,40 @@ func (l *LoadBalancer) UpdateQingCloudLB() error {
 		return err
 	}
 	return l.waitLoadBalancerActive(*l.Status.QcLoadBalancer.LoadBalancerID)
+}
+
+// AssociateEipToLoadBalancer bind the eips to lb in qingcloud
+func (l *LoadBalancer) AssociateEipToLoadBalancer(eips ...string) error {
+	if len(eips) == 0 {
+		return nil
+	}
+	klog.V(2).Infof("Starting to associate Eip %s to loadBalancer '%s'", eips, l.Name)
+	output, err := l.lbapi.AssociateEIPsToLoadBalancer(&qcservice.AssociateEIPsToLoadBalancerInput{
+		EIPs:         qcservice.StringSlice(eips),
+		LoadBalancer: l.Status.QcLoadBalancer.LoadBalancerID,
+	})
+	if err != nil {
+		klog.Errorf("Failed to add eip %s to lb %s", eips, l.Name)
+		return err
+	}
+	return qcclient.WaitJob(l.jobapi, *output.JobID, operationWaitTimeout, waitInterval)
+}
+
+// DissociateEipFromLoadBalancer unbind the eips from lb in qingcloud
+func (l *LoadBalancer) DissociateEipFromLoadBalancer(eips ...string) error {
+	if len(eips) == 0 {
+		return nil
+	}
+	klog.V(2).Infof("Starting to dissociate Eip %s to loadBalancer '%s'", eips, l.Name)
+	output, err := l.lbapi.DissociateEIPsFromLoadBalancer(&qcservice.DissociateEIPsFromLoadBalancerInput{
+		EIPs:         qcservice.StringSlice(eips),
+		LoadBalancer: l.Status.QcLoadBalancer.LoadBalancerID,
+	})
+	if err != nil {
+		klog.Errorf("Failed to add eip %s to lb %s", eips, l.Name)
+		return err
+	}
+	return qcclient.WaitJob(l.jobapi, *output.JobID, operationWaitTimeout, waitInterval)
 }
 
 // ConfirmQcLoadBalancer make sure each operation is taken effects
