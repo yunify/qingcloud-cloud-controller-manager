@@ -23,7 +23,9 @@ var _ = Describe("E2e", func() {
 		service1Name := "reuse-eip1"
 		service2Name := "reuse-eip2"
 		Expect(e2eutil.KubectlApply(servicePath)).ShouldNot(HaveOccurred())
-
+		log.Println("Just wait 2 minutes before tests because following procedure is so so so slow ")
+		time.Sleep(2 * time.Minute)
+		log.Println("Wake up, we can test now")
 		defer func() {
 			Expect(e2eutil.KubectlDelete(servicePath)).ShouldNot(HaveOccurred())
 			//make sure lb is deleted
@@ -33,15 +35,15 @@ var _ = Describe("E2e", func() {
 
 		Eventually(func() error {
 			return e2eutil.ServiceHasEIP(k8sclient, service1Name, "default", testip)
-		}, 3*time.Minute, 20*time.Second).Should(Succeed())
+		}, 2*time.Minute, 20*time.Second).Should(Succeed())
 		Eventually(func() error {
 			return e2eutil.ServiceHasEIP(k8sclient, service2Name, "default", testip)
-		}, 2*time.Minute, 20*time.Second).Should(Succeed())
+		}, 1*time.Minute, 5*time.Second).Should(Succeed())
 
 		log.Println("Successfully assign a ip")
 
-		Eventually(func() int { return e2eutil.GerServiceResponse(testip, 8089) }, time.Second*20, time.Minute*5).Should(Equal(http.StatusOK))
-		Eventually(func() int { return e2eutil.GerServiceResponse(testip, 8090) }, time.Second*20, time.Minute*5).Should(Equal(http.StatusOK))
+		Eventually(func() int { return e2eutil.GerServiceResponse(testip, 8089) }, time.Second*20, time.Second*5).Should(Equal(http.StatusOK))
+		Eventually(func() int { return e2eutil.GerServiceResponse(testip, 8090) }, time.Second*20, time.Second*5).Should(Equal(http.StatusOK))
 		log.Println("Successfully get a 200 response")
 	})
 
