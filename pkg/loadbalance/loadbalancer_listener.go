@@ -67,6 +67,7 @@ func NewListener(lb *LoadBalancer, port int) (*Listener, error) {
 	return result, nil
 }
 
+// LoadQcListener get real lb in qingcloud
 func (l *Listener) LoadQcListener() error {
 	listeners, err := GetLoadBalancerListeners(l.lbapi, *l.lb.Status.QcLoadBalancer.LoadBalancerID, l.Name)
 	if err != nil {
@@ -226,7 +227,7 @@ func (l *Listener) UpdateQingCloudListener() error {
 		return err
 	}
 	if !l.NeedUpdate() {
-		return fmt.Errorf("Update is not needed")
+		return nil
 	}
 	klog.Infof("Modifying balanceMode of LoadBalancerTCPListener :'%s'", *l.Status.LoadBalancerListenerID)
 	output, err := l.lbapi.ModifyLoadBalancerListenerAttributes(&qcservice.ModifyLoadBalancerListenerAttributesInput{

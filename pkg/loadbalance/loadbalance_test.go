@@ -42,7 +42,7 @@ spec:
 		err := yaml.NewYAMLOrJSONDecoder(reader, 10).Decode(testService)
 		Expect(err).ShouldNot(HaveOccurred(), "Cannot unmarshal yamls")
 		testService.SetUID(types.UID("11111-2222-3333"))
-		lb := loadbalance.NewLoadBalancer(&loadbalance.NewLoadBalancerOption{
+		lb, _ := loadbalance.NewLoadBalancer(&loadbalance.NewLoadBalancerOption{
 			K8sService:  testService,
 			ClusterName: "Test",
 			Context:     context.TODO(),
@@ -118,7 +118,7 @@ spec:
 		err := yaml.NewYAMLOrJSONDecoder(reader, 10).Decode(testService)
 		Expect(err).ShouldNot(HaveOccurred(), "Cannot unmarshal yamls")
 		testService.SetUID(types.UID("11111-2222-3333"))
-		lb := loadbalance.NewLoadBalancer(&loadbalance.NewLoadBalancerOption{
+		lb, _ := loadbalance.NewLoadBalancer(&loadbalance.NewLoadBalancerOption{
 			K8sService:  testService,
 			ClusterName: "Test",
 			Context:     context.TODO(),

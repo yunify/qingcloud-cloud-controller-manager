@@ -97,3 +97,6 @@ debug:
 								./hack/debug.sh
 								
 .PHONY							: default all go-build clean install-docker test
+
+e2e:
+								./hack/e2e.sh

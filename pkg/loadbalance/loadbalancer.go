@@ -120,10 +120,11 @@ type NewLoadBalancerOption struct {
 	K8sService       *corev1.Service
 	Context          context.Context
 	ClusterName      string
+	SkipCheck        bool
 }
 
 // NewLoadBalancer create loadbalancer in memory, not in cloud, call 'CreateQingCloudLB' to create a real loadbalancer in qingcloud
-func NewLoadBalancer(opt *NewLoadBalancerOption) *LoadBalancer {
+func NewLoadBalancer(opt *NewLoadBalancerOption) (*LoadBalancer, error) {
 	result := &LoadBalancer{
 		lbapi:      opt.LoadBalanceApi,
 		sgapi:      opt.SecurityGroupApi,
@@ -132,15 +133,23 @@ func NewLoadBalancer(opt *NewLoadBalancerOption) *LoadBalancer {
 	}
 	result.Name = GetLoadBalancerName(opt.ClusterName, opt.K8sService)
 	lbType := opt.K8sService.Annotations[ServiceAnnotationLoadBalancerType]
-	if lbType == "" {
+	if opt.SkipCheck {
 		result.Type = 0
 	} else {
-		t, err := strconv.Atoi(lbType)
-		if err != nil {
-			klog.Errorf("Pls spec a valid value of loadBalancer for service %s, accept values are '0-5',err: %s", opt.K8sService.Name, err.Error())
-			return nil
+		if lbType == "" {
+			result.Type = 0
+		} else {
+			t, err := strconv.Atoi(lbType)
+			if err != nil {
+				err = fmt.Errorf("Pls spec a valid value of loadBalancer for service %s, accept values are '0-3',err: %s", opt.K8sService.Name, err.Error())
+				return nil, err
+			}
+			if t > 3 || t < 0 {
+				err = fmt.Errorf("Pls spec a valid value of loadBalancer for service %s, accept values are '0-3'", opt.K8sService.Name)
+				return nil, err
+			}
+			result.Type = t
 		}
-		result.Type = t
 	}
 	if strategy, ok := opt.K8sService.Annotations[ServiceAnnotationLoadBalancerEipStrategy]; ok && strategy == string(ReuseEIP) {
 		result.EIPStrategy = ReuseEIP
@@ -158,7 +167,7 @@ func NewLoadBalancer(opt *NewLoadBalancerOption) *LoadBalancer {
 	if hasEip {
 		result.EIPs = strings.Split(lbEipIds, ",")
 	}
-	return result
+	return result, nil
 }
 
 // LoadQcLoadBalancer use qingcloud api to get lb in cloud, return err if not found
@@ -286,6 +295,18 @@ func (l *LoadBalancer) EnsureLoadBalancerSecurityGroup() error {
 	return nil
 }
 
+// NeedResize tell us if we should resize the lb in qingcloud
+func (l *LoadBalancer) NeedResize() bool {
+	if l.Status.QcLoadBalancer == nil {
+		return false
+	}
+	if l.Type != *l.Status.QcLoadBalancer.LoadBalancerType {
+		return true
+	}
+	return false
+}
+
+// CreateQingCloudLB do create a lb in qingcloud
 func (l *LoadBalancer) CreateQingCloudLB() error {
 	err := l.EnsureLoadBalancerSecurityGroup()
 	if err != nil {
@@ -329,7 +350,47 @@ func (l *LoadBalancer) CreateQingCloudLB() error {
 	return nil
 }
 
+// Resize change the type of lb in qingcloud
+func (l *LoadBalancer) Resize() error {
+	if l.Status.QcLoadBalancer == nil {
+		err := l.LoadQcLoadBalancer()
+		if err != nil {
+			return err
+		}
+	}
+	if l.NeedResize() {
+		//Stop
+		klog.V(2).Infof("Detect lb size changed, begin to resize the lb %s", l.Name)
+		err := l.Stop()
+		if err != nil {
+			klog.Errorf("Failed to stop lb %s when try to resize", l.Name)
+		}
+		output, err := l.lbapi.ResizeLoadBalancers(&qcservice.ResizeLoadBalancersInput{
+			LoadBalancerType: &l.Type,
+			LoadBalancers:    []*string{l.Status.QcLoadBalancer.LoadBalancerID},
+		})
+		if err != nil {
+			return err
+		}
+		err = qcclient.WaitJob(l.jobapi, *output.JobID, operationWaitTimeout, waitInterval)
+		if err != nil {
+			klog.Errorf("Failed to waiting for lb resizing done")
+			return err
+		}
+		return l.Start()
+	}
+	return nil
+}
+
+// UpdateQingCloudLB update some attrs of qingcloud lb
 func (l *LoadBalancer) UpdateQingCloudLB() error {
+	if l.NeedResize() {
+		err := l.Resize()
+		if err != nil {
+			klog.Errorf("Failed to resize lb %s", l.Name)
+			return err
+		}
+	}
 	if l.NeedUpdate() {
 		output, err := l.lbapi.ModifyLoadBalancerAttributes(&qcservice.ModifyLoadBalancerAttributesInput{
 			LoadBalancerName: &l.Name,
