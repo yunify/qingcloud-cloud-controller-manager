@@ -23,16 +23,15 @@ var _ = Describe("E2e", func() {
 		service1Name := "reuse-eip1"
 		service2Name := "reuse-eip2"
 		Expect(e2eutil.KubectlApply(servicePath)).ShouldNot(HaveOccurred())
-		log.Println("Just wait 2 minutes before tests because following procedure is so so so slow ")
-		time.Sleep(2 * time.Minute)
-		log.Println("Wake up, we can test now")
 		defer func() {
 			Expect(e2eutil.KubectlDelete(servicePath)).ShouldNot(HaveOccurred())
 			//make sure lb is deleted
 			lbService, _ := qcService.LoadBalancer("ap2a")
 			Eventually(func() error { return e2eutil.WaitForLoadBalancerDeleted(lbService) }, time.Minute*2, time.Second*15).Should(Succeed())
 		}()
-
+		log.Println("Just wait 2 minutes before tests because following procedure is so so so slow ")
+		time.Sleep(2 * time.Minute)
+		log.Println("Wake up, we can test now")
 		Eventually(func() error {
 			return e2eutil.ServiceHasEIP(k8sclient, service1Name, "default", testip)
 		}, 2*time.Minute, 20*time.Second).Should(Succeed())
@@ -57,7 +56,8 @@ var _ = Describe("E2e", func() {
 			Expect(e2eutil.KubectlDelete(service1Path)).ShouldNot(HaveOccurred())
 			//make sure lb is deleted
 			lbService, _ := qcService.LoadBalancer("ap2a")
-			Eventually(func() error { return e2eutil.WaitForLoadBalancerDeleted(lbService) }, time.Minute*1, time.Second*15).Should(Succeed())
+			time.Sleep(time.Second * 30)
+			Eventually(func() error { return e2eutil.WaitForLoadBalancerDeleted(lbService) }, time.Minute*1, time.Second*10).Should(Succeed())
 		}()
 		log.Println("Just wait 2 minutes before tests because following procedure is so so so slow ")
 		time.Sleep(2 * time.Minute)

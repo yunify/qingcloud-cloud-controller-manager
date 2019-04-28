@@ -48,8 +48,9 @@ if [ $SKIP_BUILD == "no" ]; then
     docker build -t $IMG  -f deploy/Dockerfile bin/
     echo "Push images"
     docker push $IMG
-    echo "Generating yaml"
-
+    
 fi
+
+echo "Generating yaml"
 sed -e 's@image: .*@image: '"${IMG}"'@' deploy/kube-cloud-controller-manager.yaml > $DEST
 kubectl apply -f $DEST
