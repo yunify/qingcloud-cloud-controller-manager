@@ -53,6 +53,15 @@ func KubectlDelete(filename string) error {
 }
 
 func GetQingcloudService() (*qc.QingCloudService, error) {
+	configfile := os.Getenv("secret_file")
+	if configfile != "" {
+		configFromFile, _ := config.NewDefault()
+		err := configFromFile.LoadConfigFromFilepath(configfile)
+		if err != nil {
+			return nil, err
+		}
+		return qc.Init(configFromFile)
+	}
 	accessKey := os.Getenv("ACCESS_KEY_ID")
 	secret := os.Getenv("SECRET_ACCESS_KEY")
 	configuration, _ := config.New(accessKey, secret)

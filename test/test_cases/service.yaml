@@ -4,7 +4,7 @@ metadata:
   name:  mylbapp
   annotations:
     service.beta.kubernetes.io/qingcloud-load-balancer-eip-ids: "eip-vmldumvv"
-    service.beta.kubernetes.io/qingcloud-load-balancer-type: "0"
+    service.beta.kubernetes.io/qingcloud-load-balancer-type: "2"
 spec:
   selector:
     app:  mylbapp

@@ -12,7 +12,7 @@ import (
 
 var _ cloudprovider.LoadBalancer = &QingCloud{}
 
-func (qc *QingCloud) newLoadBalance(ctx context.Context, clusterName string, service *v1.Service, nodes []*v1.Node) *loadbalance.LoadBalancer {
+func (qc *QingCloud) newLoadBalance(ctx context.Context, clusterName string, service *v1.Service, nodes []*v1.Node, skipCheck bool) (*loadbalance.LoadBalancer, error) {
 	opt := &loadbalance.NewLoadBalancerOption{
 		LoadBalanceApi:   qc.lbService,
 		JobApi:           qc.jobService,
@@ -22,6 +22,7 @@ func (qc *QingCloud) newLoadBalance(ctx context.Context, clusterName string, ser
 		K8sService:       service,
 		Context:          ctx,
 		ClusterName:      clusterName,
+		SkipCheck:        skipCheck,
 	}
 	return loadbalance.NewLoadBalancer(opt)
 }
@@ -32,8 +33,13 @@ func (qc *QingCloud) LoadBalancer() (cloudprovider.LoadBalancer, bool) {
 	return qc, true
 }
 
+// GetLoadBalancer returns whether the specified load balancer exists, and
+// if so, what its status is.
 func (qc *QingCloud) GetLoadBalancer(ctx context.Context, clusterName string, service *v1.Service) (status *v1.LoadBalancerStatus, exists bool, err error) {
-	lb := qc.newLoadBalance(ctx, clusterName, service, nil)
+	lb, err := qc.newLoadBalance(ctx, clusterName, service, nil, false)
+	if err != nil {
+		return nil, false, err
+	}
 	err = lb.GenerateK8sLoadBalancer()
 	if err != nil {
 		klog.Errorf("Failed to call 'GetLoadBalancer' of service %s", service.Name)
@@ -45,6 +51,8 @@ func (qc *QingCloud) GetLoadBalancer(ctx context.Context, clusterName string, se
 	return lb.Status.K8sLoadBalancerStatus, true, nil
 }
 
+// GetLoadBalancerName returns the name of the load balancer. Implementations must treat the
+// *v1.Service parameter as read-only and not modify it.
 func (qc *QingCloud) GetLoadBalancerName(_ context.Context, clusterName string, service *v1.Service) string {
 	return loadbalance.GetLoadBalancerName(clusterName, service)
 }
@@ -59,8 +67,11 @@ func (qc *QingCloud) EnsureLoadBalancer(ctx context.Context, clusterName string,
 		elapsed := time.Since(startTime)
 		klog.V(1).Infof("EnsureLoadBalancer takes total %d seconds", elapsed/time.Second)
 	}()
-	lb := qc.newLoadBalance(ctx, clusterName, service, nodes)
-	err := lb.LoadQcLoadBalancer()
+	lb, err := qc.newLoadBalance(ctx, clusterName, service, nodes, false)
+	if err != nil {
+		return nil, err
+	}
+	err = lb.LoadQcLoadBalancer()
 	if err != nil {
 		if err == loadbalance.ErrorLBNotFoundInCloud {
 			err = lb.CreateQingCloudLB()
@@ -91,8 +102,11 @@ func (qc *QingCloud) UpdateLoadBalancer(ctx context.Context, clusterName string,
 		elapsed := time.Since(startTime)
 		klog.V(1).Infof("UpdateLoadBalancer takes total %d seconds", elapsed/time.Second)
 	}()
-	lb := qc.newLoadBalance(ctx, clusterName, service, nodes)
-	err := lb.LoadQcLoadBalancer()
+	lb, err := qc.newLoadBalance(ctx, clusterName, service, nodes, false)
+	if err != nil {
+		return err
+	}
+	err = lb.LoadQcLoadBalancer()
 	if err != nil {
 		klog.Errorf("Failed to get lb %s in qingcloud of service %s", lb.Name, service.Name)
 		return err
@@ -123,6 +137,6 @@ func (qc *QingCloud) EnsureLoadBalancerDeleted(ctx context.Context, clusterName 
 		elapsed := time.Since(startTime)
 		klog.V(1).Infof("DeleteLoadBalancer takes total %d seconds", elapsed/time.Second)
 	}()
-	lb := qc.newLoadBalance(ctx, clusterName, service, nil)
+	lb, _ := qc.newLoadBalance(ctx, clusterName, service, nil, true)
 	return lb.DeleteQingCloudLB()
 }
