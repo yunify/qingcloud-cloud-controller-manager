@@ -45,7 +45,26 @@ var _ = Describe("E2e", func() {
 		Eventually(func() int { return e2eutil.GerServiceResponse(testip, 8090) }, time.Second*20, time.Second*5).Should(Equal(http.StatusOK))
 		log.Println("Successfully get a 200 response")
 	})
-
+	It("Should try to use available ips when user does not specify the ip", func() {
+		service1Path := workspace + "/test/test_cases/eip/use_available.yaml"
+		serviceName := "mylbapp"
+		Expect(e2eutil.KubectlApply(service1Path)).ShouldNot(HaveOccurred())
+		defer func() {
+			log.Println("Deleting test svc")
+			Expect(e2eutil.KubectlDelete(service1Path)).ShouldNot(HaveOccurred())
+			//make sure lb is deleted
+			lbService, _ := qcService.LoadBalancer("ap2a")
+			time.Sleep(time.Second * 30)
+			Eventually(func() error { return e2eutil.WaitForLoadBalancerDeleted(lbService) }, time.Minute*1, time.Second*10).Should(Succeed())
+		}()
+		log.Println("Just wait 2 minutes before tests because following procedure is so so so slow ")
+		time.Sleep(2 * time.Minute)
+		log.Println("Wake up, we can test now")
+		Eventually(func() error {
+			return e2eutil.ServiceHasEIP(k8sclient, serviceName, "default", "")
+		}, 3*time.Minute, 20*time.Second).Should(Succeed())
+		log.Println("Successfully assign a ip")
+	})
 	It("Should work as expected when using sample yamls", func() {
 		//apply service
 		service1Path := workspace + "/test/test_cases/service.yaml"
