@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/eip"
+
 	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/instance"
 	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/util"
 	qcclient "github.com/yunify/qingcloud-sdk-go/client"
@@ -13,45 +15,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	corev1lister "k8s.io/client-go/listers/core/v1"
 	"k8s.io/klog"
-)
-
-const (
-	// ServiceAnnotationLoadBalancerEipIds is the annotation which specifies a list of eip ids.
-	// The ids in list are separated by ',', e.g. "eip-j38f2h3h,eip-ornz2xq7". And this annotation should
-	// NOT be used with ServiceAnnotationLoadBalancerVxnetId. Please make sure there is one and only one
-	// of them being set
-	ServiceAnnotationLoadBalancerEipIds = "service.beta.kubernetes.io/qingcloud-load-balancer-eip-ids"
-
-	// ServiceAnnotationLoadBalancerVxnetId is the annotation which indicates the very vxnet where load
-	// balancer resides. This annotation should NOT be used when ServiceAnnotationLoadBalancerEipIds is
-	// set.
-
-	ServiceAnnotationLoadBalancerVxnetID = "service.beta.kubernetes.io/qingcloud-load-balancer-vxnet-id"
-
-	// ServiceAnnotationLoadBalancerType is the annotation used on the
-	// service to indicate that we want a qingcloud loadBalancer type.
-	// value "0" means the LB can max support 5000 concurrency connections, it's default type.
-	// value "1" means the LB can max support 20000 concurrency connections.
-	// value "2" means the LB can max support 40000 concurrency connections.
-	// value "3" means the LB can max support 100000 concurrency connections.
-	// value "4" means the LB can max support 200000 concurrency connections.
-	// value "5" means the LB can max support 500000 concurrency connections.
-	ServiceAnnotationLoadBalancerType = "service.beta.kubernetes.io/qingcloud-load-balancer-type"
-
-	// ServiceAnnotationLoadBalancerEipStrategy is usd to specify EIP use strategy
-	// reuse represent the EIP can be shared with other service which has no port conflict
-	// exclusive is the default value, means every service has its own EIP
-	ServiceAnnotationLoadBalancerEipStrategy = "service.beta.kubernetes.io/qingcloud-load-balancer-eip-strategy"
-)
-
-// EIPStrategy is the type representing eip strategy
-type EIPStrategy string
-
-const (
-	// ReuseEIP represent the EIP can be shared with other service which has no port conflict
-	ReuseEIP EIPStrategy = "reuse"
-	// Exclusive is the default value, means every service has its own EIP
-	Exclusive EIPStrategy = "exclusive"
 )
 
 var defaultLBSecurityGroupRules = []*qcservice.SecurityGroupRule{
@@ -81,28 +44,29 @@ var (
 )
 
 type LoadBalancer struct {
-	//inject services
+	eip.EIPHelper
+	//inject service
 	lbapi      *qcservice.LoadBalancerService
 	sgapi      *qcservice.SecurityGroupService
 	jobapi     *qcservice.JobService
 	nodeLister corev1lister.NodeLister
-
-	listeners []*Listener
+	listeners  []*Listener
 
 	LoadBalancerSpec
 	Status LoadBalancerStatus
 }
 
 type LoadBalancerSpec struct {
-	service     *corev1.Service
-	EIPStrategy EIPStrategy
-	EIPs        []string
-	Type        int
-	TCPPorts    []int
-	NodePorts   []int
-	Nodes       []*corev1.Node
-	Name        string
-	clusterName string
+	service           *corev1.Service
+	EIPAllocateSource EIPAllocateSource
+	EIPStrategy       EIPStrategy
+	EIPs              []string
+	Type              int
+	TCPPorts          []int
+	NodePorts         []int
+	Nodes             []*corev1.Node
+	Name              string
+	clusterName       string
 }
 
 type LoadBalancerStatus struct {
@@ -115,6 +79,8 @@ type NewLoadBalancerOption struct {
 	LoadBalanceApi   *qcservice.LoadBalancerService
 	SecurityGroupApi *qcservice.SecurityGroupService
 	JobApi           *qcservice.JobService
+	EIPApi           *qcservice.EIPService
+	UserID           string
 	NodeLister       corev1lister.NodeLister
 	K8sNodes         []*corev1.Node
 	K8sService       *corev1.Service
@@ -156,16 +122,36 @@ func NewLoadBalancer(opt *NewLoadBalancerOption) (*LoadBalancer, error) {
 	} else {
 		result.EIPStrategy = Exclusive
 	}
+	if source, ok := opt.K8sService.Annotations[ServiceAnnotationLoadBalancerEipSource]; ok {
+		switch source {
+		case string(AllocateOnly):
+			result.EIPAllocateSource = AllocateOnly
+		case string(UseAvailableOnly):
+			result.EIPAllocateSource = UseAvailableOnly
+		case string(UseAvailableOrAllocateOne):
+			result.EIPAllocateSource = UseAvailableOrAllocateOne
+		default:
+			result.EIPAllocateSource = ManualSet
+		}
+	} else {
+		result.EIPAllocateSource = ManualSet
+	}
+	result.EIPHelper = eip.NewEIPHelperOfQingCloud(eip.NewEIPHelperOfQingCloudOption{
+		JobAPI: opt.JobApi,
+		EIPAPI: opt.EIPApi,
+		UserID: opt.UserID,
+	})
 	t, n := util.GetPortsOfService(opt.K8sService)
 	result.TCPPorts = t
 	result.NodePorts = n
 	result.service = opt.K8sService
 	result.Nodes = opt.K8sNodes
 	result.clusterName = opt.ClusterName
-
-	lbEipIds, hasEip := opt.K8sService.Annotations[ServiceAnnotationLoadBalancerEipIds]
-	if hasEip {
-		result.EIPs = strings.Split(lbEipIds, ",")
+	if result.EIPAllocateSource == ManualSet {
+		lbEipIds, hasEip := opt.K8sService.Annotations[ServiceAnnotationLoadBalancerEipIds]
+		if hasEip {
+			result.EIPs = strings.Split(lbEipIds, ",")
+		}
 	}
 	return result, nil
 }
@@ -332,9 +318,44 @@ func (l *LoadBalancer) NeedChangeIP() (yes bool, toadd []string, todelete []stri
 	return
 }
 
+func (l *LoadBalancer) EnsureEIP() error {
+	if l.EIPAllocateSource == AllocateOnly {
+		klog.V(2).Infof("Allocate a new ip for lb %s", l.Name)
+		eip, err := l.AllocateEIP()
+		if err != nil {
+			return err
+		}
+		l.EIPs = []string{eip.ID}
+	} else if l.EIPAllocateSource == UseAvailableOnly {
+		klog.V(2).Infof("Retrieve available ip for lb %s", l.Name)
+		eips, err := l.GetAvaliableEIPs()
+		if err != nil {
+			return err
+		}
+		l.EIPs = []string{eips[0].ID}
+	} else if l.EIPAllocateSource == UseAvailableOrAllocateOne {
+		klog.V(2).Infof("Retrieve available ip or allocate a new ip for lb %s", l.Name)
+		eip, err := l.GetAvaliableOrAllocateEIP()
+		if err != nil {
+			return err
+		}
+		l.EIPs = []string{eip.ID}
+	} else {
+		if len(l.EIPs) == 0 {
+			return fmt.Errorf("Must specify a eip on service if you want to use lb")
+		}
+	}
+	klog.V(2).Infof("Will use eip %s for lb %s", l.EIPs, l.Name)
+	return nil
+}
+
 // CreateQingCloudLB do create a lb in qingcloud
 func (l *LoadBalancer) CreateQingCloudLB() error {
-	err := l.EnsureLoadBalancerSecurityGroup()
+	err := l.EnsureEIP()
+	if err != nil {
+		return err
+	}
+	err = l.EnsureLoadBalancerSecurityGroup()
 	if err != nil {
 		return err
 	}
@@ -607,6 +628,8 @@ func (l *LoadBalancer) DeleteQingCloudLB() error {
 		klog.Infof("Detect lb %s is used by another service, delete listeners only", l.Name)
 		return nil
 	}
+	//record eip id before deleting
+	ip := l.Status.QcLoadBalancer.Cluster[0]
 	output, err := l.lbapi.DeleteLoadBalancers(&qcservice.DeleteLoadBalancersInput{LoadBalancers: []*string{l.Status.QcLoadBalancer.LoadBalancerID}})
 	if err != nil {
 		klog.Errorf("Failed to start job to delete lb %s", *l.Status.QcLoadBalancer.LoadBalancerID)
@@ -619,7 +642,15 @@ func (l *LoadBalancer) DeleteQingCloudLB() error {
 	}
 	err = l.deleteSecurityGroup()
 	if err != nil {
-		klog.Errorf("Delete SecurityGroup of lb %s err '%s' ", l.Name, err)
+		klog.Errorf("Failed to delete SecurityGroup of lb %s err '%s' ", l.Name, err)
+	}
+
+	if l.EIPAllocateSource != ManualSet && *ip.EIPName == eip.AllocateEIPName {
+		klog.V(2).Infof("Detect eip %s of lb %s is allocated, release it", *ip.EIPID, l.Name)
+		err := l.ReleaseEIP(*ip.EIPID)
+		if err != nil {
+			klog.Errorf("Fail to release  eip %s of lb %s err '%s' ", *ip.EIPID, l.Name, err)
+		}
 	}
 	klog.Infof("Successfully delete loadBalancer '%s'", l.Name)
 	return nil

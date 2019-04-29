@@ -16,7 +16,9 @@ func (qc *QingCloud) newLoadBalance(ctx context.Context, clusterName string, ser
 	opt := &loadbalance.NewLoadBalancerOption{
 		LoadBalanceApi:   qc.lbService,
 		JobApi:           qc.jobService,
+		EIPApi:           qc.eipService,
 		SecurityGroupApi: qc.securityGroupService,
+		UserID:           qc.userID,
 		NodeLister:       qc.nodeInformer.Lister(),
 		K8sNodes:         nodes,
 		K8sService:       service,

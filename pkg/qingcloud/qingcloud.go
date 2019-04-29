@@ -30,6 +30,7 @@ type Config struct {
 		Zone              string `gcfg:"zone"`
 		DefaultVxNetForLB string `gcfg:"defaultVxNetForLB"`
 		ClusterID         string `gcfg:"clusterID"`
+		UserID            string `gcfg:"userID"`
 	}
 }
 
@@ -42,10 +43,12 @@ type QingCloud struct {
 	lbService            *qcservice.LoadBalancerService
 	volumeService        *qcservice.VolumeService
 	jobService           *qcservice.JobService
+	eipService           *qcservice.EIPService
 	securityGroupService *qcservice.SecurityGroupService
 	zone                 string
 	defaultVxNetForLB    string
 	clusterID            string
+	userID               string
 
 	nodeInformer    corev1informer.NodeInformer
 	serviceInformer corev1informer.ServiceInformer
@@ -81,7 +84,6 @@ func newQingCloud(config Config) (cloudprovider.Interface, error) {
 	if err = qcConfig.LoadConfigFromFilepath(config.Global.QYConfigPath); err != nil {
 		return nil, err
 	}
-
 	qcService, err := qcservice.Init(qcConfig)
 	if err != nil {
 		return nil, err
@@ -90,6 +92,7 @@ func newQingCloud(config Config) (cloudprovider.Interface, error) {
 	if err != nil {
 		return nil, err
 	}
+	eipService, _ := qcService.EIP(config.Global.Zone)
 	lbService, err := qcService.LoadBalancer(config.Global.Zone)
 	if err != nil {
 		return nil, err
@@ -113,9 +116,11 @@ func newQingCloud(config Config) (cloudprovider.Interface, error) {
 		volumeService:        volumeService,
 		jobService:           jobService,
 		securityGroupService: securityGroupService,
+		eipService:           eipService,
 		zone:                 config.Global.Zone,
 		defaultVxNetForLB:    config.Global.DefaultVxNetForLB,
 		clusterID:            config.Global.ClusterID,
+		userID:               config.Global.UserID,
 	}
 
 	klog.V(1).Infof("QingCloud provider init done")
