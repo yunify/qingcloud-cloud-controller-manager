@@ -27,7 +27,7 @@ spec:
         - --cloud-config=/etc/kubernetes/qingcloud.conf
         - --allocate-node-cidrs=true
         - --cluster-cidr=10.244.0.0/16
-        image: kubespheredev/cloud-controller-manager:v1.2.0
+        image: kubespheredev/cloud-controller-manager:v1.3.0
         imagePullPolicy: Always
         name: qingcloud-cloud-controller-manager
         resources:
