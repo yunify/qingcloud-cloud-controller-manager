@@ -109,7 +109,9 @@ func (q *qingcloudEIPHelper) GetAvaliableOrAllocateEIP() (*EIP, error) {
 	}
 	eips, err := q.GetAvaliableEIPs()
 	if err != nil {
-		return nil, err
+		if err != ErrorEIPNotFound {
+			return nil, err
+		}
 	}
 	if len(eips) > 0 {
 		return eips[0], nil
