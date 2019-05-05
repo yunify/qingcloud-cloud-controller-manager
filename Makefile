@@ -4,7 +4,7 @@
 # Vars describing project
 NAME= qingcloud-cloud-controller-manager
 GIT_REPOSITORY= github.com/yunify/qingcloud-cloud-controller-manager
-DOCKER_IMAGE_NAME?= qingcloud/qingcloud-cloud-controller-manager
+IMG?= kubespheredev/cloud-controller-manager:v1.3.1
 
 # Generate vars to be included from external script
 # Allows using bash to generate complex vars, such as project versions
@@ -80,12 +80,10 @@ bin/.docker_label               : bin/.docker-images-build-timestamp
 
 install-docker                  : bin/.docker_label
 
-publish                         : bin/.docker_label
-								docker tag `cat bin/.docker_label` $(DOCKER_IMAGE_NAME):latest
-								docker tag `cat bin/.docker_label` dockerhub.qingcloud.com/$(DOCKER_IMAGE_NAME):latest
-								docker push $(DOCKER_IMAGE_NAME):latest
-								docker push dockerhub.qingcloud.com/$(DOCKER_IMAGE_NAME):latest
-
+publish                         : 
+								CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "-w" -o bin/manager ./cmd/main.go
+								docker build -t ${IMG}  -f deploy/Dockerfile bin/
+								docker push ${IMG}
 clean                           :
 								rm -rf bin/ && if -f bin/.docker-images-build-timestamp then docker rmi `cat bin/.docker-images-build-timestamp`
 test                            : vet
