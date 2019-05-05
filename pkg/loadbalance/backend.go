@@ -3,15 +3,16 @@ package loadbalance
 import (
 	"fmt"
 
+	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/executor"
 	qcservice "github.com/yunify/qingcloud-sdk-go/service"
 	"k8s.io/klog"
 )
 
 type Backend struct {
-	lbapi  *qcservice.LoadBalancerService
-	Name   string
-	Spec   BackendSpec
-	Status *qcservice.LoadBalancerBackend
+	backendExec executor.QingCloudListenerBackendExecutor
+	Name        string
+	Spec        BackendSpec
+	Status      *qcservice.LoadBalancerBackend
 }
 
 type BackendSpec struct {
@@ -22,18 +23,19 @@ type BackendSpec struct {
 }
 
 type BackendList struct {
-	lbapi    *qcservice.LoadBalancerService
-	Listener *Listener
-	Items    []*Backend
+	backendExec executor.QingCloudListenerBackendExecutor
+	Listener    *Listener
+	Items       []*Backend
 }
 
 func NewBackendList(lb *LoadBalancer, listener *Listener) *BackendList {
 	list := make([]*Backend, 0)
 	instanceIDs := lb.GetNodesInstanceIDs()
+	exec := lb.lbExec.(executor.QingCloudListenerBackendExecutor)
 	for _, instance := range instanceIDs {
 		b := &Backend{
-			lbapi: lb.GetLBAPI(),
-			Name:  fmt.Sprintf("backend_%s_%s", listener.Name, instance),
+			backendExec: exec,
+			Name:        fmt.Sprintf("backend_%s_%s", listener.Name, instance),
 			Spec: BackendSpec{
 				Listener:   listener,
 				Weight:     1,
@@ -44,9 +46,9 @@ func NewBackendList(lb *LoadBalancer, listener *Listener) *BackendList {
 		list = append(list, b)
 	}
 	return &BackendList{
-		lbapi:    lb.GetLBAPI(),
-		Listener: listener,
-		Items:    list,
+		backendExec: exec,
+		Listener:    listener,
+		Items:       list,
 	}
 }
 
@@ -58,43 +60,11 @@ func (b *Backend) toQcBackendInput() *qcservice.LoadBalancerBackend {
 	}
 }
 
-func (b *Backend) LoadQcBackend() error {
-	input := &qcservice.DescribeLoadBalancerBackendsInput{
-		LoadBalancerListener: b.Spec.Listener.Status.LoadBalancerListenerID,
-		LoadBalancer:         b.Spec.Listener.Status.LoadBalancerID,
-	}
-	output, err := b.lbapi.DescribeLoadBalancerBackends(input)
-	if err != nil {
-		klog.Errorf("Failed to get backend %s from qingcloud", b.Name)
-		return err
-	}
-	if len(output.LoadBalancerBackendSet) < 1 {
-		return fmt.Errorf("Backend %s Not found", b.Name)
-	}
-	b.Status = output.LoadBalancerBackendSet[0]
-	return nil
-}
-
-func deleteBackends(lbapi *qcservice.LoadBalancerService, ids ...*string) error {
-	if len(ids) == 0 {
-		klog.Warningln("No backends to delete, pls check the inputs")
-		return nil
-	}
-	output, err := lbapi.DeleteLoadBalancerBackends(&qcservice.DeleteLoadBalancerBackendsInput{
-		LoadBalancerBackends: ids,
-	})
-	if *output.RetCode != 0 {
-		err := fmt.Errorf("Fail to delete backends of because of '%s'", *output.Message)
-		return err
-	}
-	return err
-}
-
 func (b *Backend) DeleteBackend() error {
 	if b.Status == nil {
 		return fmt.Errorf("Backend %s Not found", b.Name)
 	}
-	return deleteBackends(b.lbapi, b.Status.LoadBalancerBackendID)
+	return b.backendExec.DeleteBackends(*b.Status.LoadBalancerBackendID)
 }
 
 func (b *BackendList) CreateBackends() error {
@@ -109,17 +79,21 @@ func (b *BackendList) CreateBackends() error {
 		LoadBalancerListener: b.Listener.Status.LoadBalancerListenerID,
 		Backends:             backends,
 	}
-	output, err := b.lbapi.AddLoadBalancerBackends(input)
-	if err != nil {
-		klog.Errorln("Failed to create backends")
-		return err
-	}
-	if *output.RetCode != 0 {
-		err := fmt.Errorf("Fail to create backends of listener %s because of '%s'", b.Listener.Name, *output.Message)
-		return err
-	}
+	return b.backendExec.CreateBackends(input)
+}
 
-	return nil
+func (b *Backend) LoadQcBackend() error {
+	backends, err := b.backendExec.GetBackendsOfListener(*b.Spec.Listener.Status.LoadBalancerListenerID)
+	if err != nil {
+		return err
+	}
+	for _, item := range backends {
+		if *item.ResourceID == b.Spec.InstanceID {
+			b.Status = item
+			return nil
+		}
+	}
+	return fmt.Errorf("Cannot find any backend with instance id %s in listener %s", b.Spec.InstanceID, *b.Spec.Listener.Status.LoadBalancerListenerID)
 }
 
 func (b *Backend) NeedUpdate() bool {
@@ -140,19 +114,5 @@ func (b *Backend) UpdateBackend() error {
 	if !b.NeedUpdate() {
 		return nil
 	}
-	input := &qcservice.ModifyLoadBalancerBackendAttributesInput{
-		LoadBalancerBackend: b.Status.LoadBalancerBackendID,
-		Port:                &b.Spec.Port,
-		Weight:              &b.Spec.Weight,
-	}
-	output, err := b.lbapi.ModifyLoadBalancerBackendAttributes(input)
-	if err != nil {
-		klog.Errorf("Failed to modify attribute of backend %s", b.Name)
-		return err
-	}
-	if *output.RetCode != 0 {
-		err := fmt.Errorf("Fail to modify attribute of backend '%s' because of '%s'", *b.Status.LoadBalancerBackendID, *output.Message)
-		return err
-	}
-	return nil
+	return b.backendExec.ModifyBackend(*b.Status.LoadBalancerBackendID, b.Spec.Weight, b.Spec.Port)
 }

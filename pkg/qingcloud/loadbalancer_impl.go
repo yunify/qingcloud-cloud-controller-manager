@@ -4,6 +4,9 @@ import (
 	"context"
 	"time"
 
+	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/eip"
+
+	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/executor"
 	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/loadbalance"
 	v1 "k8s.io/api/core/v1"
 	cloudprovider "k8s.io/cloud-provider"
@@ -13,18 +16,23 @@ import (
 var _ cloudprovider.LoadBalancer = &QingCloud{}
 
 func (qc *QingCloud) newLoadBalance(ctx context.Context, clusterName string, service *v1.Service, nodes []*v1.Node, skipCheck bool) (*loadbalance.LoadBalancer, error) {
+	lbExec := executor.NewQingCloudLoadBalanceExecutor(qc.lbService, qc.jobService)
+	sgExec := executor.NewQingCloudSecurityGroupExecutor(qc.securityGroupService)
+	eipHelper := eip.NewEIPHelperOfQingCloud(eip.NewEIPHelperOfQingCloudOption{
+		JobAPI: qc.jobService,
+		EIPAPI: qc.eipService,
+		UserID: qc.userID,
+	})
 	opt := &loadbalance.NewLoadBalancerOption{
-		LoadBalanceApi:   qc.lbService,
-		JobApi:           qc.jobService,
-		EIPApi:           qc.eipService,
-		SecurityGroupApi: qc.securityGroupService,
-		UserID:           qc.userID,
-		NodeLister:       qc.nodeInformer.Lister(),
-		K8sNodes:         nodes,
-		K8sService:       service,
-		Context:          ctx,
-		ClusterName:      clusterName,
-		SkipCheck:        skipCheck,
+		LbExecutor:  lbExec,
+		EipHelper:   eipHelper,
+		SgExecutor:  sgExec,
+		NodeLister:  qc.nodeInformer.Lister(),
+		K8sNodes:    nodes,
+		K8sService:  service,
+		Context:     ctx,
+		ClusterName: clusterName,
+		SkipCheck:   skipCheck,
 	}
 	return loadbalance.NewLoadBalancer(opt)
 }
