@@ -292,6 +292,7 @@ func (l *LoadBalancer) CreateQingCloudLB() error {
 		klog.Errorf("Failed to make loadbalancer %s go into effect", l.Name)
 		return err
 	}
+	l.GenerateK8sLoadBalancer()
 	klog.V(1).Infof("Loadbalancer %s created succeefully", l.Name)
 	return nil
 }
