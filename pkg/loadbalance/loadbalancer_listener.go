@@ -2,8 +2,9 @@ package loadbalance
 
 import (
 	"fmt"
-	"strings"
+	"strconv"
 
+	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/executor"
 	qcservice "github.com/yunify/qingcloud-sdk-go/service"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
@@ -18,11 +19,9 @@ var (
 
 // Listener is
 type Listener struct {
-	//inject services
-	lbapi       *qcservice.LoadBalancerService
-	jobapi      *qcservice.JobService
-	backendList *BackendList
-
+	backendList  *BackendList
+	listenerExec executor.QingCloudListenerExecutor
+	backendExec  executor.QingCloudListenerBackendExecutor
 	LisenerSpec
 	Status *qcservice.LoadBalancerListener
 }
@@ -43,10 +42,7 @@ func NewListener(lb *LoadBalancer, port int) (*Listener, error) {
 	if p == nil {
 		return nil, fmt.Errorf("The specified port is not in service")
 	}
-
 	result := &Listener{
-		lbapi:  lb.lbapi,
-		jobapi: lb.jobapi,
 		LisenerSpec: LisenerSpec{
 			ListenerPort: port,
 			NodePort:     int(p.NodePort),
@@ -55,11 +51,15 @@ func NewListener(lb *LoadBalancer, port int) (*Listener, error) {
 			PrefixName:   GetListenerPrefix(service),
 		},
 	}
-
-	result.Name = result.PrefixName + fmt.Sprintf("_%d", port)
-
-	if p.Name == "http" || p.Name == "https" {
-		result.Protocol = p.Name
+	if lsnExec, ok := lb.lbExec.(executor.QingCloudListenerExecutor); ok {
+		result.listenerExec = lsnExec
+	}
+	if bakExec, ok := lb.lbExec.(executor.QingCloudListenerBackendExecutor); ok {
+		result.backendExec = bakExec
+	}
+	result.Name = result.PrefixName + strconv.Itoa(int(p.Port))
+	if p.Protocol == corev1.ProtocolTCP && (p.Name == "http" || p.Name == "https") {
+		result.Protocol = "http"
 	} else {
 		result.Protocol = "tcp"
 	}
@@ -69,7 +69,7 @@ func NewListener(lb *LoadBalancer, port int) (*Listener, error) {
 
 // LoadQcListener get real lb in qingcloud
 func (l *Listener) LoadQcListener() error {
-	listeners, err := GetLoadBalancerListeners(l.lbapi, *l.lb.Status.QcLoadBalancer.LoadBalancerID, l.Name)
+	listeners, err := l.listenerExec.GetListenersOfLB(*l.lb.Status.QcLoadBalancer.LoadBalancerID, l.Name)
 	if err != nil {
 		klog.Errorf("Failed to get listener of this service %s with port %d", l.Name, l.ListenerPort)
 		return err
@@ -90,33 +90,11 @@ func (l *Listener) LoadBackends() {
 	}
 }
 
-func GetLoadBalancerListeners(lbapi *qcservice.LoadBalancerService, lbid, listenerPrefix string) ([]*qcservice.LoadBalancerListener, error) {
-	loadBalancerListeners := []*qcservice.LoadBalancerListener{}
-	resp, err := lbapi.DescribeLoadBalancerListeners(&qcservice.DescribeLoadBalancerListenersInput{
-		LoadBalancer: &lbid,
-		Verbose:      qcservice.Int(1),
-		Limit:        qcservice.Int(pageLimt),
-	})
-	if err != nil {
-		return nil, err
-	}
-	for _, l := range resp.LoadBalancerListenerSet {
-		if listenerPrefix != "" {
-			if strings.Contains(*l.LoadBalancerListenerName, listenerPrefix) {
-				loadBalancerListeners = append(loadBalancerListeners, l)
-			}
-		} else {
-			loadBalancerListeners = append(loadBalancerListeners, l)
-		}
-	}
-	return loadBalancerListeners, nil
-}
-
 func (l *Listener) CheckPortConflict() (bool, error) {
 	if l.lb.EIPStrategy != ReuseEIP {
 		return false, nil
 	}
-	listeners, err := GetLoadBalancerListeners(l.lbapi, *l.lb.Status.QcLoadBalancer.LoadBalancerID, "")
+	listeners, err := l.listenerExec.GetListenersOfLB(*l.lb.Status.QcLoadBalancer.LoadBalancerID, "")
 	if err != nil {
 		return false, err
 	}
@@ -154,7 +132,7 @@ func (l *Listener) CreateQingCloudListener() error {
 	if yes {
 		return ErrorListenerPortConflict
 	}
-	output, err := l.lbapi.AddLoadBalancerListeners(&qcservice.AddLoadBalancerListenersInput{
+	input := &qcservice.AddLoadBalancerListenersInput{
 		LoadBalancer: l.lb.Status.QcLoadBalancer.LoadBalancerID,
 		Listeners: []*qcservice.LoadBalancerListener{
 			{
@@ -165,16 +143,13 @@ func (l *Listener) CreateQingCloudListener() error {
 				LoadBalancerListenerName: &l.Name,
 			},
 		},
-	})
+	}
+	listener, err := l.listenerExec.CreateListener(input)
 	if err != nil {
 		return err
 	}
-	l.Status = new(qcservice.LoadBalancerListener)
-	l.Status.ListenerPort = &l.ListenerPort
-	l.Status.LoadBalancerID = l.lb.Status.QcLoadBalancer.LoadBalancerID
-	l.Status.ListenerProtocol = &l.Protocol
-	l.Status.LoadBalancerListenerID = output.LoadBalancerListeners[0]
-	return err
+	l.Status = listener
+	return nil
 }
 
 func (l *Listener) GetBackends() *BackendList {
@@ -186,20 +161,7 @@ func (l *Listener) DeleteQingCloudListener() error {
 		return fmt.Errorf("Could not delete noexit listener")
 	}
 	klog.Infof("Deleting LoadBalancerListener :'%s'", *l.Status.LoadBalancerListenerID)
-	return deleteQingCloudListener(l.lbapi, l.Status.LoadBalancerListenerID)
-}
-func deleteQingCloudListener(lbapi *qcservice.LoadBalancerService, id *string) error {
-	output, err := lbapi.DeleteLoadBalancerListeners(&qcservice.DeleteLoadBalancerListenersInput{
-		LoadBalancerListeners: []*string{id},
-	})
-	if err != nil {
-		return err
-	}
-	if *output.RetCode != 0 {
-		err := fmt.Errorf("Fail to delete loadbalancer lisener '%s' because of '%s'", *id, *output.Message)
-		return err
-	}
-	return nil
+	return l.listenerExec.DeleteListener(*l.Status.LoadBalancerListenerID)
 }
 
 func (l *Listener) NeedUpdate() bool {
@@ -210,6 +172,42 @@ func (l *Listener) NeedUpdate() bool {
 		return true
 	}
 	return false
+}
+func (l *Listener) UpdateBackends() error {
+	l.LoadBackends()
+	useless, err := l.backendList.LoadAndGetUselessBackends()
+	if err != nil {
+		klog.Errorf("Failed to load backends of listener %s", l.Name)
+		return err
+	}
+	if len(useless) > 0 {
+		klog.V(1).Infof("Delete useless backends")
+		err := l.backendExec.DeleteBackends(useless...)
+		if err != nil {
+			klog.Errorf("Failed to delete useless backends of listener %s", l.Name)
+			return err
+		}
+	}
+	for _, b := range l.backendList.Items {
+		err := b.LoadQcBackend()
+		if err != nil {
+			if err == ErrorBackendNotFound {
+				err = b.Create()
+				if err != nil {
+					klog.Errorf("Failed to create backend of instance %s of listener %s", b.Spec.InstanceID, l.Name)
+					return err
+				}
+			}
+			return err
+		} else {
+			err = b.UpdateBackend()
+			if err != nil {
+				klog.Errorf("Failed to update backend %s of listener %s", b.Name, l.Name)
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 func (l *Listener) UpdateQingCloudListener() error {
@@ -224,24 +222,18 @@ func (l *Listener) UpdateQingCloudListener() error {
 		return nil
 	}
 	if err != nil {
+		klog.Errorf("Failed to load listener %s in qingcloud", l.Name)
+		return err
+	}
+	err = l.UpdateBackends()
+	if err != nil {
 		return err
 	}
 	if !l.NeedUpdate() {
 		return nil
 	}
 	klog.Infof("Modifying balanceMode of LoadBalancerTCPListener :'%s'", *l.Status.LoadBalancerListenerID)
-	output, err := l.lbapi.ModifyLoadBalancerListenerAttributes(&qcservice.ModifyLoadBalancerListenerAttributesInput{
-		LoadBalancerListener: l.Status.LoadBalancerListenerID,
-		BalanceMode:          &l.BalanceMode,
-	})
-	if err != nil {
-		return err
-	}
-	if *output.RetCode != 0 {
-		err := fmt.Errorf("Fail to modify balanceMode of loadbalancer lisener '%s' because of '%s'", *l.Status.LoadBalancerListenerID, *output.Message)
-		return err
-	}
-	return nil
+	return l.listenerExec.ModifyListener(*l.Status.LoadBalancerListenerID, l.BalanceMode)
 }
 
 func checkPortInService(service *corev1.Service, port int) *corev1.ServicePort {
@@ -254,5 +246,5 @@ func checkPortInService(service *corev1.Service, port int) *corev1.ServicePort {
 }
 
 func GetListenerPrefix(service *corev1.Service) string {
-	return fmt.Sprintf("listener_%s_%s", service.Namespace, service.Name)
+	return fmt.Sprintf("listener_%s_%s_", service.Namespace, service.Name)
 }

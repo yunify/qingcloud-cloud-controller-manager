@@ -26,7 +26,7 @@
     qy_secret_access_key: 'QINGCLOUDSECRETACCESSKEYEXAMPLE'
     zone: 'pek1'
     ```
-    使用命令创建secret, `kubectl create secret generic qcsecret --from-file=$secret_file -n kube-system`，替换其中的secret_file为上面生成的密钥地址。
+    使用命令创建 `secret`, `kubectl create secret generic qcsecret --from-file=$secret_file -n kube-system`，替换其中的secret_file为上面生成的密钥地址。
 
 4. 安装yaml，等待安装完成即可
    ```

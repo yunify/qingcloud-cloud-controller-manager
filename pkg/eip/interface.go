@@ -1,6 +1,10 @@
 package eip
 
-import "fmt"
+import (
+	"fmt"
+
+	qcservice "github.com/yunify/qingcloud-sdk-go/service"
+)
 
 var (
 	ErrorEIPNotFound    = fmt.Errorf("Cound not find the eip")
@@ -23,4 +27,13 @@ type EIPHelper interface {
 	GetAvaliableOrAllocateEIP() (*EIP, error)
 	AllocateEIP() (*EIP, error)
 	GetAvaliableEIPs() ([]*EIP, error)
+}
+
+func (e *EIP) ToQingCloudEIP() *qcservice.EIP {
+	return &qcservice.EIP{
+		EIPID:   &e.ID,
+		EIPAddr: &e.Address,
+		EIPName: &e.Name,
+		Status:  &e.Status,
+	}
 }
