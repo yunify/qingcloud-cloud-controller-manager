@@ -4,15 +4,28 @@ import (
 	"strings"
 
 	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/eip"
+	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/executor"
 	"github.com/yunify/qingcloud-cloud-controller-manager/test/pkg/e2eutil"
 	qcservice "github.com/yunify/qingcloud-sdk-go/service"
 )
 
+var _ executor.QingCloudListenerExecutor = &FakeQingCloudLBExecutor{}
+var _ executor.QingCloudLoadBalancerExecutor = &FakeQingCloudLBExecutor{}
+
 type FakeQingCloudLBExecutor struct {
 	LoadBalancers map[string]*qcservice.LoadBalancer
-	ReponseEIPs   []*eip.EIP
+	ReponseEIPs   map[string]*eip.EIP
 	Listeners     map[string]*qcservice.LoadBalancerListener
 	Backends      map[string]*qcservice.LoadBalancerBackend
+}
+
+func NewFakeQingCloudLBExecutor() *FakeQingCloudLBExecutor {
+	f := new(FakeQingCloudLBExecutor)
+	f.LoadBalancers = make(map[string]*qcservice.LoadBalancer)
+	f.ReponseEIPs = make(map[string]*eip.EIP, 0)
+	f.Listeners = make(map[string]*qcservice.LoadBalancerListener)
+	f.Backends = make(map[string]*qcservice.LoadBalancerBackend)
+	return f
 }
 
 func (f *FakeQingCloudLBExecutor) GetLoadBalancerByName(name string) (*qcservice.LoadBalancer, error) {
@@ -43,8 +56,10 @@ func (f *FakeQingCloudLBExecutor) Create(input *qcservice.CreateLoadBalancerInpu
 	lb.LoadBalancerName = input.LoadBalancerName
 	i, _ := f.GetEIPByID(*input.EIPs[0])
 	lb.Cluster = []*qcservice.EIP{i.ToQingCloudEIP()}
-	lb.LoadBalancerType = input.LoadBalancerType
-	lb.SecurityGroupID = input.SecurityGroup
+	t := *input.LoadBalancerType
+	lb.LoadBalancerType = &t
+	sg := *input.SecurityGroup
+	lb.SecurityGroupID = &sg
 	f.LoadBalancers[id] = lb
 	return lb, nil
 }
@@ -122,14 +137,23 @@ func (f *FakeQingCloudLBExecutor) GetListenerByID(id string) (*qcservice.LoadBal
 
 func (f *FakeQingCloudLBExecutor) DeleteListener(lsnid string) error {
 	delete(f.Listeners, lsnid)
+	ids := []string{}
+	for _, b := range f.Backends {
+		if *b.LoadBalancerListenerID == lsnid {
+			ids = append(ids, *b.LoadBalancerBackendID)
+		}
+	}
+	if len(ids) > 0 {
+		f.DeleteBackends(ids...)
+	}
 	return nil
 }
 
 func (f *FakeQingCloudLBExecutor) CreateListener(input *qcservice.AddLoadBalancerListenersInput) (*qcservice.LoadBalancerListener, error) {
-	l := new(qcservice.LoadBalancerListener)
+	l := input.Listeners[0]
 	id := "listener-" + e2eutil.RandString(8)
-	l.LoadBalancerID = input.LoadBalancer
 	l.LoadBalancerListenerID = &id
+	l.LoadBalancerID = input.LoadBalancer
 	f.Listeners[id] = l
 	return l, nil
 }

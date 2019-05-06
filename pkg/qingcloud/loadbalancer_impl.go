@@ -81,22 +81,8 @@ func (qc *QingCloud) EnsureLoadBalancer(ctx context.Context, clusterName string,
 	if err != nil {
 		return nil, err
 	}
-	err = lb.LoadQcLoadBalancer()
+	err = lb.EnsureQingCloudLB()
 	if err != nil {
-		if err == loadbalance.ErrorLBNotFoundInCloud {
-			err = lb.CreateQingCloudLB()
-			if err != nil {
-				klog.Errorf("Failed to create lb in qingcloud of service %s", service.Name)
-				return nil, err
-			}
-			return lb.Status.K8sLoadBalancerStatus, nil
-		} else {
-			return nil, err
-		}
-	}
-	err = lb.UpdateQingCloudLB()
-	if err != nil {
-		klog.Errorf("Failed to update lb %s in qingcloud of service %s", lb.Name, service.Name)
 		return nil, err
 	}
 	return lb.Status.K8sLoadBalancerStatus, nil

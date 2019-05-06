@@ -84,8 +84,10 @@ publish                         :
 								docker push ${IMG}
 clean                           :
 								rm -rf bin/ && if -f bin/.docker-images-build-timestamp then docker rmi `cat bin/.docker-images-build-timestamp`
-test                            : vet
+test                            : fmt vet
 								go test -v -cover -mod=vendor ./pkg/...
+fmt								:
+								go fmt ./pkg/... ./cmd/... ./test/pkg/...
 vet:
 								go vet ./pkg/... ./cmd/... ./test/pkg/...
 

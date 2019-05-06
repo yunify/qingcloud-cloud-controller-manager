@@ -7,7 +7,7 @@ import (
 	"k8s.io/klog"
 )
 
-var defaultLBSecurityGroupRules = []*qcservice.SecurityGroupRule{
+var DefaultLBSecurityGroupRules = []*qcservice.SecurityGroupRule{
 	{
 		Priority: qcservice.Int(0),
 		Protocol: qcservice.String("icmp"),
@@ -91,7 +91,7 @@ func (q *qingcloudSecurityGroupExecutor) EnsureSecurityGroup(name string) (*qcse
 	if sg != nil {
 		return sg, nil
 	}
-	sg, err = q.CreateSecurityGroup(name, defaultLBSecurityGroupRules)
+	sg, err = q.CreateSecurityGroup(name, DefaultLBSecurityGroupRules)
 	if err != nil {
 		return nil, err
 	}

@@ -1,6 +1,7 @@
 package e2eutil
 
 import (
+	"fmt"
 	"math/rand"
 	"time"
 )
@@ -21,4 +22,8 @@ func StringWithCharset(length int, charset string) string {
 
 func RandString(length int) string {
 	return StringWithCharset(length, charset)
+}
+
+func RandIP() string {
+	return fmt.Sprintf("%d.%d.%d.%d", seededRand.Int31n(256), seededRand.Int31n(256), seededRand.Int31n(256), seededRand.Int31n(256))
 }

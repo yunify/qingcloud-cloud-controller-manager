@@ -63,4 +63,6 @@ type QingCloudSecurityGroupExecutor interface {
 	GetSgAPI() *qcservice.SecurityGroupService
 
 	Delete(id string) error
+
+	CreateSecurityGroup(gName string, rules []*qcservice.SecurityGroupRule) (*qcservice.SecurityGroup, error)
 }

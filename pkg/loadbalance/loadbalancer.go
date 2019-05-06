@@ -253,6 +253,28 @@ func (l *LoadBalancer) EnsureEIP() error {
 	return nil
 }
 
+func (l *LoadBalancer) EnsureQingCloudLB() error {
+	err := l.LoadQcLoadBalancer()
+	if err != nil {
+		if err == ErrorLBNotFoundInCloud {
+			err = l.CreateQingCloudLB()
+			if err != nil {
+				klog.Errorf("Failed to create lb in qingcloud of service %s", l.service.Name)
+				return err
+			}
+			return nil
+		}
+		return err
+	}
+	err = l.UpdateQingCloudLB()
+	if err != nil {
+		klog.Errorf("Failed to update lb %s in qingcloud of service %s", l.Name, l.service.Name)
+		return err
+	}
+	l.GenerateK8sLoadBalancer()
+	return nil
+}
+
 // CreateQingCloudLB do create a lb in qingcloud
 func (l *LoadBalancer) CreateQingCloudLB() error {
 	err := l.EnsureEIP()
@@ -263,6 +285,7 @@ func (l *LoadBalancer) CreateQingCloudLB() error {
 	if err != nil {
 		return err
 	}
+
 	createInput := &qcservice.CreateLoadBalancerInput{
 		EIPs:             qcservice.StringSlice(l.EIPs),
 		LoadBalancerType: &l.Type,

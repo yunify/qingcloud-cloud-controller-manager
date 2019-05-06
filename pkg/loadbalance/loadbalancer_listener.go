@@ -2,6 +2,7 @@ package loadbalance
 
 import (
 	"fmt"
+	"strconv"
 
 	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/executor"
 	qcservice "github.com/yunify/qingcloud-sdk-go/service"
@@ -20,6 +21,7 @@ var (
 type Listener struct {
 	backendList  *BackendList
 	listenerExec executor.QingCloudListenerExecutor
+	backendExec  executor.QingCloudListenerBackendExecutor
 	LisenerSpec
 	Status *qcservice.LoadBalancerListener
 }
@@ -40,9 +42,7 @@ func NewListener(lb *LoadBalancer, port int) (*Listener, error) {
 	if p == nil {
 		return nil, fmt.Errorf("The specified port is not in service")
 	}
-	lsnExec := lb.lbExec.(executor.QingCloudListenerExecutor)
 	result := &Listener{
-		listenerExec: lsnExec,
 		LisenerSpec: LisenerSpec{
 			ListenerPort: port,
 			NodePort:     int(p.NodePort),
@@ -51,11 +51,15 @@ func NewListener(lb *LoadBalancer, port int) (*Listener, error) {
 			PrefixName:   GetListenerPrefix(service),
 		},
 	}
-
-	result.Name = result.PrefixName + fmt.Sprintf("_%d", port)
-
-	if p.Name == "http" || p.Name == "https" {
-		result.Protocol = p.Name
+	if lsnExec, ok := lb.lbExec.(executor.QingCloudListenerExecutor); ok {
+		result.listenerExec = lsnExec
+	}
+	if bakExec, ok := lb.lbExec.(executor.QingCloudListenerBackendExecutor); ok {
+		result.backendExec = bakExec
+	}
+	result.Name = result.PrefixName + strconv.Itoa(int(p.Port))
+	if p.Protocol == corev1.ProtocolTCP && (p.Name == "http" || p.Name == "https") {
+		result.Protocol = "http"
 	} else {
 		result.Protocol = "tcp"
 	}
@@ -169,6 +173,42 @@ func (l *Listener) NeedUpdate() bool {
 	}
 	return false
 }
+func (l *Listener) UpdateBackends() error {
+	l.LoadBackends()
+	useless, err := l.backendList.LoadAndGetUselessBackends()
+	if err != nil {
+		klog.Errorf("Failed to load backends of listener %s", l.Name)
+		return err
+	}
+	if len(useless) > 0 {
+		klog.V(1).Infof("Delete useless backends")
+		err := l.backendExec.DeleteBackends(useless...)
+		if err != nil {
+			klog.Errorf("Failed to delete useless backends of listener %s", l.Name)
+			return err
+		}
+	}
+	for _, b := range l.backendList.Items {
+		err := b.LoadQcBackend()
+		if err != nil {
+			if err == ErrorBackendNotFound {
+				err = b.Create()
+				if err != nil {
+					klog.Errorf("Failed to create backend of instance %s of listener %s", b.Spec.InstanceID, l.Name)
+					return err
+				}
+			}
+			return err
+		} else {
+			err = b.UpdateBackend()
+			if err != nil {
+				klog.Errorf("Failed to update backend %s of listener %s", b.Name, l.Name)
+				return err
+			}
+		}
+	}
+	return nil
+}
 
 func (l *Listener) UpdateQingCloudListener() error {
 	err := l.LoadQcListener()
@@ -181,6 +221,11 @@ func (l *Listener) UpdateQingCloudListener() error {
 		}
 		return nil
 	}
+	if err != nil {
+		klog.Errorf("Failed to load listener %s in qingcloud", l.Name)
+		return err
+	}
+	err = l.UpdateBackends()
 	if err != nil {
 		return err
 	}
@@ -201,5 +246,5 @@ func checkPortInService(service *corev1.Service, port int) *corev1.ServicePort {
 }
 
 func GetListenerPrefix(service *corev1.Service) string {
-	return fmt.Sprintf("listener_%s_%s", service.Namespace, service.Name)
+	return fmt.Sprintf("listener_%s_%s_", service.Namespace, service.Name)
 }

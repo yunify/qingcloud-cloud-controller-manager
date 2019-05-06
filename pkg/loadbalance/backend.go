@@ -8,6 +8,8 @@ import (
 	"k8s.io/klog"
 )
 
+var ErrorBackendNotFound = fmt.Errorf("Cannot find backend")
+
 type Backend struct {
 	backendExec executor.QingCloudListenerBackendExecutor
 	Name        string
@@ -57,9 +59,19 @@ func (b *Backend) toQcBackendInput() *qcservice.LoadBalancerBackend {
 		ResourceID:              &b.Spec.InstanceID,
 		LoadBalancerBackendName: &b.Name,
 		Port:                    &b.Spec.Port,
+		Weight:                  &b.Spec.Weight,
 	}
 }
 
+func (b *Backend) Create() error {
+	backends := make([]*qcservice.LoadBalancerBackend, 0)
+	backends = append(backends, b.toQcBackendInput())
+	input := &qcservice.AddLoadBalancerBackendsInput{
+		LoadBalancerListener: b.Spec.Listener.Status.LoadBalancerListenerID,
+		Backends:             backends,
+	}
+	return b.backendExec.CreateBackends(input)
+}
 func (b *Backend) DeleteBackend() error {
 	if b.Status == nil {
 		return fmt.Errorf("Backend %s Not found", b.Name)
@@ -82,6 +94,27 @@ func (b *BackendList) CreateBackends() error {
 	return b.backendExec.CreateBackends(input)
 }
 
+func (b *BackendList) LoadAndGetUselessBackends() ([]string, error) {
+	backends, err := b.backendExec.GetBackendsOfListener(*b.Listener.Status.LoadBalancerListenerID)
+	if err != nil {
+		return nil, err
+	}
+	useless := make([]string, 0)
+	for _, back := range backends {
+		useful := false
+		for _, i := range b.Items {
+			if *back.LoadBalancerBackendName == i.Name {
+				i.Status = back
+				useful = true
+				break
+			}
+		}
+		if !useful {
+			useless = append(useless, *back.LoadBalancerBackendID)
+		}
+	}
+	return useless, nil
+}
 func (b *Backend) LoadQcBackend() error {
 	backends, err := b.backendExec.GetBackendsOfListener(*b.Spec.Listener.Status.LoadBalancerListenerID)
 	if err != nil {
@@ -93,7 +126,7 @@ func (b *Backend) LoadQcBackend() error {
 			return nil
 		}
 	}
-	return fmt.Errorf("Cannot find any backend with instance id %s in listener %s", b.Spec.InstanceID, *b.Spec.Listener.Status.LoadBalancerListenerID)
+	return ErrorBackendNotFound
 }
 
 func (b *Backend) NeedUpdate() bool {
