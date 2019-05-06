@@ -18,7 +18,7 @@
     zone = ap2a
     defaultVxNetForLB = vxnet-lddzg8e #lb的默认vxnet，必填
     clusterID = "mycluster" #集群名称，必填
-    userID = "xxxx" #当前集群API密钥的用户ID
+    userID = "xxxx" #当前集群API密钥的用户ID（如果需要使用IP自动申请的功能，务必填写此字段）
     ```
 - 生成api密钥文件，具体的文件样式可参考<https://docs.qingcloud.com/product/cli/#%E6%96%B0%E6%89%8B%E6%8C%87%E5%8D%97>
     ```
@@ -26,7 +26,7 @@
     qy_secret_access_key: 'QINGCLOUDSECRETACCESSKEYEXAMPLE'
     zone: 'pek1'
     ```
-    使用命令创建 `secret`, `kubectl create secret generic qcsecret --from-file=$secret_file -n kube-system`，替换其中的secret_file为上面生成的密钥地址。
+    创建`secret`, `kubectl create secret generic qcsecret --from-file=$secret_file -n kube-system`，替换其中的secret_file为上面生成的密钥地址。
 
 4. 安装yaml，等待安装完成即可
    ```
