@@ -9,7 +9,6 @@ import (
 	"time"
 
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/klog"
 )
 
 const (
@@ -20,17 +19,13 @@ const (
 
 // GetPortsOfService return service ports and nodeports
 func GetPortsOfService(service *v1.Service) ([]int, []int) {
-	k8sTCPPorts := []int{}
+	k8sPorts := []int{}
 	k8sNodePorts := []int{}
 	for _, port := range service.Spec.Ports {
-		if port.Protocol == v1.ProtocolUDP{
-			klog.Warningf("qingcloud not support udp port, skip [%v]", port.Port)
-		} else {
-			k8sTCPPorts = append(k8sTCPPorts, int(port.Port))
-			k8sNodePorts = append(k8sNodePorts, int(port.NodePort))
-		}
+		k8sPorts = append(k8sPorts, int(port.Port))
+		k8sNodePorts = append(k8sNodePorts, int(port.NodePort))
 	}
-	return k8sTCPPorts, k8sNodePorts
+	return k8sPorts, k8sNodePorts
 }
 
 func GetNodePort(service *v1.Service, port int32, protocol v1.Protocol) (nodePort int32, found bool) {

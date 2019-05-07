@@ -325,9 +325,9 @@ var _ = Describe("Loadbalance", func() {
 			NodeLister:  &fake.FakeNodeLister{},
 		})
 		Expect(lb).ShouldNot(BeNil())
-		Expect(lb.TCPPorts).To(HaveLen(2))
+		Expect(lb.TCPPorts).To(HaveLen(3))
 		Expect(lb.LoadListeners()).ShouldNot(HaveOccurred())
 		Expect(lb.GetListeners()[0].Protocol).To(Equal("http"))
-		Expect(lb.GetListeners()[1].Protocol).To(Equal("tcp"))
+		Expect(lb.GetListeners()[1].Protocol).To(Equal("udp"))
 	})
 })

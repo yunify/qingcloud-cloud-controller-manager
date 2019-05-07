@@ -387,14 +387,16 @@ func (l *LoadBalancer) GetService() *corev1.Service {
 }
 
 func (l *LoadBalancer) deleteSecurityGroup() error {
+	if l.Status.QcLoadBalancer != nil {
+		return l.sgExec.Delete(*l.Status.QcLoadBalancer.SecurityGroupID)
+	}
+	err := l.LoadSecurityGroup()
+	if err != nil {
+		klog.Errorf("Failed to load sg of lb %s", l.Name)
+		return err
+	}
 	if l.Status.QcSecurityGroup == nil {
-		err := l.LoadSecurityGroup()
-		if err != nil {
-			return err
-		}
-		if l.Status.QcSecurityGroup == nil {
-			return nil
-		}
+		return ErrorSGNotFoundInCloud
 	}
 	return l.sgExec.Delete(*l.Status.QcSecurityGroup.SecurityGroupID)
 }
@@ -438,6 +440,9 @@ func (l *LoadBalancer) DeleteQingCloudLB() error {
 				klog.V(1).Infof("Cannot find the lb %s in cloud, maybe is deleted", l.Name)
 				err = l.deleteSecurityGroup()
 				if err != nil {
+					if err == ErrorSGNotFoundInCloud {
+						return nil
+					}
 					klog.Errorf("Failed to delete SecurityGroup of lb %s ", l.Name)
 					return err
 				}
@@ -463,7 +468,12 @@ func (l *LoadBalancer) DeleteQingCloudLB() error {
 	}
 	err = l.deleteSecurityGroup()
 	if err != nil {
-		klog.Errorf("Failed to delete SecurityGroup of lb %s err '%s' ", l.Name, err)
+		if err == ErrorSGNotFoundInCloud {
+			klog.Warningf("Detect sg %s is deleted", l.Name)
+		} else {
+			klog.Errorf("Failed to delete SecurityGroup of lb %s err '%s' ", l.Name, err)
+			return err
+		}
 	}
 
 	if l.EIPAllocateSource != ManualSet && *ip.EIPName == eip.AllocateEIPName {

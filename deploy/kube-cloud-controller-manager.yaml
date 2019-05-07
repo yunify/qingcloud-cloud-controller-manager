@@ -27,13 +27,16 @@ spec:
         - --cloud-config=/etc/kubernetes/qingcloud.conf
         - --allocate-node-cidrs=true
         - --cluster-cidr=10.244.0.0/16
-        image: kubespheredev/cloud-controller-manager:v1.3.2
+        image: kubespheredev/cloud-controller-manager:v1.3.3
         imagePullPolicy: Always
         name: qingcloud-cloud-controller-manager
         resources:
           requests:
             cpu: 100m
             memory: 50Mi
+          limits:
+            cpu: 200m
+            memory: 100Mi
         volumeMounts:
         - mountPath: /etc/kubernetes
           name: k8s
