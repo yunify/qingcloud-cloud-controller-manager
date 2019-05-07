@@ -26,6 +26,14 @@ var DefaultLBSecurityGroupRules = []*qcservice.SecurityGroupRule{
 		Val2:     qcservice.String("65535"),
 		Val3:     nil,
 	},
+	{
+		Priority: qcservice.Int(1),
+		Protocol: qcservice.String("udp"),
+		Action:   qcservice.String("accept"),
+		Val1:     qcservice.String("1"),
+		Val2:     qcservice.String("65535"),
+		Val3:     nil,
+	},
 }
 var _ QingCloudSecurityGroupExecutor = &qingcloudSecurityGroupExecutor{}
 

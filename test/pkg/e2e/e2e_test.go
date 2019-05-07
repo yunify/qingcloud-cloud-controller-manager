@@ -46,6 +46,7 @@ var _ = Describe("E2e", func() {
 		Eventually(func() int { return e2eutil.GerServiceResponse(testip, 8090) }, time.Second*20, time.Second*5).Should(Equal(http.StatusOK))
 		log.Println("Successfully get a 200 response")
 	})
+
 	It("Should try to use available ips when user does not specify the ip", func() {
 		service1Path := workspace + "/test/test_cases/eip/use_available.yaml"
 		serviceName := "mylbapp"
@@ -66,6 +67,7 @@ var _ = Describe("E2e", func() {
 		}, 3*time.Minute, 20*time.Second).Should(Succeed())
 		log.Println("Successfully assign a ip")
 	})
+
 	It("Should work as expected when using sample yamls", func() {
 		//apply service
 		service1Path := workspace + "/test/test_cases/service.yaml"

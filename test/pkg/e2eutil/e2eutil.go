@@ -97,9 +97,11 @@ func WaitForLoadBalancerDeleted(lbService *service.LoadBalancerService) error {
 	unaccept1 := "pending"
 	unaccept2 := "active"
 	key := "k8s_lb_kubernetes"
+	owner := os.Getenv("API_OWNER")
 	input := &service.DescribeLoadBalancersInput{
 		Status:     []*string{&unaccept1, &unaccept2},
 		SearchWord: &key,
+		Owner:      &owner,
 	}
 	output, err := lbService.DescribeLoadBalancers(input)
 	if err != nil {

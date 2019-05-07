@@ -7,7 +7,6 @@ import (
 	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/executor"
 	qcservice "github.com/yunify/qingcloud-sdk-go/service"
 	corev1 "k8s.io/api/core/v1"
-	v1 "k8s.io/api/core/v1"
 	"k8s.io/klog"
 )
 
@@ -58,12 +57,13 @@ func NewListener(lb *LoadBalancer, port int) (*Listener, error) {
 		result.backendExec = bakExec
 	}
 	result.Name = result.PrefixName + strconv.Itoa(int(p.Port))
-	if p.Protocol == corev1.ProtocolTCP && (p.Name == "http" || p.Name == "https") {
+	if p.Protocol == corev1.ProtocolTCP && p.Name == "http" {
 		result.Protocol = "http"
+	} else if p.Protocol == corev1.ProtocolUDP {
+		result.Protocol = "udp"
 	} else {
 		result.Protocol = "tcp"
 	}
-
 	return result, nil
 }
 
@@ -143,6 +143,9 @@ func (l *Listener) CreateQingCloudListener() error {
 				LoadBalancerListenerName: &l.Name,
 			},
 		},
+	}
+	if l.Protocol == "udp" {
+		input.Listeners[0].HealthyCheckMethod = qcservice.String("udp")
 	}
 	listener, err := l.listenerExec.CreateListener(input)
 	if err != nil {
@@ -238,7 +241,7 @@ func (l *Listener) UpdateQingCloudListener() error {
 
 func checkPortInService(service *corev1.Service, port int) *corev1.ServicePort {
 	for index, p := range service.Spec.Ports {
-		if p.Protocol != v1.ProtocolUDP && int(p.Port) == port {
+		if int(p.Port) == port {
 			return &service.Spec.Ports[index]
 		}
 	}
