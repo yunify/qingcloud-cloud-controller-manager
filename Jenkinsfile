@@ -13,6 +13,7 @@ pipeline {
     ACCESS_KEY_ID     = credentials('jenkins-qc-secret-key-id')
     SECRET_ACCESS_KEY = credentials('jenkins-qc-secret-access-key')
     IMG =  "magicsong/cloud-manager:$tag"
+    API_OWNER = "usr-MRiIUq7M"
   }
   stages {
     stage('Building Manager'){
