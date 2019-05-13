@@ -30,7 +30,6 @@ type Config struct {
 		Zone              string `gcfg:"zone"`
 		DefaultVxNetForLB string `gcfg:"defaultVxNetForLB"`
 		ClusterID         string `gcfg:"clusterID"`
-		UserID            string `gcfg:"userID"`
 	}
 }
 
@@ -109,7 +108,18 @@ func newQingCloud(config Config) (cloudprovider.Interface, error) {
 	if err != nil {
 		return nil, err
 	}
-
+	api, _ := qcService.Accesskey(config.Global.Zone)
+	output, err := api.DescribeAccessKeys(&qcservice.DescribeAccessKeysInput{
+		AccessKeys: []*string{&qcConfig.AccessKeyID},
+	})
+	if err != nil {
+		klog.Errorf("Failed to get userID")
+		return nil, err
+	}
+	if len(output.AccessKeySet) == 0 {
+		err = fmt.Errorf("AccessKey %s have not userid", qcConfig.AccessKeyID)
+		return nil, err
+	}
 	qc := QingCloud{
 		instanceService:      instanceService,
 		lbService:            lbService,
@@ -120,7 +130,7 @@ func newQingCloud(config Config) (cloudprovider.Interface, error) {
 		zone:                 config.Global.Zone,
 		defaultVxNetForLB:    config.Global.DefaultVxNetForLB,
 		clusterID:            config.Global.ClusterID,
-		userID:               config.Global.UserID,
+		userID:               *output.AccessKeySet[0].Owner,
 	}
 
 	klog.V(1).Infof("QingCloud provider init done")

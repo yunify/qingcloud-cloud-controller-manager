@@ -1,9 +1,16 @@
 # Changelog
+## [ 1.3.4 ] - 2019-05-13
+### Added
+- get userid automatically [@magicsong](https://github.com/yunify/qingcloud-cloud-controller-manager/pull/55)
+  
+### Changed
+- simplify `Makefile`
+
 ## [ 1.3.3 ] - 2019-05-04
 ### Added
-- support UDP [@magicsong](https://github.com/yunify/qingcloud-cloud-controller-manager/pull/53)
+- support UDP [@magicsong](https://github.com/yunify/qingcloud-cloud-controller-manager/pull/54)
 ### Fixed
-- fixed that `https` port becomes `http` in qingcloud console [@magicsong](https://github.com/yunify/qingcloud-cloud-controller-manager/pull/53)
+- fixed that `https` port becomes `http` in qingcloud console [@magicsong](https://github.com/yunify/qingcloud-cloud-controller-manager/pull/54)
 - fixed securityGroup is not deleted in cloud
 
 ## [ 1.3.2 ] - 2019-05-06

@@ -10,7 +10,7 @@ require (
 	github.com/sirupsen/logrus v1.4.1 // indirect
 	github.com/spf13/afero v1.2.2 // indirect
 	github.com/spf13/cobra v0.0.3 // indirect
-	github.com/yunify/qingcloud-sdk-go v2.0.0-alpha.35+incompatible
+	github.com/yunify/qingcloud-sdk-go v2.0.0-alpha.35.0.20190513053909-5e6152f06771+incompatible
 	gopkg.in/gcfg.v1 v1.2.3
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 	gopkg.in/yaml.v2 v2.2.2 // indirect
