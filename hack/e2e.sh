@@ -14,6 +14,13 @@ secret_file=${HOME}/.qingcloud/config.yaml
 function cleanup(){
     result=$?
     set +e
+
+    if [ $result != "0" ]; then
+        echo "Detect test failure, save logs"
+        podname=`kubectl get pod -n $TEST_NS -l app=yunify-cloud-controller-manager -o jsonpath="{.items[0].metadata.name}"`
+        kubectl logs $podname -n $TEST_NS > cloud_controller.log
+    fi
+
     echo "Cleaning Namespace"
     kubectl delete secret qcsecret -n $TEST_NS
     kubectl delete ns $TEST_NS > /dev/null

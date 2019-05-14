@@ -41,8 +41,6 @@ spec:
         - mountPath: /etc/kubernetes
           name: k8s
           readOnly: true
-        - mountPath: /etc/ssl/certs
-          name: certs
         - mountPath: /etc/qingcloud
           name: qingcloud
           readOnly: true
@@ -63,9 +61,6 @@ spec:
       - hostPath:
           path: /etc/kubernetes
         name: k8s
-      - hostPath:
-          path: /etc/ssl/certs
-        name: certs
       - name:  qingcloud
         secret:
           secretName: qcsecret
