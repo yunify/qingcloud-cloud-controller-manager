@@ -5,7 +5,9 @@
   
 ### Changed
 - simplify `Makefile`
-
+- remove certs mounts [@magicsong](https://github.com/yunify/qingcloud-cloud-controller-manager/pull/56)
+- recording logs when e2e-test failure
+ 
 ## [ 1.3.3 ] - 2019-05-04
 ### Added
 - support UDP [@magicsong](https://github.com/yunify/qingcloud-cloud-controller-manager/pull/54)
