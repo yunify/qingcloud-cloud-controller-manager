@@ -11,8 +11,8 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/qcapiwrapper"
 	qcconfig "github.com/yunify/qingcloud-sdk-go/config"
-	qcservice "github.com/yunify/qingcloud-sdk-go/service"
 	gcfg "gopkg.in/gcfg.v1"
 	"k8s.io/client-go/informers"
 	corev1informer "k8s.io/client-go/informers/core/v1"
@@ -31,6 +31,11 @@ type Config struct {
 		DefaultVxNetForLB string `gcfg:"defaultVxNetForLB"`
 		ClusterID         string `gcfg:"clusterID"`
 	}
+	Pool struct {
+		UsePool      bool     `gcfg:"usePool"`
+		EIPIDs       []string `gcfg:"eipIDs"`
+		UseAvailable bool     `gcfg:"useAvailable"`
+	}
 }
 
 var _ cloudprovider.Interface = &QingCloud{}
@@ -38,17 +43,15 @@ var _ cloudprovider.Interface = &QingCloud{}
 // A single Kubernetes cluster can run in multiple zones,
 // but only within the same region (and cloud provider).
 type QingCloud struct {
-	instanceService      *qcservice.InstanceService
-	lbService            *qcservice.LoadBalancerService
-	volumeService        *qcservice.VolumeService
-	jobService           *qcservice.JobService
-	eipService           *qcservice.EIPService
-	securityGroupService *qcservice.SecurityGroupService
-	zone                 string
-	defaultVxNetForLB    string
-	clusterID            string
-	userID               string
+	zone              string
+	defaultVxNetForLB string
+	clusterID         string
+	userID            string
 
+	// usePool is the switch of pool mode
+	usePool         bool
+	poolManager     *poolManager
+	qcapi           *qcapiwrapper.QingcloudAPIWrapper
 	nodeInformer    corev1informer.NodeInformer
 	serviceInformer corev1informer.ServiceInformer
 }
@@ -83,56 +86,25 @@ func newQingCloud(config Config) (cloudprovider.Interface, error) {
 	if err = qcConfig.LoadConfigFromFilepath(config.Global.QYConfigPath); err != nil {
 		return nil, err
 	}
-	qcService, err := qcservice.Init(qcConfig)
+
+	apiwrapper, err := qcapiwrapper.NewQingcloudAPIWrapper(qcConfig, config.Global.Zone)
 	if err != nil {
-		return nil, err
-	}
-	instanceService, err := qcService.Instance(config.Global.Zone)
-	if err != nil {
-		return nil, err
-	}
-	eipService, _ := qcService.EIP(config.Global.Zone)
-	lbService, err := qcService.LoadBalancer(config.Global.Zone)
-	if err != nil {
-		return nil, err
-	}
-	volumeService, err := qcService.Volume(config.Global.Zone)
-	if err != nil {
-		return nil, err
-	}
-	jobService, err := qcService.Job(config.Global.Zone)
-	if err != nil {
-		return nil, err
-	}
-	securityGroupService, err := qcService.SecurityGroup(config.Global.Zone)
-	if err != nil {
-		return nil, err
-	}
-	api, _ := qcService.Accesskey(config.Global.Zone)
-	output, err := api.DescribeAccessKeys(&qcservice.DescribeAccessKeysInput{
-		AccessKeys: []*string{&qcConfig.AccessKeyID},
-	})
-	if err != nil {
-		klog.Errorf("Failed to get userID")
-		return nil, err
-	}
-	if len(output.AccessKeySet) == 0 {
-		err = fmt.Errorf("AccessKey %s have not userid", qcConfig.AccessKeyID)
 		return nil, err
 	}
 	qc := QingCloud{
-		instanceService:      instanceService,
-		lbService:            lbService,
-		volumeService:        volumeService,
-		jobService:           jobService,
-		securityGroupService: securityGroupService,
-		eipService:           eipService,
-		zone:                 config.Global.Zone,
-		defaultVxNetForLB:    config.Global.DefaultVxNetForLB,
-		clusterID:            config.Global.ClusterID,
-		userID:               *output.AccessKeySet[0].Owner,
+		zone:              config.Global.Zone,
+		defaultVxNetForLB: config.Global.DefaultVxNetForLB,
+		clusterID:         config.Global.ClusterID,
+		usePool:           config.Pool.UsePool,
+		qcapi:             apiwrapper,
 	}
-
+	if qc.usePool {
+		qc.poolManager, err = newPoolManager(apiwrapper, config.Pool.UseAvailable, config.Pool.EIPIDs...)
+		if err != nil {
+			klog.Errorf("Failed to Initialize lb pools")
+			return &qc, err
+		}
+	}
 	klog.V(1).Infof("QingCloud provider init done")
 	return &qc, nil
 }
@@ -147,6 +119,9 @@ func (qc *QingCloud) Initialize(clientBuilder cloudprovider.ControllerClientBuil
 	serviceInformer := sharedInformer.Core().V1().Services()
 	go serviceInformer.Informer().Run(stop)
 	qc.serviceInformer = serviceInformer
+	if qc.usePool {
+		go qc.poolManager.StartLBPoolManager(stop)
+	}
 }
 
 func (qc *QingCloud) Clusters() (cloudprovider.Clusters, bool) {

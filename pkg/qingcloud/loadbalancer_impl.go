@@ -4,9 +4,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/eip"
-
-	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/executor"
 	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/loadbalance"
 	v1 "k8s.io/api/core/v1"
 	cloudprovider "k8s.io/cloud-provider"
@@ -16,23 +13,18 @@ import (
 var _ cloudprovider.LoadBalancer = &QingCloud{}
 
 func (qc *QingCloud) newLoadBalance(ctx context.Context, clusterName string, service *v1.Service, nodes []*v1.Node, skipCheck bool) (*loadbalance.LoadBalancer, error) {
-	lbExec := executor.NewQingCloudLoadBalanceExecutor(qc.lbService, qc.jobService)
-	sgExec := executor.NewQingCloudSecurityGroupExecutor(qc.securityGroupService)
-	eipHelper := eip.NewEIPHelperOfQingCloud(eip.NewEIPHelperOfQingCloudOption{
-		JobAPI: qc.jobService,
-		EIPAPI: qc.eipService,
-		UserID: qc.userID,
-	})
 	opt := &loadbalance.NewLoadBalancerOption{
-		LbExecutor:  lbExec,
-		EipHelper:   eipHelper,
-		SgExecutor:  sgExec,
+		QcAPI:       qc.qcapi,
 		NodeLister:  qc.nodeInformer.Lister(),
 		K8sNodes:    nodes,
 		K8sService:  service,
 		Context:     ctx,
 		ClusterName: clusterName,
 		SkipCheck:   skipCheck,
+		UsePool:     qc.usePool,
+	}
+	if qc.usePool {
+		opt.Pool = qc.poolManager.GetPool()
 	}
 	return loadbalance.NewLoadBalancer(opt)
 }
@@ -46,6 +38,9 @@ func (qc *QingCloud) LoadBalancer() (cloudprovider.LoadBalancer, bool) {
 // GetLoadBalancer returns whether the specified load balancer exists, and
 // if so, what its status is.
 func (qc *QingCloud) GetLoadBalancer(ctx context.Context, clusterName string, service *v1.Service) (status *v1.LoadBalancerStatus, exists bool, err error) {
+	if service.Spec.Type != v1.ServiceTypeLoadBalancer {
+		return nil, false, nil
+	}
 	lb, err := qc.newLoadBalance(ctx, clusterName, service, nil, false)
 	if err != nil {
 		return nil, false, err

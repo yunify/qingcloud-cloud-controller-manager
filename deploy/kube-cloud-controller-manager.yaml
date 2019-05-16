@@ -58,8 +58,8 @@ spec:
         - key: "node-role.kubernetes.io/master"
           effect: NoSchedule
       volumes:
-      - hostPath:
-          path: /etc/kubernetes
+      - configMap:
+          name: lbconfig
         name: k8s
       - name:  qingcloud
         secret:

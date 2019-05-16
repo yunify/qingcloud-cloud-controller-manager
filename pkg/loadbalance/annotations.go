@@ -3,8 +3,6 @@ package loadbalance
 // EIPStrategy is the type representing eip strategy
 type EIPStrategy string
 
-type EIPAllocateSource string
-
 const (
 	// ServiceAnnotationLoadBalancerEipIds is the annotation which specifies a list of eip ids.
 	// The ids in list are separated by ',', e.g. "eip-j38f2h3h,eip-ornz2xq7". And this annotation should
@@ -39,9 +37,4 @@ const (
 	ReuseEIP EIPStrategy = "reuse"
 	// Exclusive is the default value, means every service has its own EIP
 	Exclusive EIPStrategy = "exclusive"
-
-	ManualSet                 EIPAllocateSource = "manual"
-	UseAvailableOrAllocateOne EIPAllocateSource = "auto"
-	UseAvailableOnly          EIPAllocateSource = "use-available"
-	AllocateOnly              EIPAllocateSource = "allocate"
 )

@@ -37,24 +37,26 @@ var DefaultLBSecurityGroupRules = []*qcservice.SecurityGroupRule{
 }
 var _ QingCloudSecurityGroupExecutor = &qingcloudSecurityGroupExecutor{}
 
-func NewQingCloudSecurityGroupExecutor(sgapi *qcservice.SecurityGroupService) QingCloudSecurityGroupExecutor {
+func NewQingCloudSecurityGroupExecutor(sgapi *qcservice.SecurityGroupService, useid string) QingCloudSecurityGroupExecutor {
 	return &qingcloudSecurityGroupExecutor{
-		sgapi: sgapi,
+		sgapi:  sgapi,
+		userid: useid,
 	}
 }
 
 type qingcloudSecurityGroupExecutor struct {
-	sgapi *qcservice.SecurityGroupService
+	sgapi  *qcservice.SecurityGroupService
+	userid string
 }
 
 func (q *qingcloudSecurityGroupExecutor) GetSecurityGroupByName(name string) (*qcservice.SecurityGroup, error) {
-	input := &qcservice.DescribeSecurityGroupsInput{SearchWord: &name}
+	input := &qcservice.DescribeSecurityGroupsInput{SearchWord: &name, Owner: &q.userid}
 	output, err := q.sgapi.DescribeSecurityGroups(input)
 	if err != nil {
 		return nil, err
 	}
 	if len(output.SecurityGroupSet) == 0 {
-		return nil, nil
+		return nil, fmt.Errorf(ErrorSGNotFoundInCloud)
 	}
 	for _, sg := range output.SecurityGroupSet {
 		if sg.SecurityGroupName != nil && *sg.SecurityGroupName == name {

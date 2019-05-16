@@ -159,9 +159,17 @@ func (l *Listener) GetBackends() *BackendList {
 	return l.backendList
 }
 
+// DeleteQingCloudListener delete a listener, must call `Confirm` to take effects
 func (l *Listener) DeleteQingCloudListener() error {
 	if l.Status == nil {
-		return fmt.Errorf("Could not delete noexit listener")
+		err := l.LoadQcListener()
+		if err != nil {
+			if err == ErrorListenerNotFound {
+				klog.Warningf("Try to delete a nonexit listener %s", l.Name)
+				return nil
+			}
+			return err
+		}
 	}
 	klog.Infof("Deleting LoadBalancerListener :'%s'", *l.Status.LoadBalancerListenerID)
 	return l.listenerExec.DeleteListener(*l.Status.LoadBalancerListenerID)

@@ -20,7 +20,7 @@ func (qc *QingCloud) Instances() (cloudprovider.Instances, bool) {
 }
 
 func (qc *QingCloud) newInstance(name string) *instance.Instance {
-	return instance.NewInstance(qc.instanceService, qc.nodeInformer.Lister(), name)
+	return instance.NewInstance(qc.qcapi, qc.nodeInformer.Lister(), name)
 }
 
 // NodeAddresses returns the addresses of the specified instance.

@@ -7,7 +7,11 @@ DEST=test/manager.yaml
 #build binary
 echo "Delete yamls before test"
 kubectl delete -f $DEST > /dev/null
+
+
 kubectl create secret generic qcsecret --from-file=${HOME}/.qingcloud/config.yaml -n kube-system
+kubectl delete configmap lbconfig -n kube-system
+kubectl create configmap lbconfig -n kube-system --from-file=test/config/qingcloud.conf
 set -e
 
 while [[ $# -gt 0 ]]

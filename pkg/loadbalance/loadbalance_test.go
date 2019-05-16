@@ -2,8 +2,9 @@ package loadbalance_test
 
 import (
 	"context"
-
 	"strings"
+
+	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/qcapiwrapper"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -20,6 +21,10 @@ var _ = Describe("Loadbalance", func() {
 	node2 := &corev1.Node{}
 	node2.Name = "testnode2"
 	testService := &corev1.Service{}
+	var lbexec *fake.FakeQingCloudLBExecutor
+	var sgexec *fake.FakeSecurityGroupExecutor
+	var apiwrapper *qcapiwrapper.QingcloudAPIWrapper
+
 	BeforeEach(func() {
 		testService = &corev1.Service{}
 		service := `{
@@ -52,17 +57,20 @@ var _ = Describe("Loadbalance", func() {
 		err := yaml.NewYAMLOrJSONDecoder(reader, 10).Decode(testService)
 		Expect(err).ShouldNot(HaveOccurred(), "Cannot unmarshal yamls")
 		testService.SetUID(types.UID("11111-2222-3333"))
+		lbexec = fake.NewFakeQingCloudLBExecutor()
+		sgexec = fake.NewFakeSecurityGroupExecutor()
+		apiwrapper = &qcapiwrapper.QingcloudAPIWrapper{
+			EipHelper: lbexec,
+			LbExec:    lbexec,
+			SgExec:    sgexec,
+		}
 	})
 
 	It("Should auto get an ip if we use auto mode", func() {
 		testService.Annotations["service.beta.kubernetes.io/qingcloud-load-balancer-eip-source"] = "auto"
-		lbexec := fake.NewFakeQingCloudLBExecutor()
-		sgexec := fake.NewFakeSecurityGroupExecutor()
 		lb, _ := loadbalance.NewLoadBalancer(&loadbalance.NewLoadBalancerOption{
 			K8sService:  testService,
-			EipHelper:   lbexec,
-			LbExecutor:  lbexec,
-			SgExecutor:  sgexec,
+			QcAPI:       apiwrapper,
 			ClusterName: "Test",
 			Context:     context.TODO(),
 			K8sNodes:    []*corev1.Node{node1, node2},
@@ -83,14 +91,10 @@ var _ = Describe("Loadbalance", func() {
 	})
 	It("Should use avaliable ip", func() {
 		testService.Annotations["service.beta.kubernetes.io/qingcloud-load-balancer-eip-source"] = "use-available"
-		lbexec := fake.NewFakeQingCloudLBExecutor()
-		sgexec := fake.NewFakeSecurityGroupExecutor()
 		dip := lbexec.AddEIP("eip-vmldumvv", "1.1.1.1")
 		lb, _ := loadbalance.NewLoadBalancer(&loadbalance.NewLoadBalancerOption{
 			K8sService:  testService,
-			EipHelper:   lbexec,
-			LbExecutor:  lbexec,
-			SgExecutor:  sgexec,
+			QcAPI:       apiwrapper,
 			ClusterName: "Test",
 			Context:     context.TODO(),
 			K8sNodes:    []*corev1.Node{node1, node2},
@@ -106,16 +110,13 @@ var _ = Describe("Loadbalance", func() {
 		Expect(sgexec.SecurityGroups).To(HaveLen(0))
 		Expect(lbexec.ReponseEIPs).To(HaveLen(1))
 	})
+
 	It("Should follow the topology", func() {
 		testService.Annotations["service.beta.kubernetes.io/qingcloud-load-balancer-eip-ids"] = "eip-vmldumvv"
-		lbexec := fake.NewFakeQingCloudLBExecutor()
 		dip := lbexec.AddEIP("eip-vmldumvv", "1.1.1.1")
-		sgexec := fake.NewFakeSecurityGroupExecutor()
 		lb, _ := loadbalance.NewLoadBalancer(&loadbalance.NewLoadBalancerOption{
 			K8sService:  testService,
-			EipHelper:   lbexec,
-			LbExecutor:  lbexec,
-			SgExecutor:  sgexec,
+			QcAPI:       apiwrapper,
 			ClusterName: "Test",
 			Context:     context.TODO(),
 			K8sNodes:    []*corev1.Node{node1, node2},
@@ -231,14 +232,10 @@ var _ = Describe("Loadbalance", func() {
 		err = yaml.NewYAMLOrJSONDecoder(reader, 10).Decode(testService2)
 		Expect(err).ShouldNot(HaveOccurred(), "Cannot unmarshal yamls")
 		testService2.SetUID(types.UID("11111-2222-3333-444"))
-		lbexec := fake.NewFakeQingCloudLBExecutor()
 		dip := lbexec.AddEIP("eip-vmldumvv", "1.1.1.1")
-		sgexec := fake.NewFakeSecurityGroupExecutor()
 		lb1, _ := loadbalance.NewLoadBalancer(&loadbalance.NewLoadBalancerOption{
 			K8sService:  testService1,
-			EipHelper:   lbexec,
-			LbExecutor:  lbexec,
-			SgExecutor:  sgexec,
+			QcAPI:       apiwrapper,
 			ClusterName: "Test",
 			Context:     context.TODO(),
 			K8sNodes:    []*corev1.Node{node1, node2},
@@ -248,9 +245,7 @@ var _ = Describe("Loadbalance", func() {
 
 		lb2, _ := loadbalance.NewLoadBalancer(&loadbalance.NewLoadBalancerOption{
 			K8sService:  testService2,
-			EipHelper:   lbexec,
-			LbExecutor:  lbexec,
-			SgExecutor:  sgexec,
+			QcAPI:       apiwrapper,
 			ClusterName: "Test",
 			Context:     context.TODO(),
 			K8sNodes:    []*corev1.Node{node1, node2},
@@ -320,6 +315,7 @@ var _ = Describe("Loadbalance", func() {
 		lb, _ := loadbalance.NewLoadBalancer(&loadbalance.NewLoadBalancerOption{
 			K8sService:  testService,
 			ClusterName: "Test",
+			QcAPI:       apiwrapper,
 			Context:     context.TODO(),
 			K8sNodes:    []*corev1.Node{node1, node2},
 			NodeLister:  &fake.FakeNodeLister{},

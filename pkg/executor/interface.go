@@ -1,8 +1,25 @@
 package executor
 
 import (
+	"strings"
+
 	qcservice "github.com/yunify/qingcloud-sdk-go/service"
 )
+
+const (
+	ErrorLBNotFoundInCloud = "Cannot find lb in qingcloud"
+	ErrorSGNotFoundInCloud = "Cannot find security group in qingcloud"
+)
+
+func IsQcResourceNotFound(err error) bool {
+	if strings.Contains(err.Error(), ErrorLBNotFoundInCloud) {
+		return true
+	}
+	if strings.Contains(err.Error(), ErrorSGNotFoundInCloud) {
+		return true
+	}
+	return false
+}
 
 type QingCloudListenerExecutor interface {
 	GetListenersOfLB(lbid, prefix string) ([]*qcservice.LoadBalancerListener, error)
@@ -30,13 +47,13 @@ type QingCloudLoadBalancerExecutor interface {
 	// Stop stop loadbalancer in qingcloud
 	Stop(id string) error
 	// CreateQingCloudLB do create a lb in qingcloud
-	Create(input *qcservice.CreateLoadBalancerInput) (*qcservice.LoadBalancer, error)
+	Create(name, sgid string, lbtype int, eips ...string) (*qcservice.LoadBalancer, error)
 
 	// Resize change the type of lb in qingcloud
 	Resize(id string, newtype int) error
 	// UpdateQingCloudLB update some attrs of qingcloud lb
 
-	Modify(input *qcservice.ModifyLoadBalancerAttributesInput) error
+	Modify(id, name string) error
 	// AssociateEipToLoadBalancer bind the eips to lb in qingcloud
 	AssociateEip(lbid string, eips ...string) error
 	// DissociateEipFromLoadBalancer unbind the eips from lb in qingcloud
@@ -47,6 +64,8 @@ type QingCloudLoadBalancerExecutor interface {
 	Delete(id string) error
 
 	GetLBAPI() *qcservice.LoadBalancerService
+
+	ListByPrefix(string) ([]*qcservice.LoadBalancer, error)
 
 	QingCloudListenerExecutor
 	QingCloudListenerBackendExecutor

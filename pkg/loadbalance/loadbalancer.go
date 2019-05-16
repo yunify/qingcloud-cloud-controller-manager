@@ -5,10 +5,13 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/eip"
 	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/executor"
 	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/instance"
+	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/pool"
+	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/qcapiwrapper"
 	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/util"
 	qcservice "github.com/yunify/qingcloud-sdk-go/service"
 	corev1 "k8s.io/api/core/v1"
@@ -17,8 +20,13 @@ import (
 )
 
 var (
-	ErrorLBNotFoundInCloud = fmt.Errorf("Cannot find lb in qingcloud")
-	ErrorSGNotFoundInCloud = fmt.Errorf("Cannot find security group in qingcloud")
+	ErrorLBNotFoundInCloud = fmt.Errorf(executor.ErrorLBNotFoundInCloud)
+	ErrorSGNotFoundInCloud = fmt.Errorf(executor.ErrorSGNotFoundInCloud)
+)
+
+const (
+	JobRetryTimes    = 3
+	JobReTryInterval = time.Second
 )
 
 type LoadBalancer struct {
@@ -30,12 +38,14 @@ type LoadBalancer struct {
 	listeners  []*Listener
 
 	LoadBalancerSpec
-	Status LoadBalancerStatus
+	Status  LoadBalancerStatus
+	usePool bool
+	pool    *pool.LBPool
 }
 
 type LoadBalancerSpec struct {
 	service           *corev1.Service
-	EIPAllocateSource EIPAllocateSource
+	EIPAllocateSource eip.EIPAllocateSource
 	EIPStrategy       EIPStrategy
 	EIPs              []string
 	Type              int
@@ -53,9 +63,7 @@ type LoadBalancerStatus struct {
 }
 
 type NewLoadBalancerOption struct {
-	EipHelper  eip.EIPHelper
-	LbExecutor executor.QingCloudLoadBalancerExecutor
-	SgExecutor executor.QingCloudSecurityGroupExecutor
+	QcAPI      *qcapiwrapper.QingcloudAPIWrapper
 	NodeLister corev1lister.NodeLister
 
 	K8sNodes    []*corev1.Node
@@ -63,15 +71,19 @@ type NewLoadBalancerOption struct {
 	Context     context.Context
 	ClusterName string
 	SkipCheck   bool
+	UsePool     bool
+	Pool        *pool.LBPool
 }
 
 // NewLoadBalancer create loadbalancer in memory, not in cloud, call 'CreateQingCloudLB' to create a real loadbalancer in qingcloud
 func NewLoadBalancer(opt *NewLoadBalancerOption) (*LoadBalancer, error) {
 	result := &LoadBalancer{
-		eipExec:    opt.EipHelper,
-		lbExec:     opt.LbExecutor,
-		sgExec:     opt.SgExecutor,
+		eipExec:    opt.QcAPI.EipHelper,
+		lbExec:     opt.QcAPI.LbExec,
+		sgExec:     opt.QcAPI.SgExec,
 		nodeLister: opt.NodeLister,
+		usePool:    opt.UsePool,
+		pool:       opt.Pool,
 	}
 	result.Name = GetLoadBalancerName(opt.ClusterName, opt.K8sService)
 	lbType := opt.K8sService.Annotations[ServiceAnnotationLoadBalancerType]
@@ -99,26 +111,18 @@ func NewLoadBalancer(opt *NewLoadBalancerOption) (*LoadBalancer, error) {
 		result.EIPStrategy = Exclusive
 	}
 	if source, ok := opt.K8sService.Annotations[ServiceAnnotationLoadBalancerEipSource]; ok {
-		switch source {
-		case string(AllocateOnly):
-			result.EIPAllocateSource = AllocateOnly
-		case string(UseAvailableOnly):
-			result.EIPAllocateSource = UseAvailableOnly
-		case string(UseAvailableOrAllocateOne):
-			result.EIPAllocateSource = UseAvailableOrAllocateOne
-		default:
-			result.EIPAllocateSource = ManualSet
-		}
+		result.EIPAllocateSource = eip.StringToEIPAllocateType(source)
 	} else {
-		result.EIPAllocateSource = ManualSet
+		result.EIPAllocateSource = eip.ManualSet
 	}
+
 	t, n := util.GetPortsOfService(opt.K8sService)
 	result.TCPPorts = t
 	result.NodePorts = n
 	result.service = opt.K8sService
 	result.Nodes = opt.K8sNodes
 	result.clusterName = opt.ClusterName
-	if result.EIPAllocateSource == ManualSet {
+	if result.EIPAllocateSource == eip.ManualSet {
 		lbEipIds, hasEip := opt.K8sService.Annotations[ServiceAnnotationLoadBalancerEipIds]
 		if hasEip {
 			result.EIPs = strings.Split(lbEipIds, ",")
@@ -131,11 +135,7 @@ func NewLoadBalancer(opt *NewLoadBalancerOption) (*LoadBalancer, error) {
 func (l *LoadBalancer) LoadQcLoadBalancer() error {
 	realLb, err := l.lbExec.GetLoadBalancerByName(l.Name)
 	if err != nil {
-		klog.Errorf("Failed to get lb from Qingcloud")
 		return err
-	}
-	if realLb == nil {
-		return ErrorLBNotFoundInCloud
 	}
 	l.Status.QcLoadBalancer = realLb
 	return nil
@@ -223,21 +223,21 @@ func (l *LoadBalancer) NeedChangeIP() (yes bool, toadd []string, todelete []stri
 }
 
 func (l *LoadBalancer) EnsureEIP() error {
-	if l.EIPAllocateSource == AllocateOnly {
+	if l.EIPAllocateSource == eip.AllocateOnly {
 		klog.V(2).Infof("Allocate a new ip for lb %s", l.Name)
 		eip, err := l.eipExec.AllocateEIP()
 		if err != nil {
 			return err
 		}
 		l.EIPs = []string{eip.ID}
-	} else if l.EIPAllocateSource == UseAvailableOnly {
+	} else if l.EIPAllocateSource == eip.UseAvailableOnly {
 		klog.V(2).Infof("Retrieve available ip for lb %s", l.Name)
 		eips, err := l.eipExec.GetAvaliableEIPs()
 		if err != nil {
 			return err
 		}
 		l.EIPs = []string{eips[0].ID}
-	} else if l.EIPAllocateSource == UseAvailableOrAllocateOne {
+	} else if l.EIPAllocateSource == eip.UseAvailableOrAllocateOne {
 		klog.V(2).Infof("Retrieve available ip or allocate a new ip for lb %s", l.Name)
 		eip, err := l.eipExec.GetAvaliableOrAllocateEIP()
 		if err != nil {
@@ -256,7 +256,7 @@ func (l *LoadBalancer) EnsureEIP() error {
 func (l *LoadBalancer) EnsureQingCloudLB() error {
 	err := l.LoadQcLoadBalancer()
 	if err != nil {
-		if err == ErrorLBNotFoundInCloud {
+		if executor.IsQcResourceNotFound(err) {
 			err = l.CreateQingCloudLB()
 			if err != nil {
 				klog.Errorf("Failed to create lb in qingcloud of service %s", l.service.Name)
@@ -264,6 +264,7 @@ func (l *LoadBalancer) EnsureQingCloudLB() error {
 			}
 			return nil
 		}
+		klog.Errorf("Failed to get lb %s in qingcloud", l.Name)
 		return err
 	}
 	err = l.UpdateQingCloudLB()
@@ -277,28 +278,39 @@ func (l *LoadBalancer) EnsureQingCloudLB() error {
 
 // CreateQingCloudLB do create a lb in qingcloud
 func (l *LoadBalancer) CreateQingCloudLB() error {
-	err := l.EnsureEIP()
-	if err != nil {
-		return err
+	if l.usePool {
+		lb := l.pool.PopLB()
+		if lb == nil {
+			return fmt.Errorf("LB pool is empty now")
+		}
+		klog.V(2).Infof("Modify name of lb %s in pool", lb.ID)
+		err := l.lbExec.Modify(lb.ID, l.Name)
+		if err != nil {
+			klog.Errorf("Failed to modify name of %s in pool", lb.ID)
+			return err
+		}
+		qclb, err := l.lbExec.GetLoadBalancerByID(lb.ID)
+		if err != nil {
+			return err
+		}
+		l.Status.QcLoadBalancer = qclb
+	} else {
+		err := l.EnsureEIP()
+		if err != nil {
+			return err
+		}
+		err = l.EnsureLoadBalancerSecurityGroup()
+		if err != nil {
+			return err
+		}
+		lb, err := l.lbExec.Create(l.Name, *l.Status.QcSecurityGroup.SecurityGroupID, l.Type, l.EIPs...)
+		if err != nil {
+			klog.Errorf("Failed to create a lb %s in qingcloud", l.Name)
+			return err
+		}
+		l.Status.QcLoadBalancer = lb
 	}
-	err = l.EnsureLoadBalancerSecurityGroup()
-	if err != nil {
-		return err
-	}
-
-	createInput := &qcservice.CreateLoadBalancerInput{
-		EIPs:             qcservice.StringSlice(l.EIPs),
-		LoadBalancerType: &l.Type,
-		LoadBalancerName: &l.Name,
-		SecurityGroup:    l.Status.QcSecurityGroup.SecurityGroupID,
-	}
-	lb, err := l.lbExec.Create(createInput)
-	if err != nil {
-		klog.Errorf("Failed to create a lb %s in qingcloud", l.Name)
-		return err
-	}
-	l.Status.QcLoadBalancer = lb
-	err = l.LoadListeners()
+	err := l.LoadListeners()
 	if err != nil {
 		klog.Errorf("Failed to generate listener of loadbalancer %s", l.Name)
 		return err
@@ -310,7 +322,7 @@ func (l *LoadBalancer) CreateQingCloudLB() error {
 			return err
 		}
 	}
-	err = l.lbExec.Confirm(*lb.LoadBalancerID)
+	err = l.lbExec.Confirm(*l.Status.QcLoadBalancer.LoadBalancerID)
 	if err != nil {
 		klog.Errorf("Failed to make loadbalancer %s go into effect", l.Name)
 		return err
@@ -351,11 +363,7 @@ func (l *LoadBalancer) UpdateQingCloudLB() error {
 	}
 
 	if l.NeedUpdate() {
-		modifyInput := &qcservice.ModifyLoadBalancerAttributesInput{
-			LoadBalancerName: &l.Name,
-			LoadBalancer:     l.Status.QcLoadBalancer.LoadBalancerID,
-		}
-		err := l.lbExec.Modify(modifyInput)
+		err := l.lbExec.Modify(*l.Status.QcLoadBalancer.LoadBalancerID, l.Name)
 		if err != nil {
 			klog.Errorf("Failed to update lb %s in qingcloud", l.Name)
 			return err
@@ -428,6 +436,7 @@ func (l *LoadBalancer) deleteListenersOnlyIfOK() (bool, error) {
 				return false, err
 			}
 		}
+		l.lbExec.Confirm(*l.Status.QcLoadBalancer.LoadBalancerID)
 	}
 	return isUsedByAnotherSevice, nil
 }
@@ -436,11 +445,11 @@ func (l *LoadBalancer) DeleteQingCloudLB() error {
 	if l.Status.QcLoadBalancer == nil {
 		err := l.LoadQcLoadBalancer()
 		if err != nil {
-			if err == ErrorLBNotFoundInCloud {
+			if executor.IsQcResourceNotFound(err) {
 				klog.V(1).Infof("Cannot find the lb %s in cloud, maybe is deleted", l.Name)
 				err = l.deleteSecurityGroup()
 				if err != nil {
-					if err == ErrorSGNotFoundInCloud {
+					if executor.IsQcResourceNotFound(err) {
 						return nil
 					}
 					klog.Errorf("Failed to delete SecurityGroup of lb %s ", l.Name)
@@ -461,22 +470,25 @@ func (l *LoadBalancer) DeleteQingCloudLB() error {
 	}
 	//record eip id before deleting
 	ip := l.Status.QcLoadBalancer.Cluster[0]
-	err = l.lbExec.Delete(*l.Status.QcLoadBalancer.LoadBalancerID)
+	lbid := *l.Status.QcLoadBalancer.LoadBalancerID
+	if l.usePool {
+		return l.deleteLBInPoolMode()
+	}
+	err = l.lbExec.Delete(lbid)
 	if err != nil {
-		klog.Errorf("Failed to excute deletion of lb %s", *l.Status.QcLoadBalancer.LoadBalancerName)
+		klog.Errorf("Failed to excute deletion of lb %s", l.Name)
 		return err
 	}
 	err = l.deleteSecurityGroup()
 	if err != nil {
-		if err == ErrorSGNotFoundInCloud {
+		if executor.IsQcResourceNotFound(err) {
 			klog.Warningf("Detect sg %s is deleted", l.Name)
 		} else {
 			klog.Errorf("Failed to delete SecurityGroup of lb %s err '%s' ", l.Name, err)
 			return err
 		}
 	}
-
-	if l.EIPAllocateSource != ManualSet && *ip.EIPName == eip.AllocateEIPName {
+	if l.EIPAllocateSource != eip.ManualSet && *ip.EIPName == eip.AllocateEIPName {
 		klog.V(2).Infof("Detect eip %s of lb %s is allocated, release it", *ip.EIPID, l.Name)
 		err := l.eipExec.ReleaseEIP(*ip.EIPID)
 		if err != nil {
@@ -498,12 +510,44 @@ func (l *LoadBalancer) NeedUpdate() bool {
 	return false
 }
 
+func (l *LoadBalancer) deleteLBInPoolMode() error {
+	lbid := *l.Status.QcLoadBalancer.LoadBalancerID
+	err := l.LoadListeners()
+	if err != nil {
+		return err
+	}
+	for _, listener := range l.listeners {
+		klog.V(2).Infof("Deleting listener %s of lb %s to put lb into pool", listener.Name, l.Name)
+		err := listener.DeleteQingCloudListener()
+		if err != nil {
+			klog.Errorf("Failied to delete listener %s of lb %s", listener.Name, l.Name)
+			return err
+		}
+	}
+	klog.V(2).Infof("Make deletion of listeners of lb %s taking effects", lbid)
+	err = l.lbExec.Confirm(lbid)
+	if err != nil {
+		klog.Errorf("Failed to confirm lb %s", lbid)
+		return err
+	}
+	err = l.lbExec.Modify(lbid, pool.PoolLBPrefixName+strconv.Itoa(l.pool.Length()))
+	if err != nil {
+		return err
+	}
+	err = l.pool.AddLBToPool(pool.QclbToPoolElement(l.Status.QcLoadBalancer))
+	if err != nil {
+		klog.Errorf("Failed to return lb %s to pool", lbid)
+		return err
+	}
+	return nil
+}
+
 // GenerateK8sLoadBalancer get a corev1.LoadBalancerStatus for k8s
 func (l *LoadBalancer) GenerateK8sLoadBalancer() error {
 	if l.Status.QcLoadBalancer == nil {
 		err := l.LoadQcLoadBalancer()
 		if err != nil {
-			if err == ErrorLBNotFoundInCloud {
+			if executor.IsQcResourceNotFound(err) {
 				return nil
 			}
 			klog.Errorf("Failed to load qc loadbalance of %s", l.Name)

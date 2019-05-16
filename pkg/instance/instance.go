@@ -3,6 +3,7 @@ package instance
 import (
 	"fmt"
 
+	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/qcapiwrapper"
 	qcservice "github.com/yunify/qingcloud-sdk-go/service"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -25,10 +26,10 @@ type Instance struct {
 type InstanceSpec struct {
 }
 
-func NewInstance(api *qcservice.InstanceService, nodeLister corev1lister.NodeLister, name string) *Instance {
+func NewInstance(qcapi *qcapiwrapper.QingcloudAPIWrapper, nodeLister corev1lister.NodeLister, name string) *Instance {
 	return &Instance{
 		Name:        name,
-		instanceApi: api,
+		instanceApi: qcapi.InstanceService,
 		nodeLister:  nodeLister,
 	}
 }

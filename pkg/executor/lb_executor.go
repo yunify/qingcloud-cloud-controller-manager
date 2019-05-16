@@ -12,58 +12,60 @@ import (
 
 var _ QingCloudLoadBalancerExecutor = &qingCloudLoadBalanceExecutor{}
 
+//TODO: Add retry to most of apis
 const (
 	waitInterval         = 10 * time.Second
 	operationWaitTimeout = 180 * time.Second
 	pageLimt             = 100
 )
 
+var status = []*string{qcservice.String("pending"), qcservice.String("active"), qcservice.String("stopped")}
+
 type qingCloudLoadBalanceExecutor struct {
 	lbapi  *qcservice.LoadBalancerService
 	jobapi *qcservice.JobService
+	userid string
 }
 
-func NewQingCloudLoadBalanceExecutor(lbapi *qcservice.LoadBalancerService, jobapi *qcservice.JobService) QingCloudLoadBalancerExecutor {
+func NewQingCloudLoadBalanceExecutor(lbapi *qcservice.LoadBalancerService, jobapi *qcservice.JobService, useid string) QingCloudLoadBalancerExecutor {
 	return &qingCloudLoadBalanceExecutor{
 		lbapi:  lbapi,
 		jobapi: jobapi,
+		userid: useid,
 	}
 }
 func (q *qingCloudLoadBalanceExecutor) GetLoadBalancerByName(name string) (*qcservice.LoadBalancer, error) {
-	status := []*string{qcservice.String("pending"), qcservice.String("active"), qcservice.String("stopped")}
 	output, err := q.lbapi.DescribeLoadBalancers(&qcservice.DescribeLoadBalancersInput{
 		Status:     status,
 		SearchWord: &name,
+		Owner:      &q.userid,
 	})
 	if err != nil {
 		return nil, err
 	}
 	if len(output.LoadBalancerSet) == 0 {
-		return nil, nil
+		return nil, fmt.Errorf(ErrorLBNotFoundInCloud)
 	}
 	for _, lb := range output.LoadBalancerSet {
 		if lb.LoadBalancerName != nil && *lb.LoadBalancerName == name {
 			return lb, nil
 		}
 	}
-	return nil, nil
+	return nil, fmt.Errorf(ErrorLBNotFoundInCloud)
 }
 
 func (q *qingCloudLoadBalanceExecutor) GetLoadBalancerByID(id string) (*qcservice.LoadBalancer, error) {
 	output, err := q.lbapi.DescribeLoadBalancers(&qcservice.DescribeLoadBalancersInput{
 		LoadBalancers: []*string{&id},
+		Status:        status,
 	})
 	if err != nil {
 		return nil, err
 	}
 	if len(output.LoadBalancerSet) == 0 {
-		return nil, nil
+		return nil, fmt.Errorf(ErrorLBNotFoundInCloud)
 	}
-	lb := output.LoadBalancerSet[0]
-	if *lb.Status == qcclient.LoadBalancerStatusCeased || *lb.Status == qcclient.LoadBalancerStatusDeleted {
-		return nil, nil
-	}
-	return lb, nil
+	return output.LoadBalancerSet[0], nil
 }
 
 func (q *qingCloudLoadBalanceExecutor) Start(id string) error {
@@ -90,18 +92,29 @@ func (q *qingCloudLoadBalanceExecutor) Stop(id string) error {
 	return qcclient.WaitJob(q.jobapi, *output.JobID, operationWaitTimeout, waitInterval)
 }
 
-func (q *qingCloudLoadBalanceExecutor) Create(input *qcservice.CreateLoadBalancerInput) (*qcservice.LoadBalancer, error) {
+func (q *qingCloudLoadBalanceExecutor) Create(name, sgid string, lbtype int, eips ...string) (*qcservice.LoadBalancer, error) {
+	input := &qcservice.CreateLoadBalancerInput{
+		LoadBalancerType: &lbtype,
+		LoadBalancerName: &name,
+		SecurityGroup:    &sgid,
+	}
+	if len(eips) > 0 {
+		input.EIPs = make([]*string, len(eips))
+		for index := 0; index < len(eips); index++ {
+			input.EIPs[index] = &eips[0]
+		}
+	}
 	output, err := q.lbapi.CreateLoadBalancer(input)
 	if err != nil {
 		return nil, err
 	}
-	klog.V(2).Infof("Waiting for Lb %s starting", *input.LoadBalancerName)
+	klog.V(2).Infof("Waiting for Lb %s starting", name)
 	err = q.waitLoadBalancerActive(*output.LoadBalancerID)
 	if err != nil {
 		klog.Errorf("LoadBalancer %s start failed", *output.LoadBalancerID)
 		return nil, err
 	}
-	klog.V(2).Infof("Lb %s is successfully started", *input.LoadBalancerName)
+	klog.V(2).Infof("Lb %s is successfully started", name)
 	return q.GetLoadBalancerByID(*output.LoadBalancerID)
 }
 
@@ -127,7 +140,11 @@ func (q *qingCloudLoadBalanceExecutor) Resize(id string, newtype int) error {
 	return q.Start(id)
 }
 
-func (q *qingCloudLoadBalanceExecutor) Modify(input *qcservice.ModifyLoadBalancerAttributesInput) error {
+func (q *qingCloudLoadBalanceExecutor) Modify(id, name string) error {
+	input := &qcservice.ModifyLoadBalancerAttributesInput{
+		LoadBalancer:     &id,
+		LoadBalancerName: &name,
+	}
 	output, err := q.lbapi.ModifyLoadBalancerAttributes(input)
 	if err != nil {
 		klog.Errorf("Couldn't update loadBalancer '%s'", *input.LoadBalancer)
@@ -361,4 +378,22 @@ func (q *qingCloudLoadBalanceExecutor) GetBackendByID(id string) (*qcservice.Loa
 		return nil, fmt.Errorf("Backend %s Not found", id)
 	}
 	return output.LoadBalancerBackendSet[0], nil
+}
+
+func (q *qingCloudLoadBalanceExecutor) ListByPrefix(prefix string) ([]*qcservice.LoadBalancer, error) {
+	output, err := q.lbapi.DescribeLoadBalancers(&qcservice.DescribeLoadBalancersInput{
+		Status:     status,
+		SearchWord: &prefix,
+		Owner:      &q.userid,
+	})
+	if err != nil {
+		return nil, err
+	}
+	result := make([]*qcservice.LoadBalancer, 0)
+	for _, l := range output.LoadBalancerSet {
+		if strings.HasPrefix(*l.LoadBalancerName, prefix) {
+			result = append(result, l)
+		}
+	}
+	return result, nil
 }

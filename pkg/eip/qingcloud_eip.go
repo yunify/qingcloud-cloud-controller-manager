@@ -31,7 +31,7 @@ type qingcloudEIPHelper struct {
 	NewEIPHelperOfQingCloudOption
 }
 
-func (q *qingcloudEIPHelper) ConvertQingCloudEIP(eip *qcservice.EIP) *EIP {
+func ConvertQingCloudEIP(eip *qcservice.EIP) *EIP {
 	if eip == nil {
 		return nil
 	}
@@ -54,6 +54,7 @@ func (q *qingcloudEIPHelper) ConvertQingCloudEIP(eip *qcservice.EIP) *EIP {
 	if eip.BillingMode != nil {
 		result.BillingMode = *eip.BillingMode
 	}
+	result.setAllocateSourceByName()
 	return result
 }
 
@@ -68,7 +69,7 @@ func (q *qingcloudEIPHelper) GetEIPByID(id string) (*EIP, error) {
 	if *output.TotalCount < 1 {
 		return nil, ErrorEIPNotFound
 	}
-	return q.ConvertQingCloudEIP(output.EIPSet[0]), nil
+	return ConvertQingCloudEIP(output.EIPSet[0]), nil
 }
 
 func (q *qingcloudEIPHelper) GetEIPByAddr(addr string) (*EIP, error) {
@@ -81,7 +82,7 @@ func (q *qingcloudEIPHelper) GetEIPByAddr(addr string) (*EIP, error) {
 	}
 	for _, item := range output.EIPSet {
 		if *item.EIPAddr == addr {
-			return q.ConvertQingCloudEIP(item), nil
+			return ConvertQingCloudEIP(item), nil
 		}
 	}
 	return nil, ErrorEIPNotFound
@@ -104,9 +105,6 @@ func (q *qingcloudEIPHelper) ReleaseEIP(id string) error {
 }
 
 func (q *qingcloudEIPHelper) GetAvaliableOrAllocateEIP() (*EIP, error) {
-	if q.UserID == "" {
-		return nil, ErrorUserIDNotFound
-	}
 	eips, err := q.GetAvaliableEIPs()
 	if err != nil {
 		if err != ErrorEIPNotFound {
@@ -137,10 +135,6 @@ func (q *qingcloudEIPHelper) AllocateEIP() (*EIP, error) {
 }
 
 func (q *qingcloudEIPHelper) GetAvaliableEIPs() ([]*EIP, error) {
-	if q.UserID == "" {
-		return nil, ErrorUserIDNotFound
-	}
-
 	output, err := q.EIPAPI.DescribeEIPs(&qcservice.DescribeEIPsInput{
 		Owner:  &q.UserID,
 		Status: []*string{qcservice.String(EIPStatusAvailable)},
@@ -160,7 +154,7 @@ func (q *qingcloudEIPHelper) GetAvaliableEIPs() ([]*EIP, error) {
 	}
 	result := make([]*EIP, 0)
 	for _, item := range output.EIPSet {
-		result = append(result, q.ConvertQingCloudEIP(item))
+		result = append(result, ConvertQingCloudEIP(item))
 	}
 	return result, nil
 }

@@ -85,6 +85,7 @@ if [ x$ACCESS_KEY_ID != "x" ]; then
 fi
 
 kubectl create secret generic qcsecret --from-file=$secret_file -n $TEST_NS
+kubectl create configmap lbconfig -n $TEST_NS --from-file=test/config/qingcloud.conf
 kubectl apply -f $DEST
 export TEST_NS
 export secret_file

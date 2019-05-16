@@ -1,6 +1,7 @@
 package fake
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/eip"
@@ -34,7 +35,7 @@ func (f *FakeQingCloudLBExecutor) GetLoadBalancerByName(name string) (*qcservice
 			return lb, nil
 		}
 	}
-	return nil, nil
+	return nil, fmt.Errorf(executor.ErrorLBNotFoundInCloud)
 }
 
 func (f *FakeQingCloudLBExecutor) GetLoadBalancerByID(id string) (*qcservice.LoadBalancer, error) {
@@ -49,17 +50,17 @@ func (f *FakeQingCloudLBExecutor) Stop(id string) error {
 	return nil
 }
 
-func (f *FakeQingCloudLBExecutor) Create(input *qcservice.CreateLoadBalancerInput) (*qcservice.LoadBalancer, error) {
+func (f *FakeQingCloudLBExecutor) Create(name, sgid string, lbtype int, eips ...string) (*qcservice.LoadBalancer, error) {
 	lb := new(qcservice.LoadBalancer)
 	id := "lb-" + e2eutil.RandString(8)
 	lb.LoadBalancerID = &id
-	lb.LoadBalancerName = input.LoadBalancerName
-	i, _ := f.GetEIPByID(*input.EIPs[0])
-	lb.Cluster = []*qcservice.EIP{i.ToQingCloudEIP()}
-	t := *input.LoadBalancerType
-	lb.LoadBalancerType = &t
-	sg := *input.SecurityGroup
-	lb.SecurityGroupID = &sg
+	lb.LoadBalancerName = &name
+	if len(eips) > 0 {
+		i, _ := f.GetEIPByID(eips[0])
+		lb.Cluster = []*qcservice.EIP{i.ToQingCloudEIP()}
+	}
+	lb.LoadBalancerType = &lbtype
+	lb.SecurityGroupID = &sgid
 	f.LoadBalancers[id] = lb
 	return lb, nil
 }
@@ -70,7 +71,8 @@ func (f *FakeQingCloudLBExecutor) Resize(id string, newtype int) error {
 	return nil
 }
 
-func (f *FakeQingCloudLBExecutor) Modify(input *qcservice.ModifyLoadBalancerAttributesInput) error {
+func (f *FakeQingCloudLBExecutor) Modify(id, name string) error {
+	f.LoadBalancers[id].LoadBalancerName = &name
 	return nil
 }
 
@@ -198,4 +200,14 @@ func (f *FakeQingCloudLBExecutor) ModifyBackend(id string, weight int, port int)
 	f.Backends[id].Weight = &weight
 	f.Backends[id].Port = &port
 	return nil
+}
+
+func (f *FakeQingCloudLBExecutor) ListByPrefix(prefix string) ([]*qcservice.LoadBalancer, error) {
+	result := make([]*qcservice.LoadBalancer, 0)
+	for _, lb := range f.LoadBalancers {
+		if strings.Contains(*lb.LoadBalancerName, prefix) {
+			result = append(result, lb)
+		}
+	}
+	return result, nil
 }
