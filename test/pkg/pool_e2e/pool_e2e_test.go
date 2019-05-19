@@ -1,4 +1,4 @@
-package e2e_test
+package pool_e2e_test
 
 import (
 	"fmt"

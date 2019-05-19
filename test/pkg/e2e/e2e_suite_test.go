@@ -4,9 +4,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
-	"path"
 	"path/filepath"
-	"runtime"
 	"testing"
 	"time"
 
@@ -32,11 +30,6 @@ var (
 	qcService     *qc.QingCloudService
 )
 
-func getWorkspace() string {
-	_, filename, _, _ := runtime.Caller(0)
-	return path.Dir(filename)
-}
-
 var _ = BeforeSuite(func() {
 	//init qcservice
 	qcs, err := e2eutil.GetQingcloudService()
@@ -44,8 +37,8 @@ var _ = BeforeSuite(func() {
 	qcService = qcs
 	testNamespace = os.Getenv("TEST_NS")
 	Expect(testNamespace).ShouldNot(BeEmpty())
-	workspace = getWorkspace() + "/../../.."
-	home := homeDir()
+	workspace = e2eutil.GetWorkspace() + "/../../.."
+	home := e2eutil.HomeDir()
 	Expect(home).ShouldNot(BeEmpty())
 	//read config
 	c, err := clientcmd.BuildConfigFromFlags("", filepath.Join(home, ".kube", "config"))
@@ -62,10 +55,3 @@ var _ = AfterSuite(func() {
 	cmd := exec.Command("kubectl", "delete", "-f", workspace+"/test/manager.yaml")
 	Expect(cmd.Run()).ShouldNot(HaveOccurred())
 })
-
-func homeDir() string {
-	if h := os.Getenv("HOME"); h != "" {
-		return h
-	}
-	return ""
-}

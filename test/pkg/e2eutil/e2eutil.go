@@ -7,7 +7,12 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path"
+	"runtime"
+	"strings"
 	"time"
+
+	corev1 "k8s.io/api/core/v1"
 
 	"github.com/yunify/qingcloud-sdk-go/config"
 	"github.com/yunify/qingcloud-sdk-go/service"
@@ -15,6 +20,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/client-go/kubernetes"
 )
 
@@ -112,4 +118,29 @@ func WaitForLoadBalancerDeleted(lbService *service.LoadBalancerService) error {
 	}
 	log.Printf("id:%s, name:%s, status:%s", *output.LoadBalancerSet[0].LoadBalancerID, *output.LoadBalancerSet[0].LoadBalancerName, *output.LoadBalancerSet[0].Status)
 	return fmt.Errorf("LB has not been deleted")
+}
+
+func GetWorkspace() string {
+	_, filename, _, _ := runtime.Caller(0)
+	return path.Dir(filename)
+}
+
+func HomeDir() string {
+	if h := os.Getenv("HOME"); h != "" {
+		return h
+	}
+	return ""
+}
+
+func StringToService(str string) (*corev1.Service, error) {
+	testService := &corev1.Service{}
+	reader := strings.NewReader(str)
+	err := yaml.NewYAMLOrJSONDecoder(reader, 10).Decode(testService)
+	if err != nil {
+		return nil, err
+	}
+	if testService.Namespace == "" {
+		testService.Namespace = "default"
+	}
+	return testService, nil
 }

@@ -46,7 +46,6 @@ type QingCloud struct {
 	zone              string
 	defaultVxNetForLB string
 	clusterID         string
-	userID            string
 
 	// usePool is the switch of pool mode
 	usePool         bool

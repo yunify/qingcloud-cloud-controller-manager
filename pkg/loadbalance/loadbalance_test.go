@@ -2,17 +2,15 @@ package loadbalance_test
 
 import (
 	"context"
-	"strings"
-
-	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/qcapiwrapper"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/loadbalance"
+	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/qcapiwrapper"
+	"github.com/yunify/qingcloud-cloud-controller-manager/test/pkg/e2eutil"
 	"github.com/yunify/qingcloud-cloud-controller-manager/test/pkg/fake"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/util/yaml"
 )
 
 var _ = Describe("Loadbalance", func() {
@@ -26,7 +24,6 @@ var _ = Describe("Loadbalance", func() {
 	var apiwrapper *qcapiwrapper.QingcloudAPIWrapper
 
 	BeforeEach(func() {
-		testService = &corev1.Service{}
 		service := `{
 			"kind": "Service",
 			"apiVersion": "v1",
@@ -53,8 +50,7 @@ var _ = Describe("Loadbalance", func() {
 				]
 			}
 		}`
-		reader := strings.NewReader(service)
-		err := yaml.NewYAMLOrJSONDecoder(reader, 10).Decode(testService)
+		testService, err := e2eutil.StringToService(service)
 		Expect(err).ShouldNot(HaveOccurred(), "Cannot unmarshal yamls")
 		testService.SetUID(types.UID("11111-2222-3333"))
 		lbexec = fake.NewFakeQingCloudLBExecutor()
@@ -165,7 +161,6 @@ var _ = Describe("Loadbalance", func() {
 		Expect(lbexec.Backends).To(HaveLen(2))
 	})
 	It("Should be ok when in reuse mode", func() {
-		testService1 := &corev1.Service{}
 		service := `{
 			"kind": "Service",
 			"apiVersion": "v1",
@@ -194,12 +189,10 @@ var _ = Describe("Loadbalance", func() {
 				]
 			}
 		}`
-		reader := strings.NewReader(service)
-		err := yaml.NewYAMLOrJSONDecoder(reader, 10).Decode(testService1)
+		testService1, err := e2eutil.StringToService(service)
 		Expect(err).ShouldNot(HaveOccurred(), "Cannot unmarshal yamls")
 		testService1.SetUID(types.UID("11111-2222-3333"))
 
-		testService2 := &corev1.Service{}
 		service = `{
 			"kind": "Service",
 			"apiVersion": "v1",
@@ -228,8 +221,7 @@ var _ = Describe("Loadbalance", func() {
 				]
 			}
 		}`
-		reader = strings.NewReader(service)
-		err = yaml.NewYAMLOrJSONDecoder(reader, 10).Decode(testService2)
+		testService2, err := e2eutil.StringToService(service)
 		Expect(err).ShouldNot(HaveOccurred(), "Cannot unmarshal yamls")
 		testService2.SetUID(types.UID("11111-2222-3333-444"))
 		dip := lbexec.AddEIP("eip-vmldumvv", "1.1.1.1")
@@ -266,7 +258,6 @@ var _ = Describe("Loadbalance", func() {
 		Expect(lbexec.Backends).To(HaveLen(2))
 	})
 	It("Should treat port name well", func() {
-		testService := &corev1.Service{}
 		service := `{
 	"kind": "Service",
 	"apiVersion": "v1",
@@ -308,8 +299,7 @@ var _ = Describe("Loadbalance", func() {
 		]
 	}
 }`
-		reader := strings.NewReader(service)
-		err := yaml.NewYAMLOrJSONDecoder(reader, 10).Decode(testService)
+		testService, err := e2eutil.StringToService(service)
 		Expect(err).ShouldNot(HaveOccurred(), "Cannot unmarshal yamls")
 		testService.SetUID(types.UID("11111-2222-3333"))
 		lb, _ := loadbalance.NewLoadBalancer(&loadbalance.NewLoadBalancerOption{

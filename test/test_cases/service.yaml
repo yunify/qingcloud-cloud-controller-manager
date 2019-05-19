@@ -13,21 +13,3 @@ spec:
   - name:  http
     port:  8088
     targetPort:  80
-
----
-apiVersion: extensions/v1beta1
-kind: Deployment
-metadata:
-  name: mylbapp
-spec:
-  replicas: 3
-  template:
-    metadata:
-      labels:
-        app: mylbapp
-    spec:
-      containers:
-      - name: name
-        image: nginx:alpine
-        ports:
-        - containerPort: 80
