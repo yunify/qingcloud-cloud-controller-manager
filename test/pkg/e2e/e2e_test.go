@@ -24,11 +24,14 @@ var _ = Describe("E2e", func() {
 		service2Name := "reuse-eip2"
 		Expect(e2eutil.KubectlApply(servicePath)).ShouldNot(HaveOccurred())
 		defer func() {
+			service, err := k8sclient.CoreV1().Services("default").Get(service1Name, metav1.GetOptions{})
+			Expect(err).ShouldNot(HaveOccurred())
+			lbName := loadbalance.GetLoadBalancerName("kubernetes", service)
 			Expect(e2eutil.KubectlDelete(servicePath)).ShouldNot(HaveOccurred())
 			//make sure lb is deleted
 			time.Sleep(time.Second * 5)
 			lbService, _ := qcService.LoadBalancer("ap2a")
-			Eventually(func() error { return e2eutil.WaitForLoadBalancerDeleted(lbService) }, time.Minute*2, time.Second*10).Should(Succeed())
+			Eventually(func() error { return e2eutil.WaitForLoadBalancerDeleted(lbService, lbName) }, time.Minute*2, time.Second*10).Should(Succeed())
 		}()
 		log.Println("Just wait 2 minutes before tests because following procedure is so so so slow ")
 		time.Sleep(2 * time.Minute)
@@ -52,12 +55,15 @@ var _ = Describe("E2e", func() {
 		serviceName := "mylbapp"
 		Expect(e2eutil.KubectlApply(service1Path)).ShouldNot(HaveOccurred())
 		defer func() {
+			service, err := k8sclient.CoreV1().Services("default").Get(serviceName, metav1.GetOptions{})
+			Expect(err).ShouldNot(HaveOccurred())
+			lbName := loadbalance.GetLoadBalancerName("kubernetes", service)
 			log.Println("Deleting test svc")
 			Expect(e2eutil.KubectlDelete(service1Path)).ShouldNot(HaveOccurred())
 			//make sure lb is deleted
 			lbService, _ := qcService.LoadBalancer("ap2a")
-			time.Sleep(time.Second * 45)
-			Eventually(func() error { return e2eutil.WaitForLoadBalancerDeleted(lbService) }, time.Minute*1, time.Second*10).Should(Succeed())
+			time.Sleep(time.Second * 40)
+			Eventually(func() error { return e2eutil.WaitForLoadBalancerDeleted(lbService, lbName) }, time.Minute*1, time.Second*10).Should(Succeed())
 		}()
 		log.Println("Just wait 2 minutes before tests because following procedure is so so so slow ")
 		time.Sleep(2 * time.Minute)
@@ -75,11 +81,14 @@ var _ = Describe("E2e", func() {
 		Expect(e2eutil.KubectlApply(service1Path)).ShouldNot(HaveOccurred())
 		defer func() {
 			log.Println("Deleting test svc")
+			service, err := k8sclient.CoreV1().Services("default").Get(serviceName, metav1.GetOptions{})
+			Expect(err).ShouldNot(HaveOccurred())
+			lbName := loadbalance.GetLoadBalancerName("kubernetes", service)
 			Expect(e2eutil.KubectlDelete(service1Path)).ShouldNot(HaveOccurred())
 			//make sure lb is deleted
 			lbService, _ := qcService.LoadBalancer("ap2a")
 			time.Sleep(time.Second * 30)
-			Eventually(func() error { return e2eutil.WaitForLoadBalancerDeleted(lbService) }, time.Minute*1, time.Second*10).Should(Succeed())
+			Eventually(func() error { return e2eutil.WaitForLoadBalancerDeleted(lbService, lbName) }, time.Minute*1, time.Second*10).Should(Succeed())
 		}()
 		log.Println("Just wait 2 minutes before tests because following procedure is so so so slow ")
 		time.Sleep(2 * time.Minute)

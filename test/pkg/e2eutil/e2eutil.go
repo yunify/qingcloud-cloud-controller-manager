@@ -82,7 +82,9 @@ func ServiceHasEIP(c *kubernetes.Clientset, name, namespace, ip string) error {
 	}
 	if len(service.Status.LoadBalancer.Ingress) > 0 {
 		if ip != "" && service.Status.LoadBalancer.Ingress[0].IP != ip {
-			return fmt.Errorf("got a different ip")
+			err := fmt.Errorf("got a different ip")
+			log.Println(err.Error())
+			return err
 		}
 		return nil
 	}
@@ -99,17 +101,16 @@ func GerServiceResponse(ip string, port int) int {
 	return resp.StatusCode
 }
 
-func WaitForLoadBalancerDeleted(lbService *service.LoadBalancerService) error {
+func WaitForLoadBalancerDeleted(lbapi *service.LoadBalancerService, name string) error {
 	unaccept1 := "pending"
 	unaccept2 := "active"
-	key := "k8s_lb_kubernetes"
 	owner := os.Getenv("API_OWNER")
 	input := &service.DescribeLoadBalancersInput{
 		Status:     []*string{&unaccept1, &unaccept2},
-		SearchWord: &key,
+		SearchWord: &name,
 		Owner:      &owner,
 	}
-	output, err := lbService.DescribeLoadBalancers(input)
+	output, err := lbapi.DescribeLoadBalancers(input)
 	if err != nil {
 		return err
 	}

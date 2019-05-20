@@ -197,7 +197,7 @@ func (l *LoadBalancer) NeedResize() bool {
 }
 
 func (l *LoadBalancer) NeedChangeIP() (yes bool, toadd []string, todelete []string) {
-	if l.Status.QcLoadBalancer == nil {
+	if l.Status.QcLoadBalancer == nil || l.EIPAllocateSource != ManualSet {
 		return
 	}
 	yes = true
