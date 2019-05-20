@@ -342,9 +342,6 @@ func (q *qingCloudLoadBalanceExecutor) GetBackendsOfListener(id string) ([]*qcse
 		klog.Errorf("Failed to get Backends of listener %s from qingcloud", id)
 		return nil, err
 	}
-	if len(output.LoadBalancerBackendSet) < 1 {
-		return nil, fmt.Errorf("Backends of listener %s Not found", id)
-	}
 	return output.LoadBalancerBackendSet, nil
 }
 

@@ -67,6 +67,9 @@ type NewLoadBalancerOption struct {
 
 // NewLoadBalancer create loadbalancer in memory, not in cloud, call 'CreateQingCloudLB' to create a real loadbalancer in qingcloud
 func NewLoadBalancer(opt *NewLoadBalancerOption) (*LoadBalancer, error) {
+	if len(opt.K8sNodes) == 0 {
+		return nil, fmt.Errorf("Cannot find any backend-node, do you forget to specify the annotation?")
+	}
 	result := &LoadBalancer{
 		eipExec:    opt.EipHelper,
 		lbExec:     opt.LbExecutor,
@@ -197,7 +200,7 @@ func (l *LoadBalancer) NeedResize() bool {
 }
 
 func (l *LoadBalancer) NeedChangeIP() (yes bool, toadd []string, todelete []string) {
-	if l.Status.QcLoadBalancer == nil {
+	if l.Status.QcLoadBalancer == nil || l.EIPAllocateSource != ManualSet {
 		return
 	}
 	yes = true
