@@ -81,9 +81,6 @@ func NewLoadBalancer(opt *NewLoadBalancerOption) (*LoadBalancer, error) {
 		if lbType == "" {
 			result.Type = 0
 		} else {
-			if len(opt.K8sNodes) == 0 {
-				return nil, fmt.Errorf("Cannot find any backend-node, do you forget to specify the annotation?")
-			}
 			t, err := strconv.Atoi(lbType)
 			if err != nil {
 				err = fmt.Errorf("Pls spec a valid value of loadBalancer for service %s, accept values are '0-3',err: %s", opt.K8sService.Name, err.Error())
