@@ -7,8 +7,7 @@ import (
 )
 
 var (
-	ErrorEIPNotFound    = fmt.Errorf("Cound not find the eip")
-	ErrorUserIDNotFound = fmt.Errorf("Must specify userID in qingcloud.conf when using ip auto assign")
+	ErrorEIPNotFound = fmt.Errorf("Cound not find the eip")
 )
 
 type EIP struct {

@@ -335,7 +335,7 @@ func (q *qingCloudLoadBalanceExecutor) ModifyBackend(id string, weight int, port
 
 func (q *qingCloudLoadBalanceExecutor) GetBackendsOfListener(id string) ([]*qcservice.LoadBalancerBackend, error) {
 	input := &qcservice.DescribeLoadBalancerBackendsInput{
-		LoadBalancerBackends: []*string{&id},
+		LoadBalancerListener: &id,
 	}
 	output, err := q.lbapi.DescribeLoadBalancerBackends(input)
 	if err != nil {
