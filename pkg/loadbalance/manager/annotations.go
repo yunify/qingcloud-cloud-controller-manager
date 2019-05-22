@@ -1,4 +1,4 @@
-package loadbalance
+package manager
 
 // EIPStrategy is the type representing eip strategy
 type EIPStrategy string
@@ -32,6 +32,8 @@ const (
 	ServiceAnnotationLoadBalancerEipStrategy = "service.beta.kubernetes.io/qingcloud-load-balancer-eip-strategy"
 
 	ServiceAnnotationLoadBalancerEipSource = "service.beta.kubernetes.io/qingcloud-load-balancer-eip-source"
+
+	ServiceAnnotationLoadBalancerReuseGroup = "service.beta.kubernetes.io/qingcloud-load-balancer-reuse-group"
 
 	// ReuseEIP represent the EIP can be shared with other service which has no port conflict
 	ReuseEIP EIPStrategy = "reuse"

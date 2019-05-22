@@ -10,6 +10,7 @@ import (
 	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/eip"
 	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/executor"
 	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/instance"
+	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/loadbalance/manager"
 	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/pool"
 	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/qcapiwrapper"
 	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/util"
@@ -36,11 +37,10 @@ type LoadBalancer struct {
 	//inject service
 	nodeLister corev1lister.NodeLister
 	listeners  []*Listener
-
+	manager    manager.LoadBalancerManager
 	LoadBalancerSpec
-	Status  LoadBalancerStatus
-	usePool bool
-	pool    *pool.LBPool
+	Status LoadBalancerStatus
+	pool   *pool.LBPool
 }
 
 type LoadBalancerSpec struct {
@@ -82,29 +82,28 @@ func NewLoadBalancer(opt *NewLoadBalancerOption) (*LoadBalancer, error) {
 		lbExec:     opt.QcAPI.LbExec,
 		sgExec:     opt.QcAPI.SgExec,
 		nodeLister: opt.NodeLister,
-		usePool:    opt.UsePool,
 		pool:       opt.Pool,
 	}
-	result.Name = GetLoadBalancerName(opt.ClusterName, opt.K8sService)
-	lbType := opt.K8sService.Annotations[ServiceAnnotationLoadBalancerType]
+	if opt.UsePool {
+		result.manager = manager.NewLBManagerWithPool()
+	} else {
+		result.manager = manager.NewLBManagerWithoutPool()
+	}
+	result.Name = result.manager.GetLoadBalancerName(opt.ClusterName, opt.K8sService)
+
 	if opt.SkipCheck {
 		result.Type = 0
 	} else {
 		if lbType == "" {
 			result.Type = 0
 		} else {
-			t, err := strconv.Atoi(lbType)
+			err := result.manager.ValidateAnnotations(opt.K8sService)
 			if err != nil {
-				err = fmt.Errorf("Pls spec a valid value of loadBalancer for service %s, accept values are '0-3',err: %s", opt.K8sService.Name, err.Error())
 				return nil, err
 			}
-			if t > 3 || t < 0 {
-				err = fmt.Errorf("Pls spec a valid value of loadBalancer for service %s, accept values are '0-3'", opt.K8sService.Name)
-				return nil, err
-			}
-			result.Type = t
 		}
 	}
+	result.Type, _ = strconv.Atoi(opt.K8sService.Annotations[ServiceAnnotationLoadBalancerType])
 	if strategy, ok := opt.K8sService.Annotations[ServiceAnnotationLoadBalancerEipStrategy]; ok && strategy == string(ReuseEIP) {
 		result.EIPStrategy = ReuseEIP
 	} else {
@@ -606,16 +605,3 @@ func (l *LoadBalancer) ClearNoUseListener() error {
 /// -----Shared  functions-------
 
 // GetLoadBalancerName generate lb name for each service. The name of a service is fixed and predictable
-func GetLoadBalancerName(clusterName string, service *corev1.Service) string {
-	defaultName := fmt.Sprintf("k8s_lb_%s_%s_%s", clusterName, service.Name, util.GetFirstUID(string(service.UID)))
-	annotation := service.GetAnnotations()
-	if annotation == nil {
-		return defaultName
-	}
-	if strategy, ok := annotation[ServiceAnnotationLoadBalancerEipStrategy]; ok {
-		if strategy == string(ReuseEIP) {
-			return fmt.Sprintf("k8s_lb_%s_%s", clusterName, annotation[ServiceAnnotationLoadBalancerEipIds])
-		}
-	}
-	return defaultName
-}
