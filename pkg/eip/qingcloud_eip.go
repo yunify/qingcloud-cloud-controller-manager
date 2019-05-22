@@ -104,9 +104,6 @@ func (q *qingcloudEIPHelper) ReleaseEIP(id string) error {
 }
 
 func (q *qingcloudEIPHelper) GetAvaliableOrAllocateEIP() (*EIP, error) {
-	if q.UserID == "" {
-		return nil, ErrorUserIDNotFound
-	}
 	eips, err := q.GetAvaliableEIPs()
 	if err != nil {
 		if err != ErrorEIPNotFound {
@@ -137,10 +134,6 @@ func (q *qingcloudEIPHelper) AllocateEIP() (*EIP, error) {
 }
 
 func (q *qingcloudEIPHelper) GetAvaliableEIPs() ([]*EIP, error) {
-	if q.UserID == "" {
-		return nil, ErrorUserIDNotFound
-	}
-
 	output, err := q.EIPAPI.DescribeEIPs(&qcservice.DescribeEIPsInput{
 		Owner:  &q.UserID,
 		Status: []*string{qcservice.String(EIPStatusAvailable)},
@@ -160,7 +153,9 @@ func (q *qingcloudEIPHelper) GetAvaliableEIPs() ([]*EIP, error) {
 	}
 	result := make([]*EIP, 0)
 	for _, item := range output.EIPSet {
-		result = append(result, q.ConvertQingCloudEIP(item))
+		if *item.AssociateMode == 0 {
+			result = append(result, q.ConvertQingCloudEIP(item))
+		}
 	}
 	return result, nil
 }
