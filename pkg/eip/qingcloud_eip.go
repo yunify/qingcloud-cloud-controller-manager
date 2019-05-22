@@ -154,7 +154,9 @@ func (q *qingcloudEIPHelper) GetAvaliableEIPs() ([]*EIP, error) {
 	}
 	result := make([]*EIP, 0)
 	for _, item := range output.EIPSet {
-		result = append(result, ConvertQingCloudEIP(item))
+		if *item.AssociateMode == 0 {
+			result = append(result, ConvertQingCloudEIP(item))
+		}
 	}
 	return result, nil
 }
