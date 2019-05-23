@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/executor"
+	. "github.com/yunify/qingcloud-cloud-controller-manager/pkg/loadbalance/annotations"
 	qcservice "github.com/yunify/qingcloud-sdk-go/service"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/klog"

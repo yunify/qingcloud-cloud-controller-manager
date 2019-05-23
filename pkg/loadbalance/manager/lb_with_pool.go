@@ -5,6 +5,7 @@ import (
 
 	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/errors"
 	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/executor"
+	. "github.com/yunify/qingcloud-cloud-controller-manager/pkg/loadbalance/annotations"
 	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/util"
 	corev1 "k8s.io/api/core/v1"
 )
@@ -17,11 +18,8 @@ type lbWithPool struct {
 
 func (lb *lbWithPool) ValidateAnnotations(service *corev1.Service) error {
 	annotation := service.GetAnnotations()
-	if annotation == nil {
-		return errors.NewFieldRequired("annotations")
-	}
-	if _, ok := annotation[ServiceAnnotationLoadBalancerType]; !ok {
-		return errors.NewFieldInvalidValue(ServiceAnnotationLoadBalancerType)
+	if err := sharedValidateMethod(annotation); err != nil {
+		return err
 	}
 	if _, ok := annotation[ServiceAnnotationLoadBalancerEipIds]; ok {
 		return errors.NewFieldInvalidValueWithReason(ServiceAnnotationLoadBalancerEipIds, "Cannot specify eip in pool mode")

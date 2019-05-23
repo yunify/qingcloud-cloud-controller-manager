@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/errors"
+	. "github.com/yunify/qingcloud-cloud-controller-manager/pkg/loadbalance/annotations"
 	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/util"
 	corev1 "k8s.io/api/core/v1"
 )
@@ -17,8 +18,7 @@ func NewLBManagerWithoutPool() LoadBalancerManager {
 
 func (lb *lbWithoutPool) ValidateAnnotations(service *corev1.Service) error {
 	annotation := service.GetAnnotations()
-	err := sharedValidateMethod(annotation)
-	if err != nil {
+	if err := sharedValidateMethod(annotation); err != nil {
 		return err
 	}
 	if strategy, ok := annotation[ServiceAnnotationLoadBalancerEipStrategy]; ok {

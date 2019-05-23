@@ -1,4 +1,4 @@
-package manager
+package annotations
 
 // EIPStrategy is the type representing eip strategy
 type EIPStrategy string

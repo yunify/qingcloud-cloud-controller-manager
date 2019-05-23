@@ -10,6 +10,7 @@ import (
 	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/eip"
 	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/executor"
 	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/instance"
+	. "github.com/yunify/qingcloud-cloud-controller-manager/pkg/loadbalance/annotations"
 	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/loadbalance/manager"
 	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/pool"
 	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/qcapiwrapper"
@@ -94,13 +95,9 @@ func NewLoadBalancer(opt *NewLoadBalancerOption) (*LoadBalancer, error) {
 	if opt.SkipCheck {
 		result.Type = 0
 	} else {
-		if lbType == "" {
-			result.Type = 0
-		} else {
-			err := result.manager.ValidateAnnotations(opt.K8sService)
-			if err != nil {
-				return nil, err
-			}
+		err := result.manager.ValidateAnnotations(opt.K8sService)
+		if err != nil {
+			return nil, err
 		}
 	}
 	result.Type, _ = strconv.Atoi(opt.K8sService.Annotations[ServiceAnnotationLoadBalancerType])
@@ -196,7 +193,7 @@ func (l *LoadBalancer) NeedResize() bool {
 }
 
 func (l *LoadBalancer) NeedChangeIP() (yes bool, toadd []string, todelete []string) {
-	if l.Status.QcLoadBalancer == nil || l.EIPAllocateSource != ManualSet {
+	if l.Status.QcLoadBalancer == nil || l.EIPAllocateSource != eip.ManualSet {
 		return
 	}
 	yes = true
