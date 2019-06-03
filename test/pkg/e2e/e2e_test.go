@@ -87,8 +87,8 @@ var _ = Describe("E2e", func() {
 			Expect(e2eutil.KubectlDelete(service1Path)).ShouldNot(HaveOccurred())
 			//make sure lb is deleted
 			lbService, _ := qcService.LoadBalancer("ap2a")
-			time.Sleep(time.Second * 30)
-			Eventually(func() error { return e2eutil.WaitForLoadBalancerDeleted(lbService, lbName) }, time.Minute*1, time.Second*10).Should(Succeed())
+			time.Sleep(time.Second * 45)
+			Eventually(func() error { return e2eutil.WaitForLoadBalancerDeleted(lbService, lbName) }, time.Minute*2, time.Second*15).Should(Succeed())
 		}()
 		log.Println("Just wait 2 minutes before tests because following procedure is so so so slow ")
 		time.Sleep(2 * time.Minute)
