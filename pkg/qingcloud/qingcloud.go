@@ -30,6 +30,7 @@ type Config struct {
 		Zone              string `gcfg:"zone"`
 		DefaultVxNetForLB string `gcfg:"defaultVxNetForLB"`
 		ClusterID         string `gcfg:"clusterID"`
+		IsApp             bool   `gcfg:"isApp"`
 	}
 }
 
@@ -44,10 +45,12 @@ type QingCloud struct {
 	jobService           *qcservice.JobService
 	eipService           *qcservice.EIPService
 	securityGroupService *qcservice.SecurityGroupService
-	zone                 string
-	defaultVxNetForLB    string
-	clusterID            string
-	userID               string
+
+	isAPP             bool
+	zone              string
+	defaultVxNetForLB string
+	clusterID         string
+	userID            string
 
 	nodeInformer    corev1informer.NodeInformer
 	serviceInformer corev1informer.ServiceInformer
