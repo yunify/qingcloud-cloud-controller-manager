@@ -19,17 +19,19 @@ type Instance struct {
 	Name        string
 	instanceApi *qcservice.InstanceService
 	nodeLister  corev1lister.NodeLister
+	isApp       bool
 	Status      *qcservice.Instance
 }
 
 type InstanceSpec struct {
 }
 
-func NewInstance(api *qcservice.InstanceService, nodeLister corev1lister.NodeLister, name string) *Instance {
+func NewInstance(api *qcservice.InstanceService, nodeLister corev1lister.NodeLister, name string, isApp bool) *Instance {
 	return &Instance{
 		Name:        name,
 		instanceApi: api,
 		nodeLister:  nodeLister,
+		isApp:       isApp,
 	}
 }
 
@@ -44,12 +46,15 @@ func (i *Instance) LoadQcInstance() error {
 
 func (i *Instance) LoadQcInstanceByID(id string) error {
 	status := []*string{qcservice.String("pending"), qcservice.String("running"), qcservice.String("stopped")}
-	verbose := qcservice.Int(1)
-	output, err := i.instanceApi.DescribeInstances(&qcservice.DescribeInstancesInput{
+	input := &qcservice.DescribeInstancesInput{
 		Instances: []*string{&id},
 		Status:    status,
-		Verbose:   verbose,
-	})
+		Verbose:   qcservice.Int(1),
+	}
+	if i.isApp {
+		input.IsClusterNode = qcservice.Int(1)
+	}
+	output, err := i.instanceApi.DescribeInstances(input)
 	if err != nil {
 		return err
 	}
