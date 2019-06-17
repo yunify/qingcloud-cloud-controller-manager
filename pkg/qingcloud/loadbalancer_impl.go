@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/eip"
-
 	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/executor"
 	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/loadbalance"
 	v1 "k8s.io/api/core/v1"
