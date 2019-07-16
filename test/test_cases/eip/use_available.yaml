@@ -3,7 +3,7 @@ apiVersion: v1
 metadata:
   name:  mylbapp
   annotations:
-    service.beta.kubernetes.io/qingcloud-load-balancer-eip-source: "auto"
+    service.beta.kubernetes.io/qingcloud-load-balancer-eip-source: auto
     service.beta.kubernetes.io/qingcloud-load-balancer-type: "0"
 spec:
   selector:

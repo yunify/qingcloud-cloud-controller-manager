@@ -54,6 +54,31 @@ var _ = Describe("Loadbalance", func() {
 		testService.SetUID(types.UID("11111-2222-3333"))
 	})
 
+	It("Should delete old listeners when changing service ports", func() {
+		testService.Annotations["service.beta.kubernetes.io/qingcloud-load-balancer-eip-source"] = "auto"
+		lbexec := fake.NewFakeQingCloudLBExecutor()
+		sgexec := fake.NewFakeSecurityGroupExecutor()
+		lb, _ := loadbalance.NewLoadBalancer(&loadbalance.NewLoadBalancerOption{
+			K8sService:  testService,
+			EipHelper:   lbexec,
+			LbExecutor:  lbexec,
+			SgExecutor:  sgexec,
+			ClusterName: "Test",
+			Context:     context.TODO(),
+			K8sNodes:    []*corev1.Node{node1, node2},
+			NodeLister:  &fake.FakeNodeLister{},
+		})
+		Expect(lb).ShouldNot(BeNil())
+		Expect(lb.EnsureQingCloudLB()).ShouldNot(HaveOccurred())
+		Expect(lb.Status.K8sLoadBalancerStatus.Ingress).To(HaveLen(1))
+		testService.Spec.Ports[0].Port = 8089
+		lb.TCPPorts = []int{8089}
+		Expect(lb.EnsureQingCloudLB()).ShouldNot(HaveOccurred())
+		for _, lib := range lbexec.Listeners {
+			Expect(*lib.ListenerPort).To(Equal(8089))
+		}
+	})
+
 	It("Should auto get an ip if we use auto mode", func() {
 		testService.Annotations["service.beta.kubernetes.io/qingcloud-load-balancer-eip-source"] = "auto"
 		lbexec := fake.NewFakeQingCloudLBExecutor()
@@ -75,6 +100,10 @@ var _ = Describe("Loadbalance", func() {
 		for _, k := range lbexec.ReponseEIPs {
 			Expect(lb.Status.K8sLoadBalancerStatus.Ingress[0].IP).To(Equal(k.Address))
 			Expect(k.Status).To(Equal("allocate"))
+		}
+		Expect(lb.EnsureQingCloudLB()).ShouldNot(HaveOccurred())
+		for _, lib := range lbexec.Listeners {
+			Expect(*lib.ListenerPort).To(Equal(8088))
 		}
 		Expect(lb.DeleteQingCloudLB()).ShouldNot(HaveOccurred())
 		Expect(lbexec.LoadBalancers).To(HaveLen(0))
@@ -98,6 +127,9 @@ var _ = Describe("Loadbalance", func() {
 		})
 		Expect(lb).ShouldNot(BeNil())
 		Expect(lb.EnsureQingCloudLB()).ShouldNot(HaveOccurred())
+		for _, lib := range lbexec.Listeners {
+			Expect(*lib.ListenerPort).To(Equal(8088))
+		}
 		Expect(lb.Status.K8sLoadBalancerStatus.Ingress).To(HaveLen(1))
 		Expect(lbexec.ReponseEIPs).To(HaveLen(1))
 		Expect(lb.Status.K8sLoadBalancerStatus.Ingress[0].IP).To(Equal(dip.Address))

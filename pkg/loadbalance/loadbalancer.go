@@ -246,7 +246,7 @@ func (l *LoadBalancer) EnsureEIP() error {
 		l.EIPs = []string{eip.ID}
 	} else {
 		if len(l.EIPs) == 0 {
-			return fmt.Errorf("Must specify a eip on service if you want to use lb")
+			return fmt.Errorf("Must specify a eip on service %s, current eip source :%s", l.service.Name, l.EIPAllocateSource)
 		}
 	}
 	klog.V(2).Infof("Will use eip %s for lb %s", l.EIPs, l.Name)
@@ -372,6 +372,12 @@ func (l *LoadBalancer) UpdateQingCloudLB() error {
 			klog.Errorf("Failed to create/update listener %s of loadbalancer %s", listener.Name, l.Name)
 			return err
 		}
+	}
+	klog.V(2).Infoln("Clear useless listeners")
+	err = l.ClearNoUseListener()
+	if err != nil {
+		klog.Errorf("Failed to clear listeners of service %s", l.service.Name)
+		return err
 	}
 	err = l.lbExec.Confirm(*l.Status.QcLoadBalancer.LoadBalancerID)
 	if err != nil {

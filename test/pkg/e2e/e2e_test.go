@@ -7,17 +7,20 @@ import (
 	"strconv"
 	"time"
 
+	"k8s.io/client-go/util/retry"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/loadbalance"
 	"github.com/yunify/qingcloud-cloud-controller-manager/test/pkg/e2eutil"
 	"github.com/yunify/qingcloud-sdk-go/service"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 var testip = "139.198.121.161"
 var ipchange = "139.198.121.98"
-var _ = Describe("E2e", func() {
+var _ = Describe("QingCloud LoadBalancer e2e-test", func() {
 	It("Should work as expected in ReUse Mode", func() {
 		servicePath := workspace + "/test/test_cases/reuse/case.yaml"
 		service1Name := "reuse-eip1"
@@ -53,10 +56,11 @@ var _ = Describe("E2e", func() {
 	It("Should try to use available ips when user does not specify the ip", func() {
 		service1Path := workspace + "/test/test_cases/eip/use_available.yaml"
 		serviceName := "mylbapp"
+		var service *corev1.Service
+		var err error
 		Expect(e2eutil.KubectlApply(service1Path)).ShouldNot(HaveOccurred())
+
 		defer func() {
-			service, err := k8sclient.CoreV1().Services("default").Get(serviceName, metav1.GetOptions{})
-			Expect(err).ShouldNot(HaveOccurred())
 			lbName := loadbalance.GetLoadBalancerName("kubernetes", service)
 			log.Println("Deleting test svc")
 			Expect(e2eutil.KubectlDelete(service1Path)).ShouldNot(HaveOccurred())
@@ -72,6 +76,23 @@ var _ = Describe("E2e", func() {
 			return e2eutil.ServiceHasEIP(k8sclient, serviceName, "default", "")
 		}, 3*time.Minute, 20*time.Second).Should(Succeed())
 		log.Println("Successfully assign a ip")
+		log.Println("Now we change the service port")
+		// get the service
+		retryErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+			// Retrieve the latest version of Deployment before attempting update
+			// RetryOnConflict uses exponential backoff to avoid exhausting the apiserver
+			serviceClient := k8sclient.CoreV1().Services("default")
+			service, err = serviceClient.Get(serviceName, metav1.GetOptions{})
+			if err != nil {
+				panic(fmt.Errorf("Failed to get latest version of Deployment: %v", err))
+			}
+			service.Spec.Ports[0].Port = service.Spec.Ports[0].Port + 1
+			_, updateErr := serviceClient.Update(service)
+			return updateErr
+		})
+		Expect(retryErr).ShouldNot(HaveOccurred())
+		time.Sleep(time.Second * 30)
+		Eventually(func() int { return e2eutil.GerServiceResponse(testip, int(service.Spec.Ports[0].Port)) }, time.Second*20, time.Second*5).Should(Equal(http.StatusOK))
 	})
 
 	It("Should work as expected when using sample yamls", func() {
