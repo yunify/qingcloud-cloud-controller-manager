@@ -1,4 +1,12 @@
 # Changelog
+## [ 1.3.5 ] - 2019-08-07
+### Fixed
+- when changing ports in service, old listeners are not deleted [@magicsong](https://github.com/yunify/qingcloud-cloud-controller-manager/pull/68)
+- fix bug in auto mode [@magicsong](https://github.com/yunify/qingcloud-cloud-controller-manager/pull/61)
+
+### Added
+- add cluster mode in instance [@magicsong](https://github.com/yunify/qingcloud-cloud-controller-manager/pull/64)
+
 ## [ 1.3.4 ] - 2019-05-13
 ### Added
 - get userid automatically [@magicsong](https://github.com/yunify/qingcloud-cloud-controller-manager/pull/55)
