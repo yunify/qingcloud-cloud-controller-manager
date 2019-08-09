@@ -101,21 +101,7 @@ func (qc *QingCloud) UpdateLoadBalancer(ctx context.Context, clusterName string,
 	if err != nil {
 		return err
 	}
-	err = lb.LoadQcLoadBalancer()
-	if err != nil {
-		klog.Errorf("Failed to get lb %s in qingcloud of service %s", lb.Name, service.Name)
-		return err
-	}
-	err = lb.LoadListeners()
-	if err != nil {
-		klog.Errorf("Failed to get listeners of lb %s of service %s", lb.Name, service.Name)
-		return err
-	}
-	listeners := lb.GetListeners()
-	for _, listener := range listeners {
-		listener.UpdateQingCloudListener()
-	}
-	return nil
+	return lb.EnsureQingCloudLB()
 }
 
 // EnsureLoadBalancerDeleted deletes the specified load balancer if it

@@ -53,6 +53,32 @@ var _ = Describe("Loadbalance", func() {
 		Expect(err).ShouldNot(HaveOccurred(), "Cannot unmarshal yamls")
 		testService.SetUID(types.UID("11111-2222-3333"))
 	})
+	It("Should update well when nodes changed", func() {
+		testService.Annotations["service.beta.kubernetes.io/qingcloud-load-balancer-eip-source"] = "auto"
+		lbexec := fake.NewFakeQingCloudLBExecutor()
+		sgexec := fake.NewFakeSecurityGroupExecutor()
+		lb, _ := loadbalance.NewLoadBalancer(&loadbalance.NewLoadBalancerOption{
+			K8sService:  testService,
+			EipHelper:   lbexec,
+			LbExecutor:  lbexec,
+			SgExecutor:  sgexec,
+			ClusterName: "Test",
+			Context:     context.TODO(),
+			K8sNodes:    []*corev1.Node{node1, node2},
+			NodeLister:  &fake.FakeNodeLister{},
+		})
+		Expect(lb).ShouldNot(BeNil())
+		Expect(lb.EnsureQingCloudLB()).ShouldNot(HaveOccurred())
+		Expect(lb.Status.K8sLoadBalancerStatus.Ingress).To(HaveLen(1))
+		Expect(lbexec.Backends).To(HaveLen(2))
+
+		lb.Nodes = make([]*corev1.Node, 0)
+		Expect(lb.EnsureQingCloudLB()).ShouldNot(HaveOccurred())
+		Expect(lbexec.Backends).To(HaveLen(0))
+		lb.Nodes = append(lb.Nodes, node1, node2)
+		Expect(lb.EnsureQingCloudLB()).ShouldNot(HaveOccurred())
+		Expect(lbexec.Backends).To(HaveLen(2))
+	})
 
 	It("Should delete old listeners when changing service ports", func() {
 		testService.Annotations["service.beta.kubernetes.io/qingcloud-load-balancer-eip-source"] = "auto"

@@ -200,8 +200,9 @@ func (l *Listener) UpdateBackends() error {
 					klog.Errorf("Failed to create backend of instance %s of listener %s", b.Spec.InstanceID, l.Name)
 					return err
 				}
+			} else {
+				return err
 			}
-			return err
 		} else {
 			err = b.UpdateBackend()
 			if err != nil {
