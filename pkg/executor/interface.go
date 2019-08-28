@@ -10,6 +10,7 @@ type QingCloudListenerExecutor interface {
 	DeleteListener(lsnid string) error
 	CreateListener(*qcservice.AddLoadBalancerListenersInput) (*qcservice.LoadBalancerListener, error)
 	ModifyListener(id, balanceMode string) error
+	GetListenerByName(lbid, name string) (*qcservice.LoadBalancerListener, error)
 }
 
 type QingCloudListenerBackendExecutor interface {

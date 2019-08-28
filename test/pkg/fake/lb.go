@@ -135,6 +135,15 @@ func (f *FakeQingCloudLBExecutor) GetListenerByID(id string) (*qcservice.LoadBal
 	return f.Listeners[id], nil
 }
 
+func (f *FakeQingCloudLBExecutor) GetListenerByName(id, name string) (*qcservice.LoadBalancerListener, error) {
+	for _, v := range f.Listeners {
+		if *v.LoadBalancerListenerName == name && *v.LoadBalancerID == id {
+			return v, nil
+		}
+	}
+	return nil, nil
+}
+
 func (f *FakeQingCloudLBExecutor) DeleteListener(lsnid string) error {
 	delete(f.Listeners, lsnid)
 	ids := []string{}
