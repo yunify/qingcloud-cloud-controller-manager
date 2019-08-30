@@ -2,7 +2,7 @@ pipeline {
   agent {
     docker {
       image 'kubespheredev/porter-infra:0.0.1'
-      args '-v $HOME:/root -v /var/run/docker.sock:/var/run/docker.sock  -v /usr/bin/docker:/usr/bin/docker -v /tmp:/tmp'
+      args '-v /var/run/docker.sock:/var/run/docker.sock  -v /usr/bin/docker:/usr/bin/docker -v /tmp:/tmp'
     }
   }
   environment {
@@ -14,8 +14,17 @@ pipeline {
     SECRET_ACCESS_KEY = credentials('jenkins-qc-secret-access-key')
     IMG =  "magicsong/cloud-manager:$tag"
     API_OWNER = "usr-MRiIUq7M"
+    KUBECONFIG = "/root/.kube/config"
   }
   stages {
+    stage('set kubeconfig and secret'){
+     steps{
+        sh 'mkdir -p ~/.kube'
+        withCredentials([kubeconfigContent(credentialsId: 'lbkubeconfig', variable: 'KUBECONFIG_CONTENT')]) {
+           sh 'echo "$KUBECONFIG_CONTENT" > ~/.kube/config'
+        }
+      }
+    }
     stage('Building Manager'){
       steps{
         sh """
