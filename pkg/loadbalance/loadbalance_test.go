@@ -3,6 +3,8 @@ package loadbalance_test
 import (
 	"context"
 
+	"k8s.io/apimachinery/pkg/util/intstr"
+
 	"strings"
 
 	. "github.com/onsi/ginkgo"
@@ -53,10 +55,19 @@ var _ = Describe("Loadbalance", func() {
 		Expect(err).ShouldNot(HaveOccurred(), "Cannot unmarshal yamls")
 		testService.SetUID(types.UID("11111-2222-3333"))
 	})
+
 	It("Should update well when nodes changed", func() {
 		testService.Annotations["service.beta.kubernetes.io/qingcloud-load-balancer-eip-source"] = "auto"
 		lbexec := fake.NewFakeQingCloudLBExecutor()
 		sgexec := fake.NewFakeSecurityGroupExecutor()
+		//add one more port
+		testService.Spec.Ports = append(testService.Spec.Ports, corev1.ServicePort{
+			Name:       "https",
+			Port:       8443,
+			Protocol:   corev1.ProtocolTCP,
+			TargetPort: intstr.FromInt(443),
+			NodePort:   30001,
+		})
 		lb, _ := loadbalance.NewLoadBalancer(&loadbalance.NewLoadBalancerOption{
 			K8sService:  testService,
 			EipHelper:   lbexec,
@@ -67,17 +78,28 @@ var _ = Describe("Loadbalance", func() {
 			K8sNodes:    []*corev1.Node{node1, node2},
 			NodeLister:  &fake.FakeNodeLister{},
 		})
+
 		Expect(lb).ShouldNot(BeNil())
 		Expect(lb.EnsureQingCloudLB()).ShouldNot(HaveOccurred())
 		Expect(lb.Status.K8sLoadBalancerStatus.Ingress).To(HaveLen(1))
-		Expect(lbexec.Backends).To(HaveLen(2))
+		Expect(lbexec.Listeners).To(HaveLen(2))
+		Expect(lbexec.Backends).To(HaveLen(4))
+
+		//change both ports
+		testService.Spec.Ports[0].Port = 80
+		testService.Spec.Ports[1].Port = 443
+		lb.TCPPorts = []int{80, 443}
+		Expect(lb.EnsureQingCloudLB()).ShouldNot(HaveOccurred())
+		Expect(lb.Status.K8sLoadBalancerStatus.Ingress).To(HaveLen(1))
+		Expect(lbexec.Backends).To(HaveLen(4))
+		Expect(lbexec.Listeners).To(HaveLen(2))
 
 		lb.Nodes = make([]*corev1.Node, 0)
 		Expect(lb.EnsureQingCloudLB()).ShouldNot(HaveOccurred())
 		Expect(lbexec.Backends).To(HaveLen(0))
 		lb.Nodes = append(lb.Nodes, node1, node2)
 		Expect(lb.EnsureQingCloudLB()).ShouldNot(HaveOccurred())
-		Expect(lbexec.Backends).To(HaveLen(2))
+		Expect(lbexec.Backends).To(HaveLen(4))
 	})
 
 	It("Should delete old listeners when changing service ports", func() {

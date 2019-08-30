@@ -69,18 +69,15 @@ func NewListener(lb *LoadBalancer, port int) (*Listener, error) {
 
 // LoadQcListener get real lb in qingcloud
 func (l *Listener) LoadQcListener() error {
-	listeners, err := l.listenerExec.GetListenersOfLB(*l.lb.Status.QcLoadBalancer.LoadBalancerID, l.Name)
+	listener, err := l.listenerExec.GetListenerByName(*l.lb.Status.QcLoadBalancer.LoadBalancerID, l.Name)
 	if err != nil {
 		klog.Errorf("Failed to get listener of this service %s with port %d", l.Name, l.ListenerPort)
 		return err
 	}
-	if len(listeners) > 1 {
-		klog.Exit("Fatal ! Get multi listeners for one port, quit now")
-	}
-	if len(listeners) == 0 {
+	if listener == nil {
 		return ErrorListenerNotFound
 	}
-	l.Status = listeners[0]
+	l.Status = listener
 	return nil
 }
 

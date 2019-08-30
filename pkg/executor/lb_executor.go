@@ -272,6 +272,21 @@ func (q *qingCloudLoadBalanceExecutor) GetListenerByID(id string) (*qcservice.Lo
 	return output.LoadBalancerListenerSet[0], nil
 }
 
+func (q *qingCloudLoadBalanceExecutor) GetListenerByName(id, name string) (*qcservice.LoadBalancerListener, error) {
+	output, err := q.lbapi.DescribeLoadBalancerListeners(&qcservice.DescribeLoadBalancerListenersInput{
+		LoadBalancer: &id,
+	})
+	if err != nil {
+		return nil, err
+	}
+	for _, list := range output.LoadBalancerListenerSet {
+		if *list.LoadBalancerListenerName == name {
+			return list, nil
+		}
+	}
+	return nil, nil
+}
+
 func (q *qingCloudLoadBalanceExecutor) ModifyListener(id, balanceMode string) error {
 	output, err := q.lbapi.ModifyLoadBalancerListenerAttributes(&qcservice.ModifyLoadBalancerListenerAttributesInput{
 		LoadBalancerListener: &id,
