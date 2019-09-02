@@ -20,18 +20,30 @@ const (
 type qingCloudLoadBalanceExecutor struct {
 	lbapi  *qcservice.LoadBalancerService
 	jobapi *qcservice.JobService
+	tagapi *qcservice.TagService
+	tagIDs []string
+	addTag bool
 }
 
 func newServerErrorOfLoadBalancer(name, method string, e error) error {
 	return errors.NewCommonServerError(ResourceNameLoadBalancer, name, method, e.Error())
 }
 
-func NewQingCloudLoadBalanceExecutor(lbapi *qcservice.LoadBalancerService, jobapi *qcservice.JobService) QingCloudLoadBalancerExecutor {
+func NewQingCloudLoadBalanceExecutor(lbapi *qcservice.LoadBalancerService, jobapi *qcservice.JobService, tagapi *qcservice.TagService) QingCloudLoadBalancerExecutor {
 	return &qingCloudLoadBalanceExecutor{
 		lbapi:  lbapi,
 		jobapi: jobapi,
+		tagapi: tagapi,
 	}
 }
+
+func (q *qingCloudLoadBalanceExecutor) EnableTagService(tagIds []string) {
+	if len(tagIds) > 0 {
+		q.addTag = true
+		q.tagIDs = tagIds
+	}
+}
+
 func (q *qingCloudLoadBalanceExecutor) GetLoadBalancerByName(name string) (*qcservice.LoadBalancer, error) {
 	status := []*string{qcservice.String("pending"), qcservice.String("active"), qcservice.String("stopped")}
 	output, err := q.lbapi.DescribeLoadBalancers(&qcservice.DescribeLoadBalancersInput{
@@ -104,7 +116,17 @@ func (q *qingCloudLoadBalanceExecutor) Create(input *qcservice.CreateLoadBalance
 		return nil, newServerErrorOfLoadBalancer(name, "waitLoadBalancerActive", err)
 	}
 	klog.V(2).Infof("Lb %s is successfully started", name)
-	return q.GetLoadBalancerByID(*output.LoadBalancerID)
+	lb, err := q.GetLoadBalancerByID(*output.LoadBalancerID)
+	if err != nil {
+		return nil, newServerErrorOfLoadBalancer(name, "GetLoadBalancerByID", err)
+	}
+	if q.addTag {
+		err = AddTagsToResource(q.tagapi, q.tagIDs, *output.LoadBalancerID, "loadbalancer")
+		if err != nil {
+			klog.Errorf("Failed to add tag to loadBalancer %s, err: %s", *output.LoadBalancerID, err.Error())
+		}
+	}
+	return lb, nil
 }
 
 func (q *qingCloudLoadBalanceExecutor) Resize(id string, newtype int) error {

@@ -1,13 +1,7 @@
 package eip
 
 import (
-	"fmt"
-
 	qcservice "github.com/yunify/qingcloud-sdk-go/service"
-)
-
-var (
-	ErrorEIPNotFound = fmt.Errorf("Cound not find the eip")
 )
 
 type EIP struct {

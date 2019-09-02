@@ -15,8 +15,12 @@ import (
 var _ cloudprovider.LoadBalancer = &QingCloud{}
 
 func (qc *QingCloud) newLoadBalance(ctx context.Context, clusterName string, service *v1.Service, nodes []*v1.Node, skipCheck bool) (*loadbalance.LoadBalancer, error) {
-	lbExec := executor.NewQingCloudLoadBalanceExecutor(qc.lbService, qc.jobService)
-	sgExec := executor.NewQingCloudSecurityGroupExecutor(qc.securityGroupService)
+	lbExec := executor.NewQingCloudLoadBalanceExecutor(qc.lbService, qc.jobService, qc.tagService)
+	sgExec := executor.NewQingCloudSecurityGroupExecutor(qc.securityGroupService, qc.tagService)
+	if len(qc.tagIDs) > 0 {
+		lbExec.EnableTagService(qc.tagIDs)
+		sgExec.EnableTagService(qc.tagIDs)
+	}
 	eipHelper := eip.NewEIPHelperOfQingCloud(eip.NewEIPHelperOfQingCloudOption{
 		JobAPI: qc.jobService,
 		EIPAPI: qc.eipService,
