@@ -24,9 +24,7 @@ spec:
         - /manager
         - --v=3
         - --cloud-provider=qingcloud
-        - --cloud-config=/etc/kubernetes/qingcloud.conf
-        - --allocate-node-cidrs=true
-        - --cluster-cidr=10.244.0.0/16
+        - --cloud-config=/etc/kubernetes/qingcloud.yaml
         image: kubespheredev/cloud-controller-manager:v1.3.5
         imagePullPolicy: Always
         name: qingcloud-cloud-controller-manager
@@ -39,12 +37,11 @@ spec:
             memory: 100Mi
         volumeMounts:
         - mountPath: /etc/kubernetes
-          name: k8s
+          name: lbconfig
           readOnly: true
         - mountPath: /etc/qingcloud
           name: qingcloud
           readOnly: true
-      hostNetwork: true
       serviceAccountName: cloud-controller-manager
       tolerations:
         # this taint is set by all kubelets running `--cloud-provider=external`
@@ -58,9 +55,9 @@ spec:
         - key: "node-role.kubernetes.io/master"
           effect: NoSchedule
       volumes:
-      - hostPath:
-          path: /etc/kubernetes
-        name: k8s
+      - configMap:
+          name: lbconfig
+        name: lbconfig
       - name:  qingcloud
         secret:
           secretName: qcsecret

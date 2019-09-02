@@ -45,6 +45,9 @@ func (qc *QingCloud) LoadBalancer() (cloudprovider.LoadBalancer, bool) {
 // GetLoadBalancer returns whether the specified load balancer exists, and
 // if so, what its status is.
 func (qc *QingCloud) GetLoadBalancer(ctx context.Context, clusterName string, service *v1.Service) (status *v1.LoadBalancerStatus, exists bool, err error) {
+	if service.Spec.Type != v1.ServiceTypeLoadBalancer {
+		return nil, false, nil
+	}
 	lb, err := qc.newLoadBalance(ctx, clusterName, service, nil, false)
 	if err != nil {
 		return nil, false, err

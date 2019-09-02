@@ -9,6 +9,7 @@ IMG=magicsong/cloud-manager:$tag
 DEST=test/manager.yaml
 TEST_NS=cloud-test-$tag
 secret_file=${HOME}/.qingcloud/config.yaml
+config_file=test/config/qingcloud.yaml
 #build binary
 
 function cleanup(){
@@ -85,6 +86,7 @@ if [ x$ACCESS_KEY_ID != "x" ]; then
 fi
 
 kubectl create secret generic qcsecret --from-file=$secret_file -n $TEST_NS
+kubectl create configmap lbconfig --from-file=$config_file -n $TEST_NS
 kubectl apply -f $DEST
 export TEST_NS
 export secret_file

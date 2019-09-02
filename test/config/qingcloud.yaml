@@ -1,0 +1,5 @@
+qyConfigPath: /etc/qingcloud/config.yaml
+zone: ap2a
+defaultVxNetForLB: vxnet-lddzg8e
+clusterID: test-cluster
+isApp: false

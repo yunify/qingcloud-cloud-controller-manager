@@ -11,12 +11,9 @@ import (
 	"os"
 	"time"
 
+	_ "github.com/yunify/qingcloud-cloud-controller-manager/pkg/qingcloud"
 	"k8s.io/component-base/logs"
 	"k8s.io/kubernetes/cmd/cloud-controller-manager/app"
-
-	// NOTE: Importing all in-tree cloud-providers is not required when
-	// implementing an out-of-tree cloud-provider.
-	_ "github.com/yunify/qingcloud-cloud-controller-manager/pkg/qingcloud"
 	_ "k8s.io/kubernetes/pkg/util/prometheusclientgo" // load all the prometheus client-go plugins
 	_ "k8s.io/kubernetes/pkg/version/prometheus"      // for version metric registration
 )
