@@ -3,12 +3,12 @@ package loadbalance
 import (
 	"fmt"
 
+	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/errors"
+
 	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/executor"
 	qcservice "github.com/yunify/qingcloud-sdk-go/service"
 	"k8s.io/klog"
 )
-
-var ErrorBackendNotFound = fmt.Errorf("Cannot find backend")
 
 type Backend struct {
 	backendExec executor.QingCloudListenerBackendExecutor
@@ -126,7 +126,7 @@ func (b *Backend) LoadQcBackend() error {
 			return nil
 		}
 	}
-	return ErrorBackendNotFound
+	return errors.NewResourceNotFoundError(executor.ResourceNameBackend, b.Name)
 }
 
 func (b *Backend) NeedUpdate() bool {

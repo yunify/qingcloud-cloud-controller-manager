@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/errors"
+
 	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/eip"
 	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/executor"
 	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/instance"
@@ -14,11 +16,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	corev1lister "k8s.io/client-go/listers/core/v1"
 	"k8s.io/klog"
-)
-
-var (
-	ErrorLBNotFoundInCloud = fmt.Errorf("Cannot find lb in qingcloud")
-	ErrorSGNotFoundInCloud = fmt.Errorf("Cannot find security group in qingcloud")
 )
 
 type LoadBalancer struct {
@@ -131,11 +128,7 @@ func NewLoadBalancer(opt *NewLoadBalancerOption) (*LoadBalancer, error) {
 func (l *LoadBalancer) LoadQcLoadBalancer() error {
 	realLb, err := l.lbExec.GetLoadBalancerByName(l.Name)
 	if err != nil {
-		klog.Errorf("Failed to get lb from Qingcloud")
 		return err
-	}
-	if realLb == nil {
-		return ErrorLBNotFoundInCloud
 	}
 	l.Status.QcLoadBalancer = realLb
 	return nil
@@ -167,9 +160,7 @@ func (l *LoadBalancer) LoadSecurityGroup() error {
 		klog.Errorf("Failed to get security group of lb %s", l.Name)
 		return err
 	}
-	if sg != nil {
-		l.Status.QcSecurityGroup = sg
-	}
+	l.Status.QcSecurityGroup = sg
 	return nil
 }
 
@@ -179,9 +170,7 @@ func (l *LoadBalancer) EnsureLoadBalancerSecurityGroup() error {
 	if err != nil {
 		return err
 	}
-	if sg != nil {
-		l.Status.QcSecurityGroup = sg
-	}
+	l.Status.QcSecurityGroup = sg
 	return nil
 }
 
@@ -256,7 +245,7 @@ func (l *LoadBalancer) EnsureEIP() error {
 func (l *LoadBalancer) EnsureQingCloudLB() error {
 	err := l.LoadQcLoadBalancer()
 	if err != nil {
-		if err == ErrorLBNotFoundInCloud {
+		if errors.IsResourceNotFound(err) {
 			err = l.CreateQingCloudLB()
 			if err != nil {
 				klog.Errorf("Failed to create lb in qingcloud of service %s", l.service.Name)
@@ -398,11 +387,11 @@ func (l *LoadBalancer) deleteSecurityGroup() error {
 	}
 	err := l.LoadSecurityGroup()
 	if err != nil {
+		if errors.IsResourceNotFound(err) {
+			return nil
+		}
 		klog.Errorf("Failed to load sg of lb %s", l.Name)
 		return err
-	}
-	if l.Status.QcSecurityGroup == nil {
-		return ErrorSGNotFoundInCloud
 	}
 	return l.sgExec.Delete(*l.Status.QcSecurityGroup.SecurityGroupID)
 }
@@ -442,13 +431,10 @@ func (l *LoadBalancer) DeleteQingCloudLB() error {
 	if l.Status.QcLoadBalancer == nil {
 		err := l.LoadQcLoadBalancer()
 		if err != nil {
-			if err == ErrorLBNotFoundInCloud {
+			if errors.IsResourceNotFound(err) {
 				klog.V(1).Infof("Cannot find the lb %s in cloud, maybe is deleted", l.Name)
 				err = l.deleteSecurityGroup()
 				if err != nil {
-					if err == ErrorSGNotFoundInCloud {
-						return nil
-					}
 					klog.Errorf("Failed to delete SecurityGroup of lb %s ", l.Name)
 					return err
 				}
@@ -474,12 +460,8 @@ func (l *LoadBalancer) DeleteQingCloudLB() error {
 	}
 	err = l.deleteSecurityGroup()
 	if err != nil {
-		if err == ErrorSGNotFoundInCloud {
-			klog.Warningf("Detect sg %s is deleted", l.Name)
-		} else {
-			klog.Errorf("Failed to delete SecurityGroup of lb %s err '%s' ", l.Name, err)
-			return err
-		}
+		klog.Errorf("Failed to delete SecurityGroup of lb %s err '%s' ", l.Name, err)
+		return err
 	}
 
 	if l.EIPAllocateSource != ManualSet && *ip.EIPName == eip.AllocateEIPName {
@@ -509,9 +491,6 @@ func (l *LoadBalancer) GenerateK8sLoadBalancer() error {
 	if l.Status.QcLoadBalancer == nil {
 		err := l.LoadQcLoadBalancer()
 		if err != nil {
-			if err == ErrorLBNotFoundInCloud {
-				return nil
-			}
 			klog.Errorf("Failed to load qc loadbalance of %s", l.Name)
 			return err
 		}
@@ -549,6 +528,9 @@ func (l *LoadBalancer) ClearNoUseListener() error {
 	}
 	listeners, err := l.lbExec.GetListenersOfLB(*l.Status.QcLoadBalancer.LoadBalancerID, GetListenerPrefix(l.service))
 	if err != nil {
+		if errors.IsResourceNotFound(err) {
+			return nil
+		}
 		klog.Errorf("Failed to get qingcloud listeners of lb %s", l.Name)
 		return err
 	}
