@@ -1,6 +1,8 @@
 package fake
 
 import (
+	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/errors"
+	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/executor"
 	"github.com/yunify/qingcloud-cloud-controller-manager/test/pkg/e2eutil"
 	qcservice "github.com/yunify/qingcloud-sdk-go/service"
 )
@@ -21,7 +23,7 @@ func (f *FakeSecurityGroupExecutor) GetSecurityGroupByName(name string) (*qcserv
 			return v, nil
 		}
 	}
-	return nil, nil
+	return nil, errors.NewResourceNotFoundError(executor.ResourceNameSecurityGroup, name)
 }
 
 func (f *FakeSecurityGroupExecutor) CreateSecurityGroup(sgName string, _ []*qcservice.SecurityGroupRule) (*qcservice.SecurityGroup, error) {

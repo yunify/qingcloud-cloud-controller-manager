@@ -1,8 +1,7 @@
 package executor
 
 import (
-	"fmt"
-
+	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/errors"
 	qcservice "github.com/yunify/qingcloud-sdk-go/service"
 	"k8s.io/klog"
 )
@@ -51,17 +50,14 @@ func (q *qingcloudSecurityGroupExecutor) GetSecurityGroupByName(name string) (*q
 	input := &qcservice.DescribeSecurityGroupsInput{SearchWord: &name}
 	output, err := q.sgapi.DescribeSecurityGroups(input)
 	if err != nil {
-		return nil, err
-	}
-	if len(output.SecurityGroupSet) == 0 {
-		return nil, nil
+		return nil, errors.NewCommonServerError(ResourceNameSecurityGroup, name, "GetSecurityGroupByName", err.Error())
 	}
 	for _, sg := range output.SecurityGroupSet {
 		if sg.SecurityGroupName != nil && *sg.SecurityGroupName == name {
 			return sg, nil
 		}
 	}
-	return nil, nil
+	return nil, errors.NewResourceNotFoundError(ResourceNameSecurityGroup, name)
 }
 
 // CreateSecurityGroup create a SecurityGroup in qingcloud
@@ -69,23 +65,20 @@ func (q *qingcloudSecurityGroupExecutor) CreateSecurityGroup(sgName string, rule
 	createInput := &qcservice.CreateSecurityGroupInput{SecurityGroupName: &sgName}
 	createOutput, err := q.sgapi.CreateSecurityGroup(createInput)
 	if err != nil {
-		return nil, err
+		return nil, errors.NewCommonServerError(ResourceNameSecurityGroup, sgName, "CreateSecurityGroup", err.Error())
 	}
 	sgID := createOutput.SecurityGroupID
 	addRuleOutput, err := q.sgapi.AddSecurityGroupRules(&qcservice.AddSecurityGroupRulesInput{SecurityGroup: sgID, Rules: rules})
 	if err != nil {
-		klog.Errorf("Failed to add security rule to group %s", *sgID)
-		return nil, err
+		return nil, errors.NewCommonServerError(ResourceNameSecurityGroup, sgName, "AddSecurityGroupRules", err.Error())
 	}
 	klog.V(4).Infof("AddSecurityGroupRules SecurityGroup: [%s], output: [%+v] ", *sgID, addRuleOutput)
 	o, err := q.sgapi.ApplySecurityGroup(&qcservice.ApplySecurityGroupInput{SecurityGroup: sgID})
 	if err != nil {
-		klog.Errorf("Failed to apply security rule to group %s", *sgID)
-		return nil, err
+		return nil, errors.NewCommonServerError(ResourceNameSecurityGroup, sgName, "ApplySecurityGroupRules", err.Error())
 	}
 	if *o.RetCode != 0 {
-		err := fmt.Errorf("Failed to apply security group,err: %s", *o.Message)
-		return nil, err
+		return nil, errors.NewCommonServerError(ResourceNameSecurityGroup, sgName, "ApplySecurityGroupRules", *o.Message)
 	}
 	sg, _ := q.GetSecurityGroupByID(*sgID)
 	return sg, nil
@@ -94,14 +87,13 @@ func (q *qingcloudSecurityGroupExecutor) CreateSecurityGroup(sgName string, rule
 func (q *qingcloudSecurityGroupExecutor) EnsureSecurityGroup(name string) (*qcservice.SecurityGroup, error) {
 	sg, err := q.GetSecurityGroupByName(name)
 	if err != nil {
-		return nil, err
-	}
-	if sg != nil {
-		return sg, nil
-	}
-	sg, err = q.CreateSecurityGroup(name, DefaultLBSecurityGroupRules)
-	if err != nil {
-		return nil, err
+		if errors.IsResourceNotFound(err) {
+			sg, err = q.CreateSecurityGroup(name, DefaultLBSecurityGroupRules)
+			if err == nil {
+				return sg, nil
+			}
+		}
+		return nil, errors.NewCommonServerError(ResourceNameSecurityGroup, name, "EnsureSecurityGroup", err.Error())
 	}
 	return sg, nil
 }
@@ -111,12 +103,12 @@ func (q *qingcloudSecurityGroupExecutor) GetSecurityGroupByID(id string) (*qcser
 	input := &qcservice.DescribeSecurityGroupsInput{SecurityGroups: []*string{&id}}
 	output, err := q.sgapi.DescribeSecurityGroups(input)
 	if err != nil {
-		return nil, err
+		return nil, errors.NewCommonServerError(ResourceNameSecurityGroup, id, "GetSecurityGroupByID", err.Error())
 	}
 	if len(output.SecurityGroupSet) > 0 {
 		return output.SecurityGroupSet[0], nil
 	}
-	return nil, nil
+	return nil, errors.NewResourceNotFoundError(ResourceNameSecurityGroup, id)
 }
 
 func (q *qingcloudSecurityGroupExecutor) GetSgAPI() *qcservice.SecurityGroupService {
@@ -127,7 +119,7 @@ func (q *qingcloudSecurityGroupExecutor) Delete(id string) error {
 	input := &qcservice.DeleteSecurityGroupsInput{SecurityGroups: []*string{&id}}
 	_, err := q.sgapi.DeleteSecurityGroups(input)
 	if err != nil {
-		return err
+		return errors.NewCommonServerError(ResourceNameSecurityGroup, id, "Delete", err.Error())
 	}
 	return nil
 }

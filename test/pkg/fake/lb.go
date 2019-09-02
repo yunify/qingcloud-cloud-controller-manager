@@ -3,6 +3,8 @@ package fake
 import (
 	"strings"
 
+	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/errors"
+
 	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/eip"
 	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/executor"
 	"github.com/yunify/qingcloud-cloud-controller-manager/test/pkg/e2eutil"
@@ -34,7 +36,7 @@ func (f *FakeQingCloudLBExecutor) GetLoadBalancerByName(name string) (*qcservice
 			return lb, nil
 		}
 	}
-	return nil, nil
+	return nil, errors.NewResourceNotFoundError(executor.ResourceNameLoadBalancer, name)
 }
 
 func (f *FakeQingCloudLBExecutor) GetLoadBalancerByID(id string) (*qcservice.LoadBalancer, error) {
@@ -141,7 +143,7 @@ func (f *FakeQingCloudLBExecutor) GetListenerByName(id, name string) (*qcservice
 			return v, nil
 		}
 	}
-	return nil, nil
+	return nil, errors.NewResourceNotFoundError(executor.ResourceNameListener, name)
 }
 
 func (f *FakeQingCloudLBExecutor) DeleteListener(lsnid string) error {

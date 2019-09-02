@@ -4,6 +4,13 @@ import (
 	qcservice "github.com/yunify/qingcloud-sdk-go/service"
 )
 
+const (
+	ResourceNameLoadBalancer  = "LoadBalancer"
+	ResourceNameListener      = "Listener"
+	ResourceNameBackend       = "Backend"
+	ResourceNameSecurityGroup = "SecurityGroup"
+)
+
 type QingCloudListenerExecutor interface {
 	GetListenersOfLB(lbid, prefix string) ([]*qcservice.LoadBalancerListener, error)
 	GetListenerByID(id string) (*qcservice.LoadBalancerListener, error)

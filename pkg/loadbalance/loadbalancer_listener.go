@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/errors"
+
 	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/executor"
 	qcservice "github.com/yunify/qingcloud-sdk-go/service"
 	corev1 "k8s.io/api/core/v1"
@@ -13,7 +15,6 @@ import (
 var (
 	ErrorListenerPortConflict = fmt.Errorf("Port has been occupied")
 	ErrorReuseEIPButNoName    = fmt.Errorf("If you want to reuse an eip , you must specify the name of each port in service")
-	ErrorListenerNotFound     = fmt.Errorf("Failed to get listener in cloud")
 )
 
 // Listener is
@@ -71,17 +72,13 @@ func NewListener(lb *LoadBalancer, port int) (*Listener, error) {
 func (l *Listener) LoadQcListener() error {
 	listener, err := l.listenerExec.GetListenerByName(*l.lb.Status.QcLoadBalancer.LoadBalancerID, l.Name)
 	if err != nil {
-		klog.Errorf("Failed to get listener of this service %s with port %d", l.Name, l.ListenerPort)
 		return err
-	}
-	if listener == nil {
-		return ErrorListenerNotFound
 	}
 	l.Status = listener
 	return nil
 }
 
-func (l *Listener) LoadBackends() {
+func (l *Listener) initBackends() {
 	if l.backendList == nil {
 		l.backendList = NewBackendList(l.lb, l)
 	}
@@ -108,7 +105,7 @@ func (l *Listener) CreateQingCloudListenerWithBackends() error {
 	if err != nil {
 		return err
 	}
-	l.LoadBackends()
+	l.initBackends()
 	err = l.backendList.CreateBackends()
 	if err != nil {
 		klog.Errorf("Failed to create backends of listener %s", l.Name)
@@ -174,7 +171,7 @@ func (l *Listener) NeedUpdate() bool {
 	return false
 }
 func (l *Listener) UpdateBackends() error {
-	l.LoadBackends()
+	l.initBackends()
 	useless, err := l.backendList.LoadAndGetUselessBackends()
 	if err != nil {
 		klog.Errorf("Failed to load backends of listener %s", l.Name)
@@ -191,7 +188,7 @@ func (l *Listener) UpdateBackends() error {
 	for _, b := range l.backendList.Items {
 		err := b.LoadQcBackend()
 		if err != nil {
-			if err == ErrorBackendNotFound {
+			if errors.IsResourceNotFound(err) {
 				err = b.Create()
 				if err != nil {
 					klog.Errorf("Failed to create backend of instance %s of listener %s", b.Spec.InstanceID, l.Name)
@@ -214,7 +211,7 @@ func (l *Listener) UpdateBackends() error {
 func (l *Listener) UpdateQingCloudListener() error {
 	err := l.LoadQcListener()
 	//create if not exist
-	if err == ErrorListenerNotFound {
+	if errors.IsResourceNotFound(err) {
 		err = l.CreateQingCloudListenerWithBackends()
 		if err != nil {
 			klog.Errorf("Failed to create backends of listener %s of loadbalancer %s", l.Name, l.lb.Name)

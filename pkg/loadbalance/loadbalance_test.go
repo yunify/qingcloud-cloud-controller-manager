@@ -2,9 +2,6 @@ package loadbalance_test
 
 import (
 	"context"
-
-	"k8s.io/apimachinery/pkg/util/intstr"
-
 	"strings"
 
 	. "github.com/onsi/ginkgo"
@@ -13,6 +10,7 @@ import (
 	"github.com/yunify/qingcloud-cloud-controller-manager/test/pkg/fake"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/yaml"
 )
 
@@ -100,6 +98,9 @@ var _ = Describe("Loadbalance", func() {
 		lb.Nodes = append(lb.Nodes, node1, node2)
 		Expect(lb.EnsureQingCloudLB()).ShouldNot(HaveOccurred())
 		Expect(lbexec.Backends).To(HaveLen(4))
+
+		Expect(lb.DeleteQingCloudLB()).ShouldNot(HaveOccurred())
+		Expect(lbexec.LoadBalancers).To(HaveLen(0))
 	})
 
 	It("Should delete old listeners when changing service ports", func() {
@@ -210,9 +211,6 @@ var _ = Describe("Loadbalance", func() {
 		Expect(listener.Name).To(Equal("listener_default_mylbapp_8088"))
 		Expect(listener.ListenerPort).To(Equal(8088))
 		Expect(listener.Protocol).To(Equal("http"))
-		listener.LoadBackends()
-		backends := listener.GetBackends()
-		Expect(backends.Items).To(HaveLen(2))
 		Expect(lb.CreateQingCloudLB()).ShouldNot(HaveOccurred())
 		Expect(*lb.Status.QcLoadBalancer.LoadBalancerType).To(Equal(0))
 		Expect(lb.Status.K8sLoadBalancerStatus.Ingress[0].IP).Should(Equal(dip.Address))
