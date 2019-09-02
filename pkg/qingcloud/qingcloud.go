@@ -13,7 +13,7 @@ import (
 
 	qcconfig "github.com/yunify/qingcloud-sdk-go/config"
 	qcservice "github.com/yunify/qingcloud-sdk-go/service"
-	gcfg "gopkg.in/gcfg.v1"
+	yaml "gopkg.in/yaml.v2"
 	"k8s.io/client-go/informers"
 	corev1informer "k8s.io/client-go/informers/core/v1"
 	cloudprovider "k8s.io/cloud-provider"
@@ -25,19 +25,20 @@ const (
 )
 
 type Config struct {
-	Global struct {
-		QYConfigPath      string `gcfg:"qyConfigPath"`
-		Zone              string `gcfg:"zone"`
-		DefaultVxNetForLB string `gcfg:"defaultVxNetForLB"`
-		ClusterID         string `gcfg:"clusterID"`
-		IsApp             bool   `gcfg:"isApp"`
-	}
+	QYConfigPath      string   `yaml:"qyConfigPath"`
+	Zone              string   `yaml:"zone"`
+	DefaultVxNetForLB string   `yaml:"defaultVxNetForLB,omitempty"`
+	ClusterID         string   `yaml:"clusterID"`
+	IsApp             bool     `yaml:"isApp,omitempty"`
+	TagIDs            []string `yaml:"tagIDs,omitempty"`
 }
 
 var _ cloudprovider.Interface = &QingCloud{}
 
 // A single Kubernetes cluster can run in multiple zones,
 // but only within the same region (and cloud provider).
+
+// QingCloud is the main entry of all interface
 type QingCloud struct {
 	instanceService      *qcservice.InstanceService
 	lbService            *qcservice.LoadBalancerService
@@ -45,12 +46,14 @@ type QingCloud struct {
 	jobService           *qcservice.JobService
 	eipService           *qcservice.EIPService
 	securityGroupService *qcservice.SecurityGroupService
+	tagService           *qcservice.TagService
 
 	isAPP             bool
 	zone              string
 	defaultVxNetForLB string
 	clusterID         string
 	userID            string
+	tagIDs            []string
 
 	nodeInformer    corev1informer.NodeInformer
 	serviceInformer corev1informer.ServiceInformer
@@ -68,12 +71,11 @@ func init() {
 
 func readConfig(config io.Reader) (Config, error) {
 	if config == nil {
-		err := fmt.Errorf("no qingcloud provider config file given")
-		return Config{}, err
+		return Config{}, fmt.Errorf("no qingcloud provider config file given")
 	}
 
 	var cfg Config
-	err := gcfg.ReadInto(&cfg, config)
+	err := yaml.NewDecoder(config).Decode(&cfg)
 	return cfg, err
 }
 
@@ -83,35 +85,35 @@ func newQingCloud(config Config) (cloudprovider.Interface, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err = qcConfig.LoadConfigFromFilepath(config.Global.QYConfigPath); err != nil {
+	if err = qcConfig.LoadConfigFromFilepath(config.QYConfigPath); err != nil {
 		return nil, err
 	}
 	qcService, err := qcservice.Init(qcConfig)
 	if err != nil {
 		return nil, err
 	}
-	instanceService, err := qcService.Instance(config.Global.Zone)
+	instanceService, err := qcService.Instance(config.Zone)
 	if err != nil {
 		return nil, err
 	}
-	eipService, _ := qcService.EIP(config.Global.Zone)
-	lbService, err := qcService.LoadBalancer(config.Global.Zone)
+	eipService, _ := qcService.EIP(config.Zone)
+	lbService, err := qcService.LoadBalancer(config.Zone)
 	if err != nil {
 		return nil, err
 	}
-	volumeService, err := qcService.Volume(config.Global.Zone)
+	volumeService, err := qcService.Volume(config.Zone)
 	if err != nil {
 		return nil, err
 	}
-	jobService, err := qcService.Job(config.Global.Zone)
+	jobService, err := qcService.Job(config.Zone)
 	if err != nil {
 		return nil, err
 	}
-	securityGroupService, err := qcService.SecurityGroup(config.Global.Zone)
+	securityGroupService, err := qcService.SecurityGroup(config.Zone)
 	if err != nil {
 		return nil, err
 	}
-	api, _ := qcService.Accesskey(config.Global.Zone)
+	api, _ := qcService.Accesskey(config.Zone)
 	output, err := api.DescribeAccessKeys(&qcservice.DescribeAccessKeysInput{
 		AccessKeys: []*string{&qcConfig.AccessKeyID},
 	})
@@ -130,12 +132,18 @@ func newQingCloud(config Config) (cloudprovider.Interface, error) {
 		jobService:           jobService,
 		securityGroupService: securityGroupService,
 		eipService:           eipService,
-		zone:                 config.Global.Zone,
-		defaultVxNetForLB:    config.Global.DefaultVxNetForLB,
-		clusterID:            config.Global.ClusterID,
+		zone:                 config.Zone,
+		defaultVxNetForLB:    config.DefaultVxNetForLB,
+		clusterID:            config.ClusterID,
 		userID:               *output.AccessKeySet[0].Owner,
+		isAPP:                config.IsApp,
 	}
-
+	if len(config.TagIDs) > 0 {
+		klog.V(2).Infoln("Init tag service as tagid is not empty")
+		tagService, _ := qcService.Tag(config.Zone)
+		qc.tagService = tagService
+		qc.tagIDs = config.TagIDs
+	}
 	klog.V(1).Infof("QingCloud provider init done")
 	return &qc, nil
 }

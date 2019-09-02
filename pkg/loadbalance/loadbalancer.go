@@ -6,9 +6,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/errors"
-
 	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/eip"
+	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/errors"
 	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/executor"
 	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/instance"
 	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/util"

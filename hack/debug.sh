@@ -3,11 +3,12 @@
 SKIP_BUILD=no
 tag=`git rev-parse --short HEAD`
 IMG=magicsong/cloud-manager:$tag
-DEST=test/manager.yaml
+DEST=/tmp/manager.yaml
 #build binary
 echo "Delete yamls before test"
 kubectl delete -f $DEST > /dev/null
 kubectl create secret generic qcsecret --from-file=${HOME}/.qingcloud/config.yaml -n kube-system
+kubectl create configmap lbconfig --from-file=test/config/qingcloud.yaml -n kube-system
 set -e
 
 while [[ $# -gt 0 ]]

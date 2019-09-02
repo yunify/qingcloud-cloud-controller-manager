@@ -191,6 +191,8 @@ github.com/ugorji/go v0.0.0-20171019201919-bdcc60b419d1 h1:UvhxfNjNqlZ/x3cDyqxMh
 github.com/ugorji/go v0.0.0-20171019201919-bdcc60b419d1/go.mod h1:hnLbHMwcvSihnDhEfx2/BzKp2xb0Y+ErdfYcrs9tkJQ=
 github.com/xiang90/probing v0.0.0-20160813154853-07dd2e8dfe18 h1:MPPkRncZLN9Kh4MEFmbnK4h3BD7AUmskWv2+EeZJCCs=
 github.com/xiang90/probing v0.0.0-20160813154853-07dd2e8dfe18/go.mod h1:UETIi67q53MR2AWcXfiuqkDkRtnGDLqkBTpCHuJHxtU=
+github.com/yunify/qingcloud-sdk-go v0.0.0-20190806070725-5b519baeba90 h1:5GVQwiAa41tV9XFHMx1qLjWO2rC1WQ5OoabqOOgoSAM=
+github.com/yunify/qingcloud-sdk-go v0.0.0-20190806070725-5b519baeba90/go.mod h1:q4o/lbL+PCUIGbzyYzAHsbCgh3bQ/LA7VLFRQTlvrcM=
 github.com/yunify/qingcloud-sdk-go v2.0.0-alpha.35+incompatible h1:KSesALlaxBZ+pX4rTSDPPwl3PXo7m002D1eGOQjFosc=
 github.com/yunify/qingcloud-sdk-go v2.0.0-alpha.35+incompatible/go.mod h1:q4o/lbL+PCUIGbzyYzAHsbCgh3bQ/LA7VLFRQTlvrcM=
 github.com/yunify/qingcloud-sdk-go v2.0.0-alpha.35.0.20190513053909-5e6152f06771+incompatible h1:Pmj6eGFEzKydhD9nYTbN1C7YQJhVvFu5b86SzpqbTc4=
