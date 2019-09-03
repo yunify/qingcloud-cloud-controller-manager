@@ -55,6 +55,8 @@ type QingCloudLoadBalancerExecutor interface {
 	Delete(id string) error
 
 	GetLBAPI() *qcservice.LoadBalancerService
+	// EnableTagService will add tags to each resource
+	EnableTagService(tagIds []string)
 
 	QingCloudListenerExecutor
 	QingCloudListenerBackendExecutor
@@ -73,4 +75,7 @@ type QingCloudSecurityGroupExecutor interface {
 	Delete(id string) error
 
 	CreateSecurityGroup(gName string, rules []*qcservice.SecurityGroupRule) (*qcservice.SecurityGroup, error)
+
+	// EnableTagService will add tags to each resource
+	EnableTagService(tagIds []string)
 }

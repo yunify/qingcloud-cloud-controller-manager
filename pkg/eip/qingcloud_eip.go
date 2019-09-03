@@ -1,8 +1,8 @@
 package eip
 
 import (
-	"fmt"
-
+	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/errors"
+	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/executor"
 	qcclient "github.com/yunify/qingcloud-sdk-go/client"
 	qcservice "github.com/yunify/qingcloud-sdk-go/service"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -14,11 +14,14 @@ const (
 
 	EIPStatusAvailable = "available"
 	AllocateEIPName    = "k8s_lb_allocate_eip"
+	ResourceNameEIP    = "EIP"
 )
 
 type NewEIPHelperOfQingCloudOption struct {
 	JobAPI *qcservice.JobService
 	EIPAPI *qcservice.EIPService
+	TagAPI *qcservice.TagService
+	TagIDs []string
 	UserID string
 }
 
@@ -62,11 +65,10 @@ func (q *qingcloudEIPHelper) GetEIPByID(id string) (*EIP, error) {
 		EIPs: []*string{&id},
 	})
 	if err != nil {
-		klog.Errorf("Failed to get eip %s from qingcloud", id)
-		return nil, err
+		return nil, errors.NewCommonServerError(ResourceNameEIP, id, "GetEIPByID", err.Error())
 	}
 	if *output.TotalCount < 1 {
-		return nil, ErrorEIPNotFound
+		return nil, errors.NewResourceNotFoundError(ResourceNameEIP, id)
 	}
 	return q.ConvertQingCloudEIP(output.EIPSet[0]), nil
 }
@@ -76,15 +78,14 @@ func (q *qingcloudEIPHelper) GetEIPByAddr(addr string) (*EIP, error) {
 		SearchWord: &addr,
 	})
 	if err != nil {
-		klog.Errorf("Failed to get eip %s from qingcloud by addr", addr)
-		return nil, err
+		return nil, errors.NewCommonServerError(ResourceNameEIP, addr, "GetEIPByAddr", err.Error())
 	}
 	for _, item := range output.EIPSet {
 		if *item.EIPAddr == addr {
 			return q.ConvertQingCloudEIP(item), nil
 		}
 	}
-	return nil, ErrorEIPNotFound
+	return nil, errors.NewResourceNotFoundError(ResourceNameEIP, addr)
 }
 
 func (q *qingcloudEIPHelper) ReleaseEIP(id string) error {
@@ -92,13 +93,11 @@ func (q *qingcloudEIPHelper) ReleaseEIP(id string) error {
 		EIPs: []*string{&id},
 	})
 	if err != nil {
-		klog.Errorf("Failed to call release eip in qingcloud to release %s", id)
-		return err
+		return errors.NewCommonServerError(ResourceNameEIP, id, "ReleaseEIP", err.Error())
 	}
 
 	if *output.RetCode != 0 {
-		err := fmt.Errorf("Fail to release eip %s of because of '%s'", id, *output.Message)
-		return err
+		return errors.NewCommonServerError(ResourceNameEIP, id, "ReleaseEIP", *output.Message)
 	}
 	return qcclient.WaitJob(q.JobAPI, *output.JobID, operationWaitTimeout, waitInterval)
 }
@@ -106,14 +105,12 @@ func (q *qingcloudEIPHelper) ReleaseEIP(id string) error {
 func (q *qingcloudEIPHelper) GetAvaliableOrAllocateEIP() (*EIP, error) {
 	eips, err := q.GetAvaliableEIPs()
 	if err != nil {
-		if err != ErrorEIPNotFound {
-			return nil, err
+		if errors.IsResourceNotFound(err) {
+			return q.AllocateEIP()
 		}
+		return nil, err
 	}
-	if len(eips) > 0 {
-		return eips[0], nil
-	}
-	return q.AllocateEIP()
+	return eips[0], nil
 }
 
 func (q *qingcloudEIPHelper) AllocateEIP() (*EIP, error) {
@@ -122,15 +119,23 @@ func (q *qingcloudEIPHelper) AllocateEIP() (*EIP, error) {
 		EIPName:   qcservice.String(AllocateEIPName),
 	})
 	if err != nil {
-		klog.Errorln("Failed to call allocate eip in qingcloud")
-		return nil, err
+		return nil, errors.NewCommonServerError(ResourceNameEIP, "", "AllocateEIP", err.Error())
 	}
 
 	if *output.RetCode != 0 {
-		err := fmt.Errorf("Fail to allocate eip because of '%s'", *output.Message)
-		return nil, err
+		return nil, errors.NewCommonServerError(ResourceNameEIP, "", "AllocateEIP", *output.Message)
 	}
-	return q.waitEIPStatus(*output.EIPs[0], EIPStatusAvailable)
+	eip, err := q.waitEIPStatus(*output.EIPs[0], EIPStatusAvailable)
+	if err != nil {
+		return nil, errors.NewCommonServerError(ResourceNameEIP, *output.EIPs[0], "waitEIPStatus", err.Error())
+	}
+	if len(q.TagIDs) > 0 {
+		err = executor.AddTagsToResource(q.TagAPI, q.TagIDs, *output.EIPs[0], "eip")
+		if err != nil {
+			klog.Errorf("Failed to add tags to Eip %s, err: %s", *output.EIPs[0], err.Error())
+		}
+	}
+	return eip, nil
 }
 
 func (q *qingcloudEIPHelper) GetAvaliableEIPs() ([]*EIP, error) {
@@ -140,22 +145,20 @@ func (q *qingcloudEIPHelper) GetAvaliableEIPs() ([]*EIP, error) {
 	})
 
 	if err != nil {
-		klog.Errorln("Failed to call get available eips in qingcloud to release")
-		return nil, err
+		return nil, errors.NewCommonServerError(ResourceNameEIP, "", "GetAvaliableEIPs", err.Error())
 	}
 
 	if *output.RetCode != 0 {
-		err := fmt.Errorf("Fail to get available eips of because of '%s'", *output.Message)
-		return nil, err
-	}
-	if *output.TotalCount == 0 {
-		return nil, ErrorEIPNotFound
+		return nil, errors.NewCommonServerError(ResourceNameEIP, "", "GetAvaliableEIPs", *output.Message)
 	}
 	result := make([]*EIP, 0)
 	for _, item := range output.EIPSet {
 		if *item.AssociateMode == 0 {
 			result = append(result, q.ConvertQingCloudEIP(item))
 		}
+	}
+	if len(result) == 0 {
+		return nil, errors.NewResourceNotFoundError(ResourceNameEIP, "available eips")
 	}
 	return result, nil
 }

@@ -3,9 +3,8 @@ package fake
 import (
 	"strings"
 
-	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/errors"
-
 	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/eip"
+	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/errors"
 	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/executor"
 	"github.com/yunify/qingcloud-cloud-controller-manager/test/pkg/e2eutil"
 	qcservice "github.com/yunify/qingcloud-sdk-go/service"
@@ -19,6 +18,7 @@ type FakeQingCloudLBExecutor struct {
 	ReponseEIPs   map[string]*eip.EIP
 	Listeners     map[string]*qcservice.LoadBalancerListener
 	Backends      map[string]*qcservice.LoadBalancerBackend
+	TagIDs        []string
 }
 
 func NewFakeQingCloudLBExecutor() *FakeQingCloudLBExecutor {
@@ -209,4 +209,8 @@ func (f *FakeQingCloudLBExecutor) ModifyBackend(id string, weight int, port int)
 	f.Backends[id].Weight = &weight
 	f.Backends[id].Port = &port
 	return nil
+}
+
+func (f *FakeQingCloudLBExecutor) EnableTagService(ids []string) {
+	f.TagIDs = ids
 }

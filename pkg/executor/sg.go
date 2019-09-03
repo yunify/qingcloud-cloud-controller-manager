@@ -36,14 +36,26 @@ var DefaultLBSecurityGroupRules = []*qcservice.SecurityGroupRule{
 }
 var _ QingCloudSecurityGroupExecutor = &qingcloudSecurityGroupExecutor{}
 
-func NewQingCloudSecurityGroupExecutor(sgapi *qcservice.SecurityGroupService) QingCloudSecurityGroupExecutor {
+func NewQingCloudSecurityGroupExecutor(sgapi *qcservice.SecurityGroupService, tagapi *qcservice.TagService) QingCloudSecurityGroupExecutor {
 	return &qingcloudSecurityGroupExecutor{
-		sgapi: sgapi,
+		sgapi:  sgapi,
+		tagapi: tagapi,
 	}
 }
 
 type qingcloudSecurityGroupExecutor struct {
-	sgapi *qcservice.SecurityGroupService
+	sgapi  *qcservice.SecurityGroupService
+	tagapi *qcservice.TagService
+	addTag bool
+	tagIDs []string
+}
+
+// EnableTagService will add tags to each resource
+func (q *qingcloudSecurityGroupExecutor) EnableTagService(tagIds []string) {
+	if len(tagIds) > 0 {
+		q.addTag = true
+		q.tagIDs = tagIds
+	}
 }
 
 func (q *qingcloudSecurityGroupExecutor) GetSecurityGroupByName(name string) (*qcservice.SecurityGroup, error) {
@@ -81,6 +93,12 @@ func (q *qingcloudSecurityGroupExecutor) CreateSecurityGroup(sgName string, rule
 		return nil, errors.NewCommonServerError(ResourceNameSecurityGroup, sgName, "ApplySecurityGroupRules", *o.Message)
 	}
 	sg, _ := q.GetSecurityGroupByID(*sgID)
+	if q.addTag {
+		err = AddTagsToResource(q.tagapi, q.tagIDs, *sgID, "security_group")
+		if err != nil {
+			klog.Errorf("Failed to add tag to security group %s, err: %s", *sgID, err.Error())
+		}
+	}
 	return sg, nil
 }
 

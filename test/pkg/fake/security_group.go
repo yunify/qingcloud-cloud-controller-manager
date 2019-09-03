@@ -9,6 +9,7 @@ import (
 
 type FakeSecurityGroupExecutor struct {
 	SecurityGroups map[string]*qcservice.SecurityGroup
+	TagIDs         []string
 }
 
 func NewFakeSecurityGroupExecutor() *FakeSecurityGroupExecutor {
@@ -53,4 +54,8 @@ func (f *FakeSecurityGroupExecutor) GetSgAPI() *qcservice.SecurityGroupService {
 func (f *FakeSecurityGroupExecutor) Delete(id string) error {
 	delete(f.SecurityGroups, id)
 	return nil
+}
+
+func (f *FakeSecurityGroupExecutor) EnableTagService(ids []string) {
+	f.TagIDs = ids
 }
