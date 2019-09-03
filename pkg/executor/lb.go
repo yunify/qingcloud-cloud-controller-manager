@@ -23,17 +23,19 @@ type qingCloudLoadBalanceExecutor struct {
 	tagapi *qcservice.TagService
 	tagIDs []string
 	addTag bool
+	owner  string
 }
 
 func newServerErrorOfLoadBalancer(name, method string, e error) error {
 	return errors.NewCommonServerError(ResourceNameLoadBalancer, name, method, e.Error())
 }
 
-func NewQingCloudLoadBalanceExecutor(lbapi *qcservice.LoadBalancerService, jobapi *qcservice.JobService, tagapi *qcservice.TagService) QingCloudLoadBalancerExecutor {
+func NewQingCloudLoadBalanceExecutor(owner string, lbapi *qcservice.LoadBalancerService, jobapi *qcservice.JobService, tagapi *qcservice.TagService) QingCloudLoadBalancerExecutor {
 	return &qingCloudLoadBalanceExecutor{
 		lbapi:  lbapi,
 		jobapi: jobapi,
 		tagapi: tagapi,
+		owner:  owner,
 	}
 }
 
@@ -49,6 +51,7 @@ func (q *qingCloudLoadBalanceExecutor) GetLoadBalancerByName(name string) (*qcse
 	output, err := q.lbapi.DescribeLoadBalancers(&qcservice.DescribeLoadBalancersInput{
 		Status:     status,
 		SearchWord: &name,
+		Owner:      &q.owner,
 	})
 	if err != nil {
 		return nil, newServerErrorOfLoadBalancer(name, "GetLoadBalancerByName", err)
