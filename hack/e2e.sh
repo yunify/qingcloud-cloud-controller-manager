@@ -90,5 +90,9 @@ kubectl create configmap lbconfig --from-file=$config_file -n $TEST_NS
 kubectl apply -f $DEST
 export TEST_NS
 export secret_file
+## prepare eips
+export TEST_EIP="eip-vmldumvv"
+export TEST_EIP_ADDR="139.198.121.161"
+export TEST_ZONE="ap2a"
 
 go test -timeout 20m -v -mod=vendor ./test/pkg/e2e/

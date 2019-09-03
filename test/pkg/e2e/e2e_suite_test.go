@@ -12,6 +12,8 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/errors"
+	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/executor"
 	"github.com/yunify/qingcloud-cloud-controller-manager/test/pkg/e2eutil"
 	qc "github.com/yunify/qingcloud-sdk-go/service"
 	"k8s.io/client-go/kubernetes"
@@ -30,6 +32,9 @@ var (
 	testNamespace string
 	k8sclient     *kubernetes.Clientset
 	qcService     *qc.QingCloudService
+	qingcloudLB   executor.QingCloudLoadBalancerExecutor
+	testEIPID     string
+	testEIPAddr   string
 )
 
 func getWorkspace() string {
@@ -42,7 +47,11 @@ var _ = BeforeSuite(func() {
 	qcs, err := e2eutil.GetQingcloudService()
 	Expect(err).ShouldNot(HaveOccurred(), "Failed init qc service")
 	qcService = qcs
+	initQingCloudLB()
+	Expect(cleanup()).ShouldNot(HaveOccurred())
 	testNamespace = os.Getenv("TEST_NS")
+	testEIPID = os.Getenv("TEST_EIP")
+	testEIPAddr = os.Getenv("TEST_EIP_ADDR")
 	Expect(testNamespace).ShouldNot(BeEmpty())
 	workspace = getWorkspace() + "/../../.."
 	home := homeDir()
@@ -51,7 +60,6 @@ var _ = BeforeSuite(func() {
 	c, err := clientcmd.BuildConfigFromFlags("", filepath.Join(home, ".kube", "config"))
 	Expect(err).ShouldNot(HaveOccurred(), "Error in load kubeconfig")
 	k8sclient = kubernetes.NewForConfigOrDie(c)
-
 	//kubectl apply
 	err = e2eutil.WaitForController(k8sclient, testNamespace, ControllerName, time.Second*10, time.Minute*2)
 	Expect(err).ShouldNot(HaveOccurred(), "Failed to start controller")
@@ -61,6 +69,7 @@ var _ = BeforeSuite(func() {
 var _ = AfterSuite(func() {
 	cmd := exec.Command("kubectl", "delete", "-f", workspace+"/test/manager.yaml")
 	Expect(cmd.Run()).ShouldNot(HaveOccurred())
+	Expect(cleanup()).ShouldNot(HaveOccurred())
 })
 
 func homeDir() string {
@@ -68,4 +77,27 @@ func homeDir() string {
 		return h
 	}
 	return ""
+}
+
+func cleanup() error {
+	usedLb1, err := qingcloudLB.GetLoadBalancerByName("k8s_lb_kubernetes_" + testEIPID)
+	if err != nil {
+		if errors.IsResourceNotFound(err) {
+			return nil
+		}
+		return err
+	}
+	log.Println("Cleanup loadbalancers")
+	return qingcloudLB.Delete(*usedLb1.LoadBalancerID)
+}
+
+func initQingCloudLB() {
+	lbapi, _ := qcService.LoadBalancer(qcService.Config.Zone)
+	jobapi, _ := qcService.Job(qcService.Config.Zone)
+	api, _ := qcService.Accesskey(qcService.Config.Zone)
+	output, err := api.DescribeAccessKeys(&qc.DescribeAccessKeysInput{
+		AccessKeys: []*string{&qcService.Config.AccessKeyID},
+	})
+	Expect(err).ShouldNot(HaveOccurred())
+	qingcloudLB = executor.NewQingCloudLoadBalanceExecutor(*output.AccessKeySet[0].Owner, lbapi, jobapi, nil)
 }

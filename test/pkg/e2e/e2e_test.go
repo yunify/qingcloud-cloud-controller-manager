@@ -7,8 +7,6 @@ import (
 	"strconv"
 	"time"
 
-	"k8s.io/client-go/util/retry"
-
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/loadbalance"
@@ -16,9 +14,9 @@ import (
 	"github.com/yunify/qingcloud-sdk-go/service"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/util/retry"
 )
 
-var testip = "139.198.121.161"
 var ipchange = "139.198.121.98"
 var _ = Describe("QingCloud LoadBalancer e2e-test", func() {
 	It("Should work as expected in ReUse Mode", func() {
@@ -40,16 +38,16 @@ var _ = Describe("QingCloud LoadBalancer e2e-test", func() {
 		time.Sleep(2 * time.Minute)
 		log.Println("Wake up, we can test now")
 		Eventually(func() error {
-			return e2eutil.ServiceHasEIP(k8sclient, service1Name, "default", testip)
+			return e2eutil.ServiceHasEIP(k8sclient, service1Name, "default", testEIPAddr)
 		}, 2*time.Minute, 20*time.Second).Should(Succeed())
 		Eventually(func() error {
-			return e2eutil.ServiceHasEIP(k8sclient, service2Name, "default", testip)
+			return e2eutil.ServiceHasEIP(k8sclient, service2Name, "default", testEIPAddr)
 		}, 1*time.Minute, 5*time.Second).Should(Succeed())
 
 		log.Println("Successfully assign a ip")
 
-		Eventually(func() int { return e2eutil.GerServiceResponse(testip, 8089) }, time.Second*20, time.Second*5).Should(Equal(http.StatusOK))
-		Eventually(func() int { return e2eutil.GerServiceResponse(testip, 8090) }, time.Second*20, time.Second*5).Should(Equal(http.StatusOK))
+		Eventually(func() int { return e2eutil.GerServiceResponse(testEIPAddr, 8089) }, time.Second*20, time.Second*5).Should(Equal(http.StatusOK))
+		Eventually(func() int { return e2eutil.GerServiceResponse(testEIPAddr, 8090) }, time.Second*20, time.Second*5).Should(Equal(http.StatusOK))
 		log.Println("Successfully get a 200 response")
 	})
 
@@ -92,7 +90,7 @@ var _ = Describe("QingCloud LoadBalancer e2e-test", func() {
 		})
 		Expect(retryErr).ShouldNot(HaveOccurred())
 		time.Sleep(time.Second * 30)
-		Eventually(func() int { return e2eutil.GerServiceResponse(testip, int(service.Spec.Ports[0].Port)) }, time.Second*20, time.Second*5).Should(Equal(http.StatusOK))
+		Eventually(func() int { return e2eutil.GerServiceResponse(testEIPAddr, int(service.Spec.Ports[0].Port)) }, time.Second*20, time.Second*5).Should(Equal(http.StatusOK))
 	})
 
 	It("Should work as expected when using sample yamls", func() {
@@ -115,10 +113,10 @@ var _ = Describe("QingCloud LoadBalancer e2e-test", func() {
 		time.Sleep(2 * time.Minute)
 		log.Println("Wake up, we can test now")
 		Eventually(func() error {
-			return e2eutil.ServiceHasEIP(k8sclient, serviceName, "default", testip)
+			return e2eutil.ServiceHasEIP(k8sclient, serviceName, "default", testEIPAddr)
 		}, 3*time.Minute, 20*time.Second).Should(Succeed())
 		log.Println("Successfully assign a ip")
-		Eventually(func() int { return e2eutil.GerServiceResponse(testip, 8088) }, time.Second*20, time.Second*5).Should(Equal(http.StatusOK))
+		Eventually(func() int { return e2eutil.GerServiceResponse(testEIPAddr, 8088) }, time.Second*20, time.Second*5).Should(Equal(http.StatusOK))
 		log.Println("Successfully get a 200 response")
 
 		//update size
