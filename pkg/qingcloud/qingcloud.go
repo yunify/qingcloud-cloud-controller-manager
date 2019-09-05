@@ -22,10 +22,10 @@ import (
 
 const (
 	ProviderName = "qingcloud"
+	QYConfigPath = "/etc/qingcloud/config.yaml"
 )
 
 type Config struct {
-	QYConfigPath      string   `yaml:"qyConfigPath"`
 	Zone              string   `yaml:"zone"`
 	DefaultVxNetForLB string   `yaml:"defaultVxNetForLB,omitempty"`
 	ClusterID         string   `yaml:"clusterID"`
@@ -85,7 +85,7 @@ func newQingCloud(config Config) (cloudprovider.Interface, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err = qcConfig.LoadConfigFromFilepath(config.QYConfigPath); err != nil {
+	if err = qcConfig.LoadConfigFromFilepath(QYConfigPath); err != nil {
 		return nil, err
 	}
 	qcService, err := qcservice.Init(qcConfig)
