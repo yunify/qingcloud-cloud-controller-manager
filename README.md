@@ -12,7 +12,6 @@
 2. 生成配置文件。下面展示了配置文件的样子(Yaml格式)。
   `cat qingcloud.yaml `，修改其中一些字段：
     ```yaml
-    qyConfigPath: /etc/qingcloud/config.yaml  #青云api密钥存放的位置，必填
     zone: ap2a
     defaultVxNetForLB: vxnet-lddzg8e #lb的默认vxnet，必填
     clusterID: "mycluster" #集群名称，必填，任意字符串，但是必须保证在一个网段内唯一。
@@ -35,7 +34,7 @@
     ```
     创建`secret`, `kubectl create secret generic qcsecret --from-file=$secret_file -n kube-system`，替换其中的secret_file为上面生成的密钥地址。
 
-3. 安装yaml，等待安装完成即可
+4. 安装yaml，等待安装完成即可
    ```
    kubectl apply -f https://raw.githubusercontent.com/yunify/qingcloud-cloud-controller-manager/master/deploy/kube-cloud-controller-manager.yaml
    ```

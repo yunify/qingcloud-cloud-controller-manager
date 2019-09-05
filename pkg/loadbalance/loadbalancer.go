@@ -234,6 +234,7 @@ func (l *LoadBalancer) EnsureEIP() error {
 		l.EIPs = []string{eip.ID}
 	} else {
 		if len(l.EIPs) == 0 {
+			klog.V(3).Infof("Current service annotation %+v", l.service.Annotations)
 			return fmt.Errorf("Must specify a eip on service %s, current eip source :%s", l.service.Name, l.EIPAllocateSource)
 		}
 	}

@@ -1,4 +1,18 @@
 # Changelog
+## [ 1.4.0 ] - 2019-09-05
+### Added
+- support adding tags to resources [@magicsong](https://github.com/yunify/qingcloud-cloud-controller-manager/pull/78)
+### Changed
+- ✨change gcfg to yaml [@magicsong](https://github.com/yunify/qingcloud-cloud-controller-manager/pull/76)
+- ✈️ refactor error handling [@magicsong](https://github.com/yunify/qingcloud-cloud-controller-manager/pull/75)
+- simplify deployment [@magicsong](https://github.com/yunify/qingcloud-cloud-controller-manager/pull/78)
+
+### Fixed
+- 🚒 fix updates not working as expected [@magicsong](https://github.com/yunify/qingcloud-cloud-controller-manager/pull/70)
+- 🚒 fix listener not working when ports changing from "aabb" style to "aa" [@magicsong](https://github.com/yunify/qingcloud-cloud-controller-manager/pull/71)
+- 🚒 fix jenkinsfile [@magicsong](https://github.com/yunify/qingcloud-cloud-controller-manager/pull/73)
+- 🚒 add cleanup before/after e2e [@magicsong](https://github.com/yunify/qingcloud-cloud-controller-manager/pull/80)
+
 ## [ 1.3.5 ] - 2019-08-07
 ### Fixed
 - when changing ports in service, old listeners are not deleted [@magicsong](https://github.com/yunify/qingcloud-cloud-controller-manager/pull/68)
