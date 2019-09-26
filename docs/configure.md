@@ -131,4 +131,32 @@ spec:
     targetPort:  80
 ```
 
+## 四、配置Service使用云上现有的LB
+### 注意事项
+1. 在此模式下，LB的一些功能属性，包括7层协议配置，LB容量，LB绑定的EIP都由用户配置，LB插件不会修改任何属性，除了增删一些监听器
+2. 确保LB正常工作，并且和Service对应的端口不冲突。LB已有的监听器监听的端口不能和需要暴露的服务冲突。
 
+### 如何配置
+1. `service.beta.kubernetes.io/qingcloud-load-balancer-eip-strategy`设置为"reuse-lb"
+2. `service.beta.kubernetes.io/qingcloud-load-balancer-id`设置为现有的LB ID，类似"lb-xxxxxx"
+
+其余设置都会被LB插件忽略。
+
+### 参考Service
+```yaml
+kind: Service
+apiVersion: v1
+metadata:
+  name:  reuse-lb
+  annotations:
+    service.beta.kubernetes.io/qingcloud-load-balancer-eip-strategy: "reuse-lb"
+    service.beta.kubernetes.io/qingcloud-load-balancer-id: "lb-oglqftju"
+spec:
+  selector:
+    app:  mylbapp
+  type:  LoadBalancer 
+  ports:
+  - name:  http
+    port:  8090
+    targetPort:  80
+```

@@ -40,6 +40,7 @@ type LoadBalancerSpec struct {
 	Nodes             []*corev1.Node
 	Name              string
 	clusterName       string
+	LoadBalancerID    string
 }
 
 type LoadBalancerStatus struct {
@@ -70,6 +71,30 @@ func NewLoadBalancer(opt *NewLoadBalancerOption) (*LoadBalancer, error) {
 		nodeLister: opt.NodeLister,
 	}
 	result.Name = GetLoadBalancerName(opt.ClusterName, opt.K8sService)
+	t, n := util.GetPortsOfService(opt.K8sService)
+	result.TCPPorts = t
+	result.NodePorts = n
+	result.service = opt.K8sService
+	result.Nodes = opt.K8sNodes
+	result.clusterName = opt.ClusterName
+
+	if strategy, ok := opt.K8sService.Annotations[ServiceAnnotationLoadBalancerEipStrategy]; ok {
+		switch strategy {
+		case string(ReuseEIP):
+			result.EIPStrategy = ReuseEIP
+		case string(ReuseLB):
+			result.EIPStrategy = ReuseLB
+			result.LoadBalancerID, ok = opt.K8sService.Annotations[ServiceAnnotationLoadBalancerID]
+			if !ok {
+				return nil, fmt.Errorf("must specify 'service.beta.kubernetes.io/qingcloud-load-balancer-id' if 'service.beta.kubernetes.io/qingcloud-load-balancer-eip-strategy'=reuse-lb")
+			}
+			//if is reuse-lb, following codes are unneccessary
+			return result, nil
+		default:
+			result.EIPStrategy = Exclusive
+		}
+	}
+
 	lbType := opt.K8sService.Annotations[ServiceAnnotationLoadBalancerType]
 	if opt.SkipCheck {
 		result.Type = 0
@@ -89,11 +114,7 @@ func NewLoadBalancer(opt *NewLoadBalancerOption) (*LoadBalancer, error) {
 			result.Type = t
 		}
 	}
-	if strategy, ok := opt.K8sService.Annotations[ServiceAnnotationLoadBalancerEipStrategy]; ok && strategy == string(ReuseEIP) {
-		result.EIPStrategy = ReuseEIP
-	} else {
-		result.EIPStrategy = Exclusive
-	}
+
 	if source, ok := opt.K8sService.Annotations[ServiceAnnotationLoadBalancerEipSource]; ok {
 		switch source {
 		case string(AllocateOnly):
@@ -108,12 +129,11 @@ func NewLoadBalancer(opt *NewLoadBalancerOption) (*LoadBalancer, error) {
 	} else {
 		result.EIPAllocateSource = ManualSet
 	}
-	t, n := util.GetPortsOfService(opt.K8sService)
-	result.TCPPorts = t
-	result.NodePorts = n
-	result.service = opt.K8sService
-	result.Nodes = opt.K8sNodes
-	result.clusterName = opt.ClusterName
+
+	if result.EIPStrategy == ReuseLB {
+		result.EIPAllocateSource = ManualSet
+	}
+
 	if result.EIPAllocateSource == ManualSet {
 		lbEipIds, hasEip := opt.K8sService.Annotations[ServiceAnnotationLoadBalancerEipIds]
 		if hasEip {
@@ -124,12 +144,17 @@ func NewLoadBalancer(opt *NewLoadBalancerOption) (*LoadBalancer, error) {
 }
 
 // LoadQcLoadBalancer use qingcloud api to get lb in cloud, return err if not found
-func (l *LoadBalancer) LoadQcLoadBalancer() error {
-	realLb, err := l.lbExec.GetLoadBalancerByName(l.Name)
+func (l *LoadBalancer) LoadQcLoadBalancer() (err error) {
+	var lb *qcservice.LoadBalancer
+	if l.EIPStrategy == ReuseLB {
+		lb, err = l.lbExec.GetLoadBalancerByID(l.LoadBalancerID)
+	} else {
+		lb, err = l.lbExec.GetLoadBalancerByName(l.Name)
+	}
 	if err != nil {
 		return err
 	}
-	l.Status.QcLoadBalancer = realLb
+	l.Status.QcLoadBalancer = lb
 	return nil
 }
 
@@ -245,7 +270,7 @@ func (l *LoadBalancer) EnsureEIP() error {
 func (l *LoadBalancer) EnsureQingCloudLB() error {
 	err := l.LoadQcLoadBalancer()
 	if err != nil {
-		if errors.IsResourceNotFound(err) {
+		if errors.IsResourceNotFound(err) && l.EIPStrategy != ReuseLB {
 			err = l.CreateQingCloudLB()
 			if err != nil {
 				klog.Errorf("Failed to create lb in qingcloud of service %s", l.service.Name)
@@ -260,8 +285,7 @@ func (l *LoadBalancer) EnsureQingCloudLB() error {
 		klog.Errorf("Failed to update lb %s in qingcloud of service %s", l.Name, l.service.Name)
 		return err
 	}
-	l.GenerateK8sLoadBalancer()
-	return nil
+	return l.GenerateK8sLoadBalancer()
 }
 
 // CreateQingCloudLB do create a lb in qingcloud
@@ -316,38 +340,40 @@ func (l *LoadBalancer) UpdateQingCloudLB() error {
 		return nil
 	}
 	lbid := *l.Status.QcLoadBalancer.LoadBalancerID
-	if l.NeedResize() {
-		klog.V(2).Infof("Detect lb size changed, begin to resize the lb %s", l.Name)
-		err := l.lbExec.Resize(*l.Status.QcLoadBalancer.LoadBalancerID, l.Type)
-		if err != nil {
-			klog.Errorf("Failed to resize lb %s", l.Name)
-			return err
+	if l.EIPStrategy != ReuseLB {
+		if l.NeedResize() {
+			klog.V(2).Infof("Detect lb size changed, begin to resize the lb %s", l.Name)
+			err := l.lbExec.Resize(*l.Status.QcLoadBalancer.LoadBalancerID, l.Type)
+			if err != nil {
+				klog.Errorf("Failed to resize lb %s", l.Name)
+				return err
+			}
 		}
-	}
 
-	if yes, toadd, todelete := l.NeedChangeIP(); yes {
-		klog.V(2).Infof("Adding eips %s to and deleting %s from lb %s", toadd, todelete, l.Name)
-		err := l.lbExec.AssociateEip(lbid, toadd...)
-		if err != nil {
-			klog.Errorf("Failed to add eips %s to lb %s", toadd, l.Name)
-			return err
+		if yes, toadd, todelete := l.NeedChangeIP(); yes {
+			klog.V(2).Infof("Adding eips %s to and deleting %s from lb %s", toadd, todelete, l.Name)
+			err := l.lbExec.AssociateEip(lbid, toadd...)
+			if err != nil {
+				klog.Errorf("Failed to add eips %s to lb %s", toadd, l.Name)
+				return err
+			}
+			err = l.lbExec.DissociateEip(lbid, todelete...)
+			if err != nil {
+				klog.Errorf("Failed to add eips %s to lb %s", todelete, l.Name)
+				return err
+			}
 		}
-		err = l.lbExec.DissociateEip(lbid, todelete...)
-		if err != nil {
-			klog.Errorf("Failed to add eips %s to lb %s", todelete, l.Name)
-			return err
-		}
-	}
 
-	if l.NeedUpdate() {
-		modifyInput := &qcservice.ModifyLoadBalancerAttributesInput{
-			LoadBalancerName: &l.Name,
-			LoadBalancer:     l.Status.QcLoadBalancer.LoadBalancerID,
-		}
-		err := l.lbExec.Modify(modifyInput)
-		if err != nil {
-			klog.Errorf("Failed to update lb %s in qingcloud", l.Name)
-			return err
+		if l.NeedUpdate() {
+			modifyInput := &qcservice.ModifyLoadBalancerAttributesInput{
+				LoadBalancerName: &l.Name,
+				LoadBalancer:     l.Status.QcLoadBalancer.LoadBalancerID,
+			}
+			err := l.lbExec.Modify(modifyInput)
+			if err != nil {
+				klog.Errorf("Failed to update lb %s in qingcloud", l.Name)
+				return err
+			}
 		}
 	}
 	err := l.LoadListeners()
@@ -415,6 +441,9 @@ func (l *LoadBalancer) deleteListenersOnlyIfOK() (bool, error) {
 			toDelete = append(toDelete, listener)
 		}
 	}
+	if l.EIPStrategy == ReuseLB {
+		isUsedByAnotherSevice = true
+	}
 	if isUsedByAnotherSevice {
 		for _, listener := range toDelete {
 			err = l.lbExec.DeleteListener(*listener.LoadBalancerListenerID)
@@ -422,6 +451,11 @@ func (l *LoadBalancer) deleteListenersOnlyIfOK() (bool, error) {
 				klog.Errorf("Failed to delete listener %s", *listener.LoadBalancerListenerName)
 				return false, err
 			}
+		}
+		err = l.lbExec.Confirm(*l.Status.QcLoadBalancer.LoadBalancerID)
+		if err != nil {
+			klog.Errorf("Failed to confirm listeners deleted")
+			return false, err
 		}
 	}
 	return isUsedByAnotherSevice, nil
