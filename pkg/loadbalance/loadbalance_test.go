@@ -4,6 +4,8 @@ import (
 	"context"
 	"strings"
 
+	"github.com/yunify/qingcloud-sdk-go/service"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/loadbalance"
@@ -52,6 +54,38 @@ var _ = Describe("Loadbalance", func() {
 		err := yaml.NewYAMLOrJSONDecoder(reader, 10).Decode(testService)
 		Expect(err).ShouldNot(HaveOccurred(), "Cannot unmarshal yamls")
 		testService.SetUID(types.UID("11111-2222-3333"))
+	})
+
+	It("Should be ok when use exsiting lb", func() {
+		testService.Annotations[loadbalance.ServiceAnnotationLoadBalancerEipStrategy] = "reuse-lb"
+		testLBID := "lbid"
+		eipAddress := "1.1.1.1"
+		testService.Annotations[loadbalance.ServiceAnnotationLoadBalancerID] = testLBID
+		lbexec := fake.NewFakeQingCloudLBExecutor()
+		sgexec := fake.NewFakeSecurityGroupExecutor()
+		lbexec.LoadBalancers[testLBID] = &service.LoadBalancer{
+			LoadBalancerID: &testLBID,
+			Cluster:        []*service.EIP{&service.EIP{EIPAddr: &eipAddress}},
+		}
+		lb, _ := loadbalance.NewLoadBalancer(&loadbalance.NewLoadBalancerOption{
+			K8sService:  testService,
+			EipHelper:   lbexec,
+			LbExecutor:  lbexec,
+			SgExecutor:  sgexec,
+			ClusterName: "Test",
+			Context:     context.TODO(),
+			K8sNodes:    []*corev1.Node{node1, node2},
+			NodeLister:  &fake.FakeNodeLister{},
+		})
+		Expect(lb).ShouldNot(BeNil())
+		Expect(lb.EnsureQingCloudLB()).ShouldNot(HaveOccurred())
+		Expect(lb.Status.K8sLoadBalancerStatus.Ingress).To(HaveLen(1))
+		Expect(lb.Status.K8sLoadBalancerStatus.Ingress[0].IP).To(Equal(eipAddress))
+		Expect(lbexec.Listeners).To(HaveLen(1))
+		Expect(lbexec.Backends).To(HaveLen(2))
+		Expect(lb.DeleteQingCloudLB()).ShouldNot(HaveOccurred())
+		Expect(lbexec.LoadBalancers).To(HaveLen(1))
+		Expect(lbexec.Listeners).To(HaveLen(0))
 	})
 
 	It("Should update well when nodes changed", func() {

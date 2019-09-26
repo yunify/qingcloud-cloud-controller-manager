@@ -28,6 +28,8 @@ const (
 	// value "5" means the LB can max support 500000 concurrency connections.
 	ServiceAnnotationLoadBalancerType = "service.beta.kubernetes.io/qingcloud-load-balancer-type"
 
+	// ServiceAnnotationLoadBalancerID is needed when user want to use exsiting lb
+	ServiceAnnotationLoadBalancerID = "service.beta.kubernetes.io/qingcloud-load-balancer-id"
 	// ServiceAnnotationLoadBalancerEipStrategy is usd to specify EIP use strategy
 	// reuse represent the EIP can be shared with other service which has no port conflict
 	// exclusive is the default value, means every service has its own EIP
@@ -35,6 +37,8 @@ const (
 
 	ServiceAnnotationLoadBalancerEipSource = "service.beta.kubernetes.io/qingcloud-load-balancer-eip-source"
 
+	//ReuseLB use existing loadbalancer on the cloud
+	ReuseLB EIPStrategy = "reuse-lb"
 	// ReuseEIP represent the EIP can be shared with other service which has no port conflict
 	ReuseEIP EIPStrategy = "reuse"
 	// Exclusive is the default value, means every service has its own EIP
