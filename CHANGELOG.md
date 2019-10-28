@@ -1,4 +1,9 @@
 # Changelog
+## [ 1.4.1 ] - 2019-10-28
+### Added
+- support internal load balancer [@magicsong](https://github.com/yunify/qingcloud-cloud-controller-manager/pull/85)
+- support use users' lb [@magicsong](https://github.com/yunify/qingcloud-cloud-controller-manager/pull/84)
+
 ## [ 1.4.0 ] - 2019-09-05
 ### Added
 - support adding tags to resources [@magicsong](https://github.com/yunify/qingcloud-cloud-controller-manager/pull/78)
