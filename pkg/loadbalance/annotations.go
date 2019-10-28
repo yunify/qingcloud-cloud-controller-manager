@@ -15,7 +15,6 @@ const (
 	// ServiceAnnotationLoadBalancerVxnetId is the annotation which indicates the very vxnet where load
 	// balancer resides. This annotation should NOT be used when ServiceAnnotationLoadBalancerEipIds is
 	// set.
-
 	ServiceAnnotationLoadBalancerVxnetID = "service.beta.kubernetes.io/qingcloud-load-balancer-vxnet-id"
 
 	// ServiceAnnotationLoadBalancerType is the annotation used on the
@@ -28,6 +27,8 @@ const (
 	// value "5" means the LB can max support 500000 concurrency connections.
 	ServiceAnnotationLoadBalancerType = "service.beta.kubernetes.io/qingcloud-load-balancer-type"
 
+	// 	ServiceAnnotationLoadBalancerNetworkType represents the network mode of lb, one of "public" or "internal", public is the default mode which needs at least an eip
+	ServiceAnnotationLoadBalancerNetworkType = "service.beta.kubernetes.io/qingcloud-load-balancer-network-type"
 	// ServiceAnnotationLoadBalancerID is needed when user want to use exsiting lb
 	ServiceAnnotationLoadBalancerID = "service.beta.kubernetes.io/qingcloud-load-balancer-id"
 	// ServiceAnnotationLoadBalancerEipStrategy is usd to specify EIP use strategy
@@ -48,4 +49,7 @@ const (
 	UseAvailableOrAllocateOne EIPAllocateSource = "auto"
 	UseAvailableOnly          EIPAllocateSource = "use-available"
 	AllocateOnly              EIPAllocateSource = "allocate"
+
+	NetworkModePublic   string = "public"
+	NetworkModeInternal        = "internal"
 )

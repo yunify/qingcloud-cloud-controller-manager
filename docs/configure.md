@@ -160,3 +160,28 @@ spec:
     port:  8090
     targetPort:  80
 ```
+
+## 配置内网负载均衡器
+
+### 注意事项
+1. 必须手动指定`service.beta.kubernetes.io/qingcloud-load-balancer-network-type`为`internal`，如果不指定或者填写其他值，都默认为公网LB，需要配置EIP
+2. 可选指定LB所在的Vxnet，默认为创建LB插件配置文件中的`defaultVxnet`
+### 参考Service
+```yaml
+kind: Service
+apiVersion: v1
+metadata:
+  name:  mylbapp
+  namespace: default
+  annotations:
+    service.beta.kubernetes.io/qingcloud-load-balancer-type: "0"
+    service.beta.kubernetes.io/qingcloud-load-balancer-network-type: "internal"
+spec:
+  selector:
+    app:  mylbapp
+  type:  LoadBalancer 
+  ports:
+  - name:  http
+    port:  80
+    targetPort:  80
+```

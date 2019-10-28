@@ -9,6 +9,7 @@ import (
 	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/executor"
 	qcservice "github.com/yunify/qingcloud-sdk-go/service"
 	corev1 "k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/klog"
 )
 
@@ -42,11 +43,15 @@ func NewListener(lb *LoadBalancer, port int) (*Listener, error) {
 	if p == nil {
 		return nil, fmt.Errorf("The specified port is not in service")
 	}
+	balanceMode := "roundrobin"
+	if service.Spec.SessionAffinity == v1.ServiceAffinityClientIP {
+		balanceMode = "source"
+	}
 	result := &Listener{
 		LisenerSpec: LisenerSpec{
 			ListenerPort: port,
 			NodePort:     int(p.NodePort),
-			BalanceMode:  "source",
+			BalanceMode:  balanceMode,
 			lb:           lb,
 			PrefixName:   GetListenerPrefix(service),
 		},

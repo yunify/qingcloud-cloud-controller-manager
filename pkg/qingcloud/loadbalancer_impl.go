@@ -27,15 +27,16 @@ func (qc *QingCloud) newLoadBalance(ctx context.Context, clusterName string, ser
 		UserID: qc.userID,
 	})
 	opt := &loadbalance.NewLoadBalancerOption{
-		LbExecutor:  lbExec,
-		EipHelper:   eipHelper,
-		SgExecutor:  sgExec,
-		NodeLister:  qc.nodeInformer.Lister(),
-		K8sNodes:    nodes,
-		K8sService:  service,
-		Context:     ctx,
-		ClusterName: clusterName,
-		SkipCheck:   skipCheck,
+		LbExecutor:   lbExec,
+		EipHelper:    eipHelper,
+		SgExecutor:   sgExec,
+		NodeLister:   qc.nodeInformer.Lister(),
+		K8sNodes:     nodes,
+		K8sService:   service,
+		Context:      ctx,
+		ClusterName:  clusterName,
+		SkipCheck:    skipCheck,
+		DefaultVxnet: qc.defaultVxNetForLB,
 	}
 	return loadbalance.NewLoadBalancer(opt)
 }

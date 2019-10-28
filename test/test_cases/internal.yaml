@@ -1,0 +1,35 @@
+kind: Service
+apiVersion: v1
+metadata:
+  name:  mylbapp
+  namespace: default
+  annotations:
+    service.beta.kubernetes.io/qingcloud-load-balancer-type: "0"
+    service.beta.kubernetes.io/qingcloud-load-balancer-network-type: "internal"
+spec:
+  selector:
+    app:  mylbapp
+  type:  LoadBalancer 
+  ports:
+  - name:  http
+    port:  8088
+    targetPort:  80
+
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: mylbapp
+  namespace: default
+spec:
+  replicas: 3
+  template:
+    metadata:
+      labels:
+        app: mylbapp
+    spec:
+      containers:
+      - name: name
+        image: nginx:alpine
+        ports:
+        - containerPort: 80
