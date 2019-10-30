@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/eip"
+	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/errors"
 	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/executor"
 	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/loadbalance"
 	v1 "k8s.io/api/core/v1"
@@ -50,20 +51,20 @@ func (qc *QingCloud) LoadBalancer() (cloudprovider.LoadBalancer, bool) {
 // GetLoadBalancer returns whether the specified load balancer exists, and
 // if so, what its status is.
 func (qc *QingCloud) GetLoadBalancer(ctx context.Context, _ string, service *v1.Service) (status *v1.LoadBalancerStatus, exists bool, err error) {
-	if service.Spec.Type != v1.ServiceTypeLoadBalancer {
-		return nil, false, nil
-	}
 	lb, err := qc.newLoadBalance(ctx, service, nil, false)
 	if err != nil {
 		return nil, false, err
 	}
 	err = lb.GenerateK8sLoadBalancer()
 	if err != nil {
+		if errors.IsResourceNotFound(err) {
+			return nil,false,nil
+		}
 		klog.Errorf("Failed to call 'GetLoadBalancer' of service %s", service.Name)
 		return nil, false, err
 	}
 	if lb.Status.K8sLoadBalancerStatus == nil {
-		return nil, false, nil
+		return nil, true, nil
 	}
 	return lb.Status.K8sLoadBalancerStatus, true, nil
 }

@@ -554,7 +554,7 @@ func (l *LoadBalancer) GenerateK8sLoadBalancer() error {
 	if l.Status.QcLoadBalancer == nil {
 		err := l.LoadQcLoadBalancer()
 		if err != nil {
-			klog.Errorf("Failed to load qc loadbalance of %s", l.Name)
+			klog.V(1).Infof("Failed to load qc loadbalance of %s", l.Name)
 			return err
 		}
 	}
@@ -622,7 +622,7 @@ func (l *LoadBalancer) ClearNoUseListener() error {
 
 // GetLoadBalancerName generate lb name for each service. The name of a service is fixed and predictable
 func GetLoadBalancerName(clusterName string, service *corev1.Service) string {
-	defaultName := fmt.Sprintf("k8s_lb_%s_%s_%s", clusterName, service.Name, util.GetFirstUID(string(service.UID)))
+	defaultName := fmt.Sprintf("k8s_lb_%s_%s_%s_%s", clusterName, service.Namespace, service.Name, util.GetFirstUID(string(service.UID)))
 	annotation := service.GetAnnotations()
 	if annotation == nil {
 		return defaultName

@@ -25,7 +25,7 @@ spec:
         - --v=3
         - --cloud-provider=qingcloud
         - --cloud-config=/etc/kubernetes/qingcloud.yaml
-        image: kubespheredev/cloud-controller-manager:v1.4.0
+        image: kubespheredev/cloud-controller-manager:v1.4.1
         imagePullPolicy: IfNotPresent
         name: qingcloud-cloud-controller-manager
         resources:

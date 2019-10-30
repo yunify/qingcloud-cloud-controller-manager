@@ -149,7 +149,7 @@ github.com/sirupsen/logrus
 github.com/spf13/cobra
 # github.com/spf13/pflag v1.0.1
 github.com/spf13/pflag
-# github.com/yunify/qingcloud-sdk-go v2.0.0-alpha.35.0.20190513053909-5e6152f06771+incompatible
+# github.com/yunify/qingcloud-sdk-go v0.0.0-20190806070725-5b519baeba90
 github.com/yunify/qingcloud-sdk-go/client
 github.com/yunify/qingcloud-sdk-go/service
 github.com/yunify/qingcloud-sdk-go/config
@@ -243,11 +243,6 @@ google.golang.org/grpc/balancer/base
 google.golang.org/grpc/internal/grpcrand
 # gopkg.in/fsnotify.v1 v1.4.7
 gopkg.in/fsnotify.v1
-# gopkg.in/gcfg.v1 v1.2.3
-gopkg.in/gcfg.v1
-gopkg.in/gcfg.v1/scanner
-gopkg.in/gcfg.v1/token
-gopkg.in/gcfg.v1/types
 # gopkg.in/inf.v0 v0.9.0
 gopkg.in/inf.v0
 # gopkg.in/natefinch/lumberjack.v2 v2.0.0-20150622162204-20b71e5b60d7
@@ -259,8 +254,6 @@ gopkg.in/square/go-jose.v2/cipher
 gopkg.in/square/go-jose.v2/json
 # gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7
 gopkg.in/tomb.v1
-# gopkg.in/warnings.v0 v0.1.2
-gopkg.in/warnings.v0
 # gopkg.in/yaml.v2 v2.2.2
 gopkg.in/yaml.v2
 # k8s.io/api v0.0.0-20190409092523-d687e77c8ae9
@@ -478,6 +471,7 @@ k8s.io/client-go/informers/scheduling
 k8s.io/client-go/informers/settings
 k8s.io/client-go/informers/storage
 k8s.io/client-go/tools/clientcmd
+k8s.io/client-go/util/retry
 k8s.io/client-go/discovery
 k8s.io/client-go/kubernetes/typed/admissionregistration/v1beta1
 k8s.io/client-go/kubernetes/typed/apps/v1
@@ -519,7 +513,6 @@ k8s.io/client-go/util/flowcontrol
 k8s.io/client-go/util/cert
 k8s.io/client-go/tools/record
 k8s.io/client-go/kubernetes/scheme
-k8s.io/client-go/util/retry
 k8s.io/client-go/util/workqueue
 k8s.io/client-go/tools/metrics
 k8s.io/client-go/tools/pager
