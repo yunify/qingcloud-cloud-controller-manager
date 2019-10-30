@@ -28,7 +28,6 @@ func main() {
 	// TODO: once we switch everything over to Cobra commands, we can go back to calling
 	// utilflag.InitFlags() (by removing its pflag.Parse() call). For now, we have to set the
 	// normalize func and add the go flag set by hand.
-	// utilflag.InitFlags()
 
 	logs.InitLogs()
 	defer logs.FlushLogs()
