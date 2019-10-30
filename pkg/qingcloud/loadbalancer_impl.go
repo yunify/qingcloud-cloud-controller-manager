@@ -58,7 +58,7 @@ func (qc *QingCloud) GetLoadBalancer(ctx context.Context, _ string, service *v1.
 	err = lb.GenerateK8sLoadBalancer()
 	if err != nil {
 		if errors.IsResourceNotFound(err) {
-			return nil,false,nil
+			return nil, false, nil
 		}
 		klog.Errorf("Failed to call 'GetLoadBalancer' of service %s", service.Name)
 		return nil, false, err

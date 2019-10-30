@@ -4,12 +4,11 @@ import (
 	"context"
 	"strings"
 
-	"github.com/yunify/qingcloud-sdk-go/service"
-
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/loadbalance"
 	"github.com/yunify/qingcloud-cloud-controller-manager/test/pkg/fake"
+	"github.com/yunify/qingcloud-sdk-go/service"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -238,7 +237,7 @@ var _ = Describe("Loadbalance", func() {
 		})
 		Expect(lb).ShouldNot(BeNil())
 
-		Expect(lb.Name).To(Equal("k8s_lb_Test_mylbapp_11111"))
+		Expect(lb.Name).To(Equal("k8s_lb_Test_default_mylbapp_11111"))
 		Expect(lb.LoadListeners()).ShouldNot(HaveOccurred())
 		Expect(lb.GetListeners()).To(HaveLen(1))
 		listener := lb.GetListeners()[0]
