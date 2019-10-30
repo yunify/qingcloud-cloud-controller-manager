@@ -310,11 +310,8 @@ func (l *LoadBalancer) EnsureQingCloudLB() error {
 
 // CreateQingCloudLB do create a lb in qingcloud
 func (l *LoadBalancer) CreateQingCloudLB() error {
-	err := l.EnsureEIP()
-	if err != nil {
-		return err
-	}
-	err = l.EnsureLoadBalancerSecurityGroup()
+
+	err := l.EnsureLoadBalancerSecurityGroup()
 	if err != nil {
 		return err
 	}
@@ -325,6 +322,10 @@ func (l *LoadBalancer) CreateQingCloudLB() error {
 	}
 
 	if l.NetworkType == NetworkModePublic {
+		err := l.EnsureEIP()
+		if err != nil {
+			return err
+		}
 		createInput.EIPs = qcservice.StringSlice(l.EIPs)
 	} else {
 		createInput.VxNet = &l.VxnetID

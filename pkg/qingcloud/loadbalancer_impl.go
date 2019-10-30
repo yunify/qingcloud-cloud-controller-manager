@@ -34,7 +34,7 @@ func (qc *QingCloud) newLoadBalance(ctx context.Context, clusterName string, ser
 		K8sNodes:     nodes,
 		K8sService:   service,
 		Context:      ctx,
-		ClusterName:  clusterName,
+		ClusterName:  qc.clusterID,
 		SkipCheck:    skipCheck,
 		DefaultVxnet: qc.defaultVxNetForLB,
 	}
