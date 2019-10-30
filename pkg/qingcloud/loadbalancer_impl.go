@@ -14,7 +14,7 @@ import (
 
 var _ cloudprovider.LoadBalancer = &QingCloud{}
 
-func (qc *QingCloud) newLoadBalance(ctx context.Context, clusterName string, service *v1.Service, nodes []*v1.Node, skipCheck bool) (*loadbalance.LoadBalancer, error) {
+func (qc *QingCloud) newLoadBalance(ctx context.Context, service *v1.Service, nodes []*v1.Node, skipCheck bool) (*loadbalance.LoadBalancer, error) {
 	lbExec := executor.NewQingCloudLoadBalanceExecutor(qc.userID, qc.lbService, qc.jobService, qc.tagService)
 	sgExec := executor.NewQingCloudSecurityGroupExecutor(qc.securityGroupService, qc.tagService)
 	if len(qc.tagIDs) > 0 {
@@ -34,7 +34,7 @@ func (qc *QingCloud) newLoadBalance(ctx context.Context, clusterName string, ser
 		K8sNodes:     nodes,
 		K8sService:   service,
 		Context:      ctx,
-		ClusterName:  clusterName,
+		ClusterName:  qc.clusterID,
 		SkipCheck:    skipCheck,
 		DefaultVxnet: qc.defaultVxNetForLB,
 	}
@@ -49,11 +49,11 @@ func (qc *QingCloud) LoadBalancer() (cloudprovider.LoadBalancer, bool) {
 
 // GetLoadBalancer returns whether the specified load balancer exists, and
 // if so, what its status is.
-func (qc *QingCloud) GetLoadBalancer(ctx context.Context, clusterName string, service *v1.Service) (status *v1.LoadBalancerStatus, exists bool, err error) {
+func (qc *QingCloud) GetLoadBalancer(ctx context.Context, _ string, service *v1.Service) (status *v1.LoadBalancerStatus, exists bool, err error) {
 	if service.Spec.Type != v1.ServiceTypeLoadBalancer {
 		return nil, false, nil
 	}
-	lb, err := qc.newLoadBalance(ctx, clusterName, service, nil, false)
+	lb, err := qc.newLoadBalance(ctx, service, nil, false)
 	if err != nil {
 		return nil, false, err
 	}
@@ -70,21 +70,21 @@ func (qc *QingCloud) GetLoadBalancer(ctx context.Context, clusterName string, se
 
 // GetLoadBalancerName returns the name of the load balancer. Implementations must treat the
 // *v1.Service parameter as read-only and not modify it.
-func (qc *QingCloud) GetLoadBalancerName(_ context.Context, clusterName string, service *v1.Service) string {
-	return loadbalance.GetLoadBalancerName(clusterName, service)
+func (qc *QingCloud) GetLoadBalancerName(_ context.Context, _ string, service *v1.Service) string {
+	return loadbalance.GetLoadBalancerName(qc.clusterID, service)
 }
 
 // EnsureLoadBalancer creates a new load balancer 'name', or updates the existing one. Returns the status of the balancer
 // Implementations must treat the *v1.Service and *v1.Node
 // parameters as read-only and not modify them.
 // Parameter 'clusterName' is the name of the cluster as presented to kube-controller-manager
-func (qc *QingCloud) EnsureLoadBalancer(ctx context.Context, clusterName string, service *v1.Service, nodes []*v1.Node) (*v1.LoadBalancerStatus, error) {
+func (qc *QingCloud) EnsureLoadBalancer(ctx context.Context, _ string, service *v1.Service, nodes []*v1.Node) (*v1.LoadBalancerStatus, error) {
 	startTime := time.Now()
 	defer func() {
 		elapsed := time.Since(startTime)
 		klog.V(1).Infof("EnsureLoadBalancer takes total %d seconds", elapsed/time.Second)
 	}()
-	lb, err := qc.newLoadBalance(ctx, clusterName, service, nodes, false)
+	lb, err := qc.newLoadBalance(ctx, service, nodes, false)
 	if err != nil {
 		return nil, err
 	}
@@ -99,13 +99,13 @@ func (qc *QingCloud) EnsureLoadBalancer(ctx context.Context, clusterName string,
 // Implementations must treat the *v1.Service and *v1.Node
 // parameters as read-only and not modify them.
 // Parameter 'clusterName' is the name of the cluster as presented to kube-controller-manager
-func (qc *QingCloud) UpdateLoadBalancer(ctx context.Context, clusterName string, service *v1.Service, nodes []*v1.Node) error {
+func (qc *QingCloud) UpdateLoadBalancer(ctx context.Context, _ string, service *v1.Service, nodes []*v1.Node) error {
 	startTime := time.Now()
 	defer func() {
 		elapsed := time.Since(startTime)
 		klog.V(1).Infof("UpdateLoadBalancer takes total %d seconds", elapsed/time.Second)
 	}()
-	lb, err := qc.newLoadBalance(ctx, clusterName, service, nodes, false)
+	lb, err := qc.newLoadBalance(ctx, service, nodes, false)
 	if err != nil {
 		return err
 	}
@@ -120,12 +120,12 @@ func (qc *QingCloud) UpdateLoadBalancer(ctx context.Context, clusterName string,
 // doesn't exist even if some part of it is still laying around.
 // Implementations must treat the *v1.Service parameter as read-only and not modify it.
 // Parameter 'clusterName' is the name of the cluster as presented to kube-controller-manager
-func (qc *QingCloud) EnsureLoadBalancerDeleted(ctx context.Context, clusterName string, service *v1.Service) error {
+func (qc *QingCloud) EnsureLoadBalancerDeleted(ctx context.Context, _ string, service *v1.Service) error {
 	startTime := time.Now()
 	defer func() {
 		elapsed := time.Since(startTime)
 		klog.V(1).Infof("DeleteLoadBalancer takes total %d seconds", elapsed/time.Second)
 	}()
-	lb, _ := qc.newLoadBalance(ctx, clusterName, service, nil, true)
+	lb, _ := qc.newLoadBalance(ctx, service, nil, true)
 	return lb.DeleteQingCloudLB()
 }

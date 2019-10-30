@@ -17,6 +17,10 @@ import (
 	"k8s.io/client-go/util/retry"
 )
 
+const (
+	TestCluster = "test-cluster"
+)
+
 var ipchange = "139.198.121.98"
 var _ = Describe("QingCloud LoadBalancer e2e-test", func() {
 	It("Should work as expected in ReUse Mode", func() {
@@ -27,7 +31,7 @@ var _ = Describe("QingCloud LoadBalancer e2e-test", func() {
 		defer func() {
 			service, err := k8sclient.CoreV1().Services("default").Get(service1Name, metav1.GetOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
-			lbName := loadbalance.GetLoadBalancerName("kubernetes", service)
+			lbName := loadbalance.GetLoadBalancerName(TestCluster, service)
 			Expect(e2eutil.KubectlDelete(servicePath)).ShouldNot(HaveOccurred())
 			time.Sleep(time.Second * 40)
 			//make sure lb is deleted
@@ -59,7 +63,7 @@ var _ = Describe("QingCloud LoadBalancer e2e-test", func() {
 		Expect(e2eutil.KubectlApply(service1Path)).ShouldNot(HaveOccurred())
 
 		defer func() {
-			lbName := loadbalance.GetLoadBalancerName("kubernetes", service)
+			lbName := loadbalance.GetLoadBalancerName(TestCluster, service)
 			log.Println("Deleting test svc")
 			Expect(e2eutil.KubectlDelete(service1Path)).ShouldNot(HaveOccurred())
 			//make sure lb is deleted
@@ -102,7 +106,7 @@ var _ = Describe("QingCloud LoadBalancer e2e-test", func() {
 			log.Println("Deleting test svc")
 			service, err := k8sclient.CoreV1().Services("default").Get(serviceName, metav1.GetOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
-			lbName := loadbalance.GetLoadBalancerName("kubernetes", service)
+			lbName := loadbalance.GetLoadBalancerName(TestCluster, service)
 			Expect(e2eutil.KubectlDelete(service1Path)).ShouldNot(HaveOccurred())
 			//make sure lb is deleted
 			lbService, _ := qcService.LoadBalancer("ap2a")
@@ -131,7 +135,7 @@ var _ = Describe("QingCloud LoadBalancer e2e-test", func() {
 		time.Sleep(3 * time.Minute)
 		log.Println("Wake up, we can test now")
 		lbService, _ := qcService.LoadBalancer("ap2a")
-		name := loadbalance.GetLoadBalancerName("kubernetes", svc)
+		name := loadbalance.GetLoadBalancerName(TestCluster, svc)
 		Eventually(func() error {
 			input := &service.DescribeLoadBalancersInput{
 				Status:     []*string{service.String("active")},
