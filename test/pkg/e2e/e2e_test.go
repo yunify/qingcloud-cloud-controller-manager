@@ -93,8 +93,8 @@ var _ = Describe("QingCloud LoadBalancer e2e-test", func() {
 			return updateErr
 		})
 		Expect(retryErr).ShouldNot(HaveOccurred())
-		time.Sleep(time.Second * 30)
-		Eventually(func() int { return e2eutil.GerServiceResponse(testEIPAddr, int(service.Spec.Ports[0].Port)) }, time.Second*20, time.Second*5).Should(Equal(http.StatusOK))
+		time.Sleep(time.Second * 60)
+		Eventually(func() int { return e2eutil.GerServiceResponse(testEIPAddr, int(service.Spec.Ports[0].Port)) }, time.Second*30, time.Second*5).Should(Equal(http.StatusOK))
 	})
 
 	It("Should work as expected when using sample yamls", func() {
