@@ -6,6 +6,7 @@ metadata:
   annotations:
     service.beta.kubernetes.io/qingcloud-load-balancer-type: "0"
     service.beta.kubernetes.io/qingcloud-load-balancer-network-type: "internal"
+    service.beta.kubernetes.io/qingcloud-load-balancer-internal-ip: "192.168.98.200"
 spec:
   selector:
     app:  mylbapp

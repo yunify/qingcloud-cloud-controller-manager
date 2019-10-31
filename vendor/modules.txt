@@ -604,7 +604,7 @@ k8s.io/component-base/cli/flag
 k8s.io/component-base/cli/globalflag
 k8s.io/component-base/config
 k8s.io/component-base/config/v1alpha1
-# k8s.io/klog v0.2.0
+# k8s.io/klog v0.4.0
 k8s.io/klog
 # k8s.io/kube-controller-manager v0.0.0-20190409093943-63563cf7ef9a
 k8s.io/kube-controller-manager/config/v1alpha1

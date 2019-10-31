@@ -166,6 +166,7 @@ spec:
 ### 注意事项
 1. 必须手动指定`service.beta.kubernetes.io/qingcloud-load-balancer-network-type`为`internal`，如果不指定或者填写其他值，都默认为公网LB，需要配置EIP
 2. 可选指定LB所在的Vxnet，默认为创建LB插件配置文件中的`defaultVxnet`，手动配置vxnet的annotation为`service.beta.kubernetes.io/qingcloud-load-balancer-vxnet-id`
+3. 可选指定LB 内网ip，通过`service.beta.kubernetes.io/qingcloud-load-balancer-internal-ip`指定。**注意，当前不支持更换内网IP**
 ### 参考Service
 ```yaml
 kind: Service
@@ -176,6 +177,7 @@ metadata:
   annotations:
     service.beta.kubernetes.io/qingcloud-load-balancer-type: "0"
     service.beta.kubernetes.io/qingcloud-load-balancer-network-type: "internal"
+    service.beta.kubernetes.io/qingcloud-load-balancer-internal-ip: "192.168.0.1" ##如果要路由器自动分配删掉这一行
 spec:
   selector:
     app:  mylbapp

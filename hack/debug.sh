@@ -53,5 +53,5 @@ if [ $SKIP_BUILD == "no" ]; then
 fi
 
 echo "Generating yaml"
-sed -e 's@image: .*@image: '"${IMG}"'@' deploy/kube-cloud-controller-manager.yaml > $DEST
+sed -e 's@image: .*@image: '"${IMG}"'@' -e "s/IfNotPresent/Always/g" deploy/kube-cloud-controller-manager.yaml > $DEST
 kubectl apply -f $DEST
