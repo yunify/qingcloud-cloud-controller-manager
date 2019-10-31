@@ -15,8 +15,8 @@ const (
 	// ServiceAnnotationLoadBalancerVxnetId is the annotation which indicates the very vxnet where load
 	// balancer resides. This annotation should NOT be used when ServiceAnnotationLoadBalancerEipIds is
 	// set.
-	ServiceAnnotationLoadBalancerVxnetID = "service.beta.kubernetes.io/qingcloud-load-balancer-vxnet-id"
-
+	ServiceAnnotationLoadBalancerVxnetID    = "service.beta.kubernetes.io/qingcloud-load-balancer-vxnet-id"
+	ServiceAnnotationLoadBalancerInternalIP = "service.beta.kubernetes.io/qingcloud-load-balancer-internal-ip"
 	// ServiceAnnotationLoadBalancerType is the annotation used on the
 	// service to indicate that we want a qingcloud loadBalancer type.
 	// value "0" means the LB can max support 5000 concurrency connections, it's default type.

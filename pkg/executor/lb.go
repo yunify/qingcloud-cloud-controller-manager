@@ -107,6 +107,7 @@ func (q *qingCloudLoadBalanceExecutor) Stop(id string) error {
 }
 
 func (q *qingCloudLoadBalanceExecutor) Create(input *qcservice.CreateLoadBalancerInput) (*qcservice.LoadBalancer, error) {
+	klog.V(2).Infof("Creating LB: %+v", *input)
 	name := *input.LoadBalancerName
 	output, err := q.lbapi.CreateLoadBalancer(input)
 	if err != nil {

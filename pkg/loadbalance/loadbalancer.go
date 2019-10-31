@@ -43,6 +43,7 @@ type LoadBalancerSpec struct {
 	LoadBalancerID    string
 	NetworkType       string
 	VxnetID           string
+	InternalIP        string
 }
 
 type LoadBalancerStatus struct {
@@ -134,6 +135,9 @@ func NewLoadBalancer(opt *NewLoadBalancerOption) (*LoadBalancer, error) {
 			result.VxnetID = vxnet
 		} else {
 			result.VxnetID = opt.DefaultVxnet
+		}
+		if ip, ok := opt.K8sService.Annotations[ServiceAnnotationLoadBalancerInternalIP]; ok {
+			result.InternalIP = ip
 		}
 	}
 
@@ -329,6 +333,10 @@ func (l *LoadBalancer) CreateQingCloudLB() error {
 		createInput.EIPs = qcservice.StringSlice(l.EIPs)
 	} else {
 		createInput.VxNet = &l.VxnetID
+		if l.InternalIP != "" {
+			klog.V(1).Infof("Set %s for lb %s", l.InternalIP, l.Name)
+			createInput.PrivateIP = &l.InternalIP
+		}
 	}
 	lb, err := l.lbExec.Create(createInput)
 	if err != nil {
@@ -353,7 +361,11 @@ func (l *LoadBalancer) CreateQingCloudLB() error {
 		klog.Errorf("Failed to make loadbalancer %s go into effect", l.Name)
 		return err
 	}
-	l.GenerateK8sLoadBalancer()
+	err = l.GenerateK8sLoadBalancer()
+	if err != nil {
+		klog.Errorf("Failed to get ip of loadBalancer %s", l.Name)
+		return err
+	}
 	klog.V(1).Infof("Loadbalancer %s created succeefully", l.Name)
 	return nil
 }
@@ -562,6 +574,9 @@ func (l *LoadBalancer) GenerateK8sLoadBalancer() error {
 
 	if l.NetworkType == NetworkModeInternal {
 		for _, ip := range l.Status.QcLoadBalancer.PrivateIPs {
+			if l.InternalIP != "" && l.InternalIP != *ip {
+				return fmt.Errorf("Specify ip %s but got %s of lb %s", l.InternalIP, *ip, l.Name)
+			}
 			status.Ingress = append(status.Ingress, corev1.LoadBalancerIngress{IP: *ip})
 		}
 	} else {

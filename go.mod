@@ -19,7 +19,7 @@ require (
 	k8s.io/client-go v0.0.0-20190409092706-ca8df85b1798
 	k8s.io/cloud-provider v0.0.0-20190409133700-fca63a37790d
 	k8s.io/component-base v0.0.0-20190409093041-e34633071963
-	k8s.io/klog v0.2.0
+	k8s.io/klog v0.4.0
 	k8s.io/kube-controller-manager v0.0.0-20190409093943-63563cf7ef9a // indirect
 	k8s.io/kubernetes v1.14.1
 )
