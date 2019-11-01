@@ -75,10 +75,8 @@ func ServiceHasEIP(c *kubernetes.Clientset, name, namespace, ip string) error {
 		return err
 	}
 	if len(service.Status.LoadBalancer.Ingress) > 0 {
-		if ip != "" && service.Status.LoadBalancer.Ingress[0].IP != ip {
-			err := fmt.Errorf("got a different ip")
-			log.Println(err.Error())
-			return err
+		if ip != "" && service.Status.LoadBalancer.Ingress[0].IP =! ip {
+			return fmt.Errorf("got a different ip")
 		}
 		return nil
 	}
