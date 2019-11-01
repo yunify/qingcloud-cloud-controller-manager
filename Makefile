@@ -4,7 +4,7 @@
 # Vars describing project
 NAME= qingcloud-cloud-controller-manager
 GIT_REPOSITORY= github.com/yunify/qingcloud-cloud-controller-manager
-IMG?= kubespheredev/cloud-controller-manager:v1.4.1
+IMG?= kubespheredev/cloud-controller-manager:v1.4.2
 
 # Generate vars to be included from external script
 # Allows using bash to generate complex vars, such as project versions

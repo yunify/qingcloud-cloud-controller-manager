@@ -162,7 +162,8 @@ spec:
 ```
 
 ## 配置内网负载均衡器
-
+### 已知问题
+k8s在ipvs模式下，kube-proxy会把内网负载均衡器的ip绑定在ipvs接口上，这样会导致从LB过来的包被drop（进来的是主网卡，但是出去的时候发现ipvs有这么一个ip，路由不一致）故目前无法在IPVS模式下使用内网负载均衡器。参考[issue](https://github.com/kubernetes/kubernetes/issues/79783)
 ### 注意事项
 1. 必须手动指定`service.beta.kubernetes.io/qingcloud-load-balancer-network-type`为`internal`，如果不指定或者填写其他值，都默认为公网LB，需要配置EIP
 2. 可选指定LB所在的Vxnet，默认为创建LB插件配置文件中的`defaultVxnet`，手动配置vxnet的annotation为`service.beta.kubernetes.io/qingcloud-load-balancer-vxnet-id`
@@ -186,4 +187,67 @@ spec:
   - name:  http
     port:  80
     targetPort:  80
+```
+## 配置共享内网负载均衡器
+### 注意事项
+1. 内网插件同样支持共享模式，即多个`service`可以共用一个lb，和公网lb共享有同样的限制。所有service必须是相同的配置，并且`service.beta.kubernetes.io/qingcloud-load-balancer-eip-strategy`需要是`reuse`。多个服务的端口不能有冲突，并且加起来最多有10个端口。
+2. 公网模式下共享LB是通过EIP来标记的，内网模式下也可以指定内网IP来标记，但如果是DHCP模式（路由器自动分配IP），需要手动指定一个`reuse-id`，参考下面的样例，私网ip和`reuse-id`都不指定无法创建共享的lb
+
+### 参考Service
+```yaml
+kind: Service
+apiVersion: v1
+metadata:
+  name:  reuse-eip1
+  annotations:
+    service.beta.kubernetes.io/qingcloud-load-balancer-type: "0"
+    service.beta.kubernetes.io/qingcloud-load-balancer-eip-strategy: "reuse"
+    service.beta.kubernetes.io/qingcloud-load-balancer-network-type: internal
+    service.beta.kubernetes.io/qingcloud-load-balancer-reuse-id: "shared-lb"
+spec:
+  selector:
+    app:  mylbapp
+  type:  LoadBalancer 
+  ports:
+  - name:  http
+    port:  8089
+    targetPort:  80
+---
+
+kind: Service
+apiVersion: v1
+metadata:
+  name:  reuse-eip2
+  annotations:
+    service.beta.kubernetes.io/qingcloud-load-balancer-type: "0"
+    service.beta.kubernetes.io/qingcloud-load-balancer-eip-strategy: "reuse"
+    service.beta.kubernetes.io/qingcloud-load-balancer-network-type: internal
+    service.beta.kubernetes.io/qingcloud-load-balancer-reuse-id: "shared-lb"
+
+spec:
+  selector:
+    app:  mylbapp
+  type:  LoadBalancer 
+  ports:
+  - name:  http
+    port:  8090
+    targetPort:  80
+---
+
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: mylbapp
+spec:
+  replicas: 2
+  template:
+    metadata:
+      labels:
+        app: mylbapp
+    spec:
+      containers:
+      - name: name
+        image: nginx:alpine
+        ports:
+        - containerPort: 80
 ```
