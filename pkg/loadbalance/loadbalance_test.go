@@ -56,7 +56,7 @@ var _ = Describe("Loadbalance", func() {
 	})
 
 	It("Should be ok when use exsiting lb", func() {
-		testService.Annotations[loadbalance.ServiceAnnotationLoadBalancerEipStrategy] = "reuse-lb"
+		testService.Annotations[loadbalance.ServiceAnnotationLoadBalancerPolicy] = "reuse-lb"
 		testLBID := "lbid"
 		eipAddress := "1.1.1.1"
 		testService.Annotations[loadbalance.ServiceAnnotationLoadBalancerID] = testLBID
@@ -257,7 +257,7 @@ var _ = Describe("Loadbalance", func() {
 		//Change Service type
 
 		lb.GetService().Annotations["service.beta.kubernetes.io/qingcloud-load-balancer-type"] = "1"
-		lb.Type = 1
+		lb.ScaleType = 1
 		Expect(lb.NeedResize()).To(BeTrue())
 		Expect(lb.UpdateQingCloudLB()).ShouldNot(HaveOccurred())
 		Expect(*lb.Status.QcLoadBalancer.LoadBalancerType).To(Equal(1))
