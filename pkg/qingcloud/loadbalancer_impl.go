@@ -72,7 +72,7 @@ func (qc *QingCloud) GetLoadBalancer(ctx context.Context, _ string, service *v1.
 // GetLoadBalancerName returns the name of the load balancer. Implementations must treat the
 // *v1.Service parameter as read-only and not modify it.
 func (qc *QingCloud) GetLoadBalancerName(_ context.Context, _ string, service *v1.Service) string {
-	return loadbalance.GetLoadBalancerName(qc.clusterID, service)
+	return loadbalance.GetLoadBalancerName(qc.clusterID, service, executor.NewQingCloudLoadBalanceExecutor(qc.userID, qc.lbService, qc.jobService, qc.tagService))
 }
 
 // EnsureLoadBalancer creates a new load balancer 'name', or updates the existing one. Returns the status of the balancer

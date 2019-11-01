@@ -3,7 +3,6 @@ package loadbalance
 import (
 	"context"
 	"fmt"
-	"strconv"
 	"strings"
 
 	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/eip"
@@ -30,20 +29,13 @@ type LoadBalancer struct {
 }
 
 type LoadBalancerSpec struct {
-	service           *corev1.Service
-	EIPAllocateSource EIPAllocateSource
-	EIPStrategy       EIPStrategy
-	EIPs              []string
-	Type              int
-	TCPPorts          []int
-	NodePorts         []int
-	Nodes             []*corev1.Node
-	Name              string
-	clusterName       string
-	LoadBalancerID    string
-	NetworkType       string
-	VxnetID           string
-	InternalIP        string
+	service     *corev1.Service
+	TCPPorts    []int
+	NodePorts   []int
+	Nodes       []*corev1.Node
+	Name        string
+	clusterName string
+	AnnotaionConfig
 }
 
 type LoadBalancerStatus struct {
@@ -74,101 +66,31 @@ func NewLoadBalancer(opt *NewLoadBalancerOption) (*LoadBalancer, error) {
 		sgExec:     opt.SgExecutor,
 		nodeLister: opt.NodeLister,
 	}
-	result.Name = GetLoadBalancerName(opt.ClusterName, opt.K8sService)
+	result.Name = GetLoadBalancerName(opt.ClusterName, opt.K8sService, opt.LbExecutor)
 	t, n := util.GetPortsOfService(opt.K8sService)
 	result.TCPPorts = t
 	result.NodePorts = n
 	result.service = opt.K8sService
 	result.Nodes = opt.K8sNodes
 	result.clusterName = opt.ClusterName
-	if networkType, ok := opt.K8sService.Annotations[ServiceAnnotationLoadBalancerNetworkType]; ok {
-		if networkType == NetworkModeInternal {
-			result.NetworkType = NetworkModeInternal
-		}
+
+	config, err := ParseAnnotation(opt.K8sService.GetAnnotations(), false)
+	if err != nil {
+		klog.Infof("Failed to parse service: %s namespace: %s", opt.K8sService.Name, opt.K8sService.Namespace)
+		return nil, err
 	}
-	if result.NetworkType == "" {
-		result.NetworkType = NetworkModePublic
-		if strategy, ok := opt.K8sService.Annotations[ServiceAnnotationLoadBalancerEipStrategy]; ok {
-			switch strategy {
-			case string(ReuseEIP):
-				result.EIPStrategy = ReuseEIP
-			case string(ReuseLB):
-				result.EIPStrategy = ReuseLB
-				result.LoadBalancerID, ok = opt.K8sService.Annotations[ServiceAnnotationLoadBalancerID]
-				if !ok {
-					return nil, fmt.Errorf("must specify 'service.beta.kubernetes.io/qingcloud-load-balancer-id' if 'service.beta.kubernetes.io/qingcloud-load-balancer-eip-strategy'=reuse-lb")
-				}
-				//if is reuse-lb, following codes are unneccessary
-				return result, nil
-			default:
-				result.EIPStrategy = Exclusive
-			}
-		}
-		if source, ok := opt.K8sService.Annotations[ServiceAnnotationLoadBalancerEipSource]; ok {
-			switch source {
-			case string(AllocateOnly):
-				result.EIPAllocateSource = AllocateOnly
-			case string(UseAvailableOnly):
-				result.EIPAllocateSource = UseAvailableOnly
-			case string(UseAvailableOrAllocateOne):
-				result.EIPAllocateSource = UseAvailableOrAllocateOne
-			default:
-				result.EIPAllocateSource = ManualSet
-			}
-		} else {
-			result.EIPAllocateSource = ManualSet
-		}
-
-		if result.EIPStrategy == ReuseLB {
-			result.EIPAllocateSource = ManualSet
-		}
-
-		if result.EIPAllocateSource == ManualSet {
-			lbEipIds, hasEip := opt.K8sService.Annotations[ServiceAnnotationLoadBalancerEipIds]
-			if hasEip {
-				result.EIPs = strings.Split(lbEipIds, ",")
-			}
-		}
-	} else {
-		//internal type
-		if vxnet, ok := opt.K8sService.Annotations[ServiceAnnotationLoadBalancerVxnetID]; ok {
-			result.VxnetID = vxnet
-		} else {
-			result.VxnetID = opt.DefaultVxnet
-		}
-		if ip, ok := opt.K8sService.Annotations[ServiceAnnotationLoadBalancerInternalIP]; ok {
-			result.InternalIP = ip
-		}
+	if config.VxnetID == "" {
+		config.VxnetID = opt.DefaultVxnet
 	}
-
-	lbType := opt.K8sService.Annotations[ServiceAnnotationLoadBalancerType]
-	if opt.SkipCheck {
-		result.Type = 0
-	} else {
-		if lbType == "" {
-			result.Type = 0
-		} else {
-			t, err := strconv.Atoi(lbType)
-			if err != nil {
-				err = fmt.Errorf("Pls spec a valid value of loadBalancer for service %s, accept values are '0-3',err: %s", opt.K8sService.Name, err.Error())
-				return nil, err
-			}
-			if t > 3 || t < 0 {
-				err = fmt.Errorf("Pls spec a valid value of loadBalancer for service %s, accept values are '0-3'", opt.K8sService.Name)
-				return nil, err
-			}
-			result.Type = t
-		}
-	}
-
+	result.AnnotaionConfig = config
 	return result, nil
 }
 
 // LoadQcLoadBalancer use qingcloud api to get lb in cloud, return err if not found
 func (l *LoadBalancer) LoadQcLoadBalancer() (err error) {
 	var lb *qcservice.LoadBalancer
-	if l.EIPStrategy == ReuseLB {
-		lb, err = l.lbExec.GetLoadBalancerByID(l.LoadBalancerID)
+	if l.Policy == ReuseExistingLB {
+		lb, err = l.lbExec.GetLoadBalancerByID(l.ReuseLBID)
 	} else {
 		lb, err = l.lbExec.GetLoadBalancerByName(l.Name)
 	}
@@ -224,7 +146,7 @@ func (l *LoadBalancer) NeedResize() bool {
 	if l.Status.QcLoadBalancer == nil {
 		return false
 	}
-	if l.Type != *l.Status.QcLoadBalancer.LoadBalancerType {
+	if l.ScaleType != *l.Status.QcLoadBalancer.LoadBalancerType {
 		return true
 	}
 	return false
@@ -266,35 +188,35 @@ func (l *LoadBalancer) EnsureEIP() error {
 		if err != nil {
 			return err
 		}
-		l.EIPs = []string{eip.ID}
+		l.EipIDs = []string{eip.ID}
 	} else if l.EIPAllocateSource == UseAvailableOnly {
 		klog.V(2).Infof("Retrieve available ip for lb %s", l.Name)
 		eips, err := l.eipExec.GetAvaliableEIPs()
 		if err != nil {
 			return err
 		}
-		l.EIPs = []string{eips[0].ID}
+		l.EipIDs = []string{eips[0].ID}
 	} else if l.EIPAllocateSource == UseAvailableOrAllocateOne {
 		klog.V(2).Infof("Retrieve available ip or allocate a new ip for lb %s", l.Name)
 		eip, err := l.eipExec.GetAvaliableOrAllocateEIP()
 		if err != nil {
 			return err
 		}
-		l.EIPs = []string{eip.ID}
+		l.EipIDs = []string{eip.ID}
 	} else {
-		if len(l.EIPs) == 0 {
+		if len(l.EipIDs) == 0 {
 			klog.V(3).Infof("Current service annotation %+v", l.service.Annotations)
 			return fmt.Errorf("Must specify a eip on service %s, current eip source :%s", l.service.Name, l.EIPAllocateSource)
 		}
 	}
-	klog.V(2).Infof("Will use eip %s for lb %s", l.EIPs, l.Name)
+	klog.V(2).Infof("Will use eip %s for lb %s", l.EipIDs, l.Name)
 	return nil
 }
 
 func (l *LoadBalancer) EnsureQingCloudLB() error {
 	err := l.LoadQcLoadBalancer()
 	if err != nil {
-		if errors.IsResourceNotFound(err) && l.EIPStrategy != ReuseLB {
+		if errors.IsResourceNotFound(err) && l.Policy != ReuseExistingLB {
 			err = l.CreateQingCloudLB()
 			if err != nil {
 				klog.Errorf("Failed to create lb in qingcloud of service %s", l.service.Name)
@@ -320,7 +242,7 @@ func (l *LoadBalancer) CreateQingCloudLB() error {
 		return err
 	}
 	createInput := &qcservice.CreateLoadBalancerInput{
-		LoadBalancerType: &l.Type,
+		LoadBalancerType: &l.ScaleType,
 		LoadBalancerName: &l.Name,
 		SecurityGroup:    l.Status.QcSecurityGroup.SecurityGroupID,
 	}
@@ -330,7 +252,7 @@ func (l *LoadBalancer) CreateQingCloudLB() error {
 		if err != nil {
 			return err
 		}
-		createInput.EIPs = qcservice.StringSlice(l.EIPs)
+		createInput.EIPs = qcservice.StringSlice(l.EipIDs)
 	} else {
 		createInput.VxNet = &l.VxnetID
 		if l.InternalIP != "" {
@@ -377,10 +299,10 @@ func (l *LoadBalancer) UpdateQingCloudLB() error {
 		return nil
 	}
 	lbid := *l.Status.QcLoadBalancer.LoadBalancerID
-	if l.EIPStrategy != ReuseLB {
+	if l.Policy != ReuseExistingLB {
 		if l.NeedResize() {
 			klog.V(2).Infof("Detect lb size changed, begin to resize the lb %s", l.Name)
-			err := l.lbExec.Resize(*l.Status.QcLoadBalancer.LoadBalancerID, l.Type)
+			err := l.lbExec.Resize(*l.Status.QcLoadBalancer.LoadBalancerID, l.ScaleType)
 			if err != nil {
 				klog.Errorf("Failed to resize lb %s", l.Name)
 				return err
@@ -478,7 +400,7 @@ func (l *LoadBalancer) deleteListenersOnlyIfOK() (bool, error) {
 			toDelete = append(toDelete, listener)
 		}
 	}
-	if l.EIPStrategy == ReuseLB {
+	if l.Policy == ReuseExistingLB {
 		isUsedByAnotherSevice = true
 	}
 	if isUsedByAnotherSevice {
@@ -575,7 +497,7 @@ func (l *LoadBalancer) GenerateK8sLoadBalancer() error {
 	if l.NetworkType == NetworkModeInternal {
 		for _, ip := range l.Status.QcLoadBalancer.PrivateIPs {
 			if l.InternalIP != "" && l.InternalIP != *ip {
-				return fmt.Errorf("Specify ip %s but got %s of lb %s", l.InternalIP, *ip, l.Name)
+				klog.Warningf("Specify ip %s but got %s of lb %s", l.InternalIP, *ip, l.Name)
 			}
 			status.Ingress = append(status.Ingress, corev1.LoadBalancerIngress{IP: *ip})
 		}
@@ -636,16 +558,31 @@ func (l *LoadBalancer) ClearNoUseListener() error {
 /// -----Shared  functions-------
 
 // GetLoadBalancerName generate lb name for each service. The name of a service is fixed and predictable
-func GetLoadBalancerName(clusterName string, service *corev1.Service) string {
+func GetLoadBalancerName(clusterName string, service *corev1.Service, lb executor.QingCloudLoadBalancerExecutor) string {
 	defaultName := fmt.Sprintf("k8s_lb_%s_%s_%s_%s", clusterName, service.Namespace, service.Name, util.GetFirstUID(string(service.UID)))
 	annotation := service.GetAnnotations()
 	if annotation == nil {
 		return defaultName
 	}
-	if strategy, ok := annotation[ServiceAnnotationLoadBalancerEipStrategy]; ok {
-		if strategy == string(ReuseEIP) {
+	config, _ := ParseAnnotation(annotation, true)
+	if config.ReuseLBID != "" {
+		lb, err := lb.GetLoadBalancerByID(config.ReuseLBID)
+		if err != nil {
+			if !errors.IsResourceNotFound(err) {
+				klog.Errorf("Failed to get lb of id %s, err: %s", config.ReuseLBID, err.Error())
+			}
+			return ""
+		}
+		return *lb.LoadBalancerID
+	}
+	if config.Policy == Shared {
+		if config.NetworkType == NetworkModePublic {
 			return fmt.Sprintf("k8s_lb_%s_%s", clusterName, annotation[ServiceAnnotationLoadBalancerEipIds])
 		}
+		if config.InternalReuseID != "" {
+			return fmt.Sprintf("k8s_lb_%s_%s", clusterName, config.InternalReuseID)
+		}
+		return fmt.Sprintf("k8s_lb_%s_%s", clusterName, config.InternalIP)
 	}
 	return defaultName
 }

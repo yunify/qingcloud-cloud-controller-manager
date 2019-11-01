@@ -15,7 +15,7 @@ import (
 
 var (
 	ErrorListenerPortConflict = fmt.Errorf("Port has been occupied")
-	ErrorReuseEIPButNoName    = fmt.Errorf("If you want to reuse an eip , you must specify the name of each port in service")
+	ErrorSharedButNoName      = fmt.Errorf("If you want to reuse an eip , you must specify the name of each port in service")
 )
 
 // Listener is
@@ -90,7 +90,7 @@ func (l *Listener) initBackends() {
 }
 
 func (l *Listener) CheckPortConflict() (bool, error) {
-	if l.lb.EIPStrategy != ReuseEIP {
+	if l.lb.Policy != Shared {
 		return false, nil
 	}
 	listeners, err := l.listenerExec.GetListenersOfLB(*l.lb.Status.QcLoadBalancer.LoadBalancerID, "")
