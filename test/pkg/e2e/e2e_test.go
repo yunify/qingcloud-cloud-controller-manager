@@ -33,13 +33,13 @@ var _ = Describe("QingCloud LoadBalancer e2e-test", func() {
 			Expect(err).ShouldNot(HaveOccurred())
 			lbName := loadbalance.GetLoadBalancerName(TestCluster, service, nil)
 			Expect(e2eutil.KubectlDelete(servicePath)).ShouldNot(HaveOccurred())
-			time.Sleep(time.Second * 40)
+			time.Sleep(time.Second * 80)
 			//make sure lb is deleted
 			lbService, _ := qcService.LoadBalancer("ap2a")
-			Eventually(func() error { return e2eutil.WaitForLoadBalancerDeleted(lbService, lbName) }, time.Minute*2, time.Second*10).Should(Succeed())
+			Eventually(func() error { return e2eutil.WaitForLoadBalancerDeleted(lbService, lbName) }, time.Minute*3, time.Second*20).Should(Succeed())
 		}()
 		log.Println("Just wait 2 minutes before tests because following procedure is so so so slow ")
-		time.Sleep(2 * time.Minute)
+		time.Sleep(3 * time.Minute)
 		log.Println("Wake up, we can test now")
 		Eventually(func() error {
 			return e2eutil.ServiceHasEIP(k8sclient, service1Name, "default", testEIPAddr)
