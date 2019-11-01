@@ -79,6 +79,7 @@ var _ = Describe("QingCloud LoadBalancer e2e-test", func() {
 		}, 3*time.Minute, 20*time.Second).Should(Succeed())
 		log.Println("Successfully assign a ip")
 		log.Println("Now we change the service port")
+		var serviceIP string
 		// get the service
 		retryErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 			// Retrieve the latest version of Deployment before attempting update
@@ -88,13 +89,16 @@ var _ = Describe("QingCloud LoadBalancer e2e-test", func() {
 			if err != nil {
 				panic(fmt.Errorf("Failed to get latest version of Deployment: %v", err))
 			}
+			if len(service.Status.LoadBalancer.Ingress) > 0 {
+				serviceIP = service.Status.LoadBalancer.Ingress[0].IP
+			}
 			service.Spec.Ports[0].Port = service.Spec.Ports[0].Port + 1
 			_, updateErr := serviceClient.Update(service)
 			return updateErr
 		})
 		Expect(retryErr).ShouldNot(HaveOccurred())
 		time.Sleep(time.Second * 60)
-		Eventually(func() int { return e2eutil.GerServiceResponse(testEIPAddr, int(service.Spec.Ports[0].Port)) }, time.Second*30, time.Second*5).Should(Equal(http.StatusOK))
+		Eventually(func() int { return e2eutil.GerServiceResponse(serviceIP, int(service.Spec.Ports[0].Port)) }, time.Second*30, time.Second*5).Should(Equal(http.StatusOK))
 	})
 
 	It("Should work as expected when using sample yamls", func() {
