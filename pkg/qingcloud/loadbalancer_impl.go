@@ -81,9 +81,10 @@ func (qc *QingCloud) GetLoadBalancerName(_ context.Context, _ string, service *v
 // Parameter 'clusterName' is the name of the cluster as presented to kube-controller-manager
 func (qc *QingCloud) EnsureLoadBalancer(ctx context.Context, _ string, service *v1.Service, nodes []*v1.Node) (*v1.LoadBalancerStatus, error) {
 	startTime := time.Now()
+	klog.Infof("===============EnsureLoadBalancer for %s", service.Namespace+"/"+service.Name)
 	defer func() {
 		elapsed := time.Since(startTime)
-		klog.V(1).Infof("EnsureLoadBalancer takes total %d seconds", elapsed/time.Second)
+		klog.V(1).Infof("===============EnsureLoadBalancer takes total %d seconds", elapsed/time.Second)
 	}()
 	lb, err := qc.newLoadBalance(ctx, service, nodes, false)
 	if err != nil {
@@ -93,6 +94,9 @@ func (qc *QingCloud) EnsureLoadBalancer(ctx context.Context, _ string, service *
 	if err != nil {
 		return nil, err
 	}
+	for _, ing := range lb.Status.K8sLoadBalancerStatus.Ingress {
+		klog.Infof("[Got lb IP], service %s/%s get ip %s", service.Namespace, service.Name, ing.IP)
+	}
 	return lb.Status.K8sLoadBalancerStatus, nil
 }
 
@@ -101,10 +105,11 @@ func (qc *QingCloud) EnsureLoadBalancer(ctx context.Context, _ string, service *
 // parameters as read-only and not modify them.
 // Parameter 'clusterName' is the name of the cluster as presented to kube-controller-manager
 func (qc *QingCloud) UpdateLoadBalancer(ctx context.Context, _ string, service *v1.Service, nodes []*v1.Node) error {
+	klog.Infof("===============UpdateLoadBalancer for %s", service.Namespace+"/"+service.Name)
 	startTime := time.Now()
 	defer func() {
 		elapsed := time.Since(startTime)
-		klog.V(1).Infof("UpdateLoadBalancer takes total %d seconds", elapsed/time.Second)
+		klog.V(1).Infof("===============UpdateLoadBalancer takes total %d seconds", elapsed/time.Second)
 	}()
 	lb, err := qc.newLoadBalance(ctx, service, nodes, false)
 	if err != nil {
