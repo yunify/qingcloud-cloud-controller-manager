@@ -1,4 +1,12 @@
 # Changelog
+## [ 1.4.2 ] - 2019-10-29
+### Added
+- internal lb support custom ip [@magicsong](https://github.com/yunify/qingcloud-cloud-controller-manager/pull/89)
+- support sharing internal lb [@magicsong](https://github.com/yunify/qingcloud-cloud-controller-manager/pull/90)
+- docs about internal lb [@magicsong](https://github.com/yunify/qingcloud-cloud-controller-manager/pull/91)
+### Fixed
+- lb not deleted when its type changed from `LoadBalancer` to `NodePort`[@magicsong](https://github.com/yunify/qingcloud-cloud-controller-manager/pull/88)
+
 ## [ 1.4.1 ] - 2019-10-28
 ### Added
 - support internal load balancer [@magicsong](https://github.com/yunify/qingcloud-cloud-controller-manager/pull/85)
