@@ -358,7 +358,7 @@ func (l *LoadBalancer) UpdateQingCloudLB() error {
 		klog.Errorf("Failed to make loadbalancer %s go into effect", l.Name)
 		return err
 	}
-	return nil
+	return l.LoadQcLoadBalancer()
 }
 
 // GetService return service of this loadbalancer
@@ -502,11 +502,9 @@ func (l *LoadBalancer) GenerateK8sLoadBalancer() error {
 			status.Ingress = append(status.Ingress, corev1.LoadBalancerIngress{IP: *ip})
 		}
 	} else {
-		for _, eip := range l.Status.QcLoadBalancer.Cluster {
-			status.Ingress = append(status.Ingress, corev1.LoadBalancerIngress{IP: *eip.EIPAddr})
-		}
-		for _, ip := range l.Status.QcLoadBalancer.EIPs {
-			status.Ingress = append(status.Ingress, corev1.LoadBalancerIngress{IP: *ip.EIPAddr})
+		var eips = executor.GetEipsFromLB(l.Status.QcLoadBalancer)
+		for _, e := range eips {
+			status.Ingress = append(status.Ingress, corev1.LoadBalancerIngress{IP: e})
 		}
 	}
 
@@ -514,6 +512,7 @@ func (l *LoadBalancer) GenerateK8sLoadBalancer() error {
 		return fmt.Errorf("Have no ip yet")
 	}
 	l.Status.K8sLoadBalancerStatus = status
+	l.service.Status.LoadBalancer = *status
 	return nil
 }
 

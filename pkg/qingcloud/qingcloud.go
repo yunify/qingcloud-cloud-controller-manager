@@ -16,6 +16,7 @@ import (
 	yaml "gopkg.in/yaml.v2"
 	"k8s.io/client-go/informers"
 	corev1informer "k8s.io/client-go/informers/core/v1"
+	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	cloudprovider "k8s.io/cloud-provider"
 	"k8s.io/klog"
 )
@@ -57,6 +58,7 @@ type QingCloud struct {
 
 	nodeInformer    corev1informer.NodeInformer
 	serviceInformer corev1informer.ServiceInformer
+	corev1interface corev1.CoreV1Interface
 }
 
 func init() {
@@ -158,6 +160,8 @@ func (qc *QingCloud) Initialize(clientBuilder cloudprovider.ControllerClientBuil
 	serviceInformer := sharedInformer.Core().V1().Services()
 	go serviceInformer.Informer().Run(stop)
 	qc.serviceInformer = serviceInformer
+
+	qc.corev1interface = clientset.CoreV1()
 }
 
 func (qc *QingCloud) Clusters() (cloudprovider.Clusters, bool) {
