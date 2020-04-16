@@ -11,7 +11,6 @@ require (
 	github.com/spf13/afero v1.2.2 // indirect
 	github.com/spf13/cobra v0.0.3 // indirect
 	github.com/yunify/qingcloud-sdk-go v0.0.0-20190806070725-5b519baeba90
-	gopkg.in/warnings.v0 v0.1.2 // indirect
 	gopkg.in/yaml.v2 v2.2.2
 	k8s.io/api v0.0.0-20190409092523-d687e77c8ae9
 	k8s.io/apiextensions-apiserver v0.0.0-20190409093611-d42ba5c63e88 // indirect

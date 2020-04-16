@@ -130,9 +130,17 @@ func (q *qingcloudEIPHelper) AllocateEIP() (*EIP, error) {
 		return nil, errors.NewCommonServerError(ResourceNameEIP, *output.EIPs[0], "waitEIPStatus", err.Error())
 	}
 	if len(q.TagIDs) > 0 {
-		err = executor.AddTagsToResource(q.TagAPI, q.TagIDs, *output.EIPs[0], "eip")
+		var eips []string
+		for _, eip := range output.EIPs {
+			if eip != nil {
+				eips = append(eips, *eip)
+			}
+		}
+		err = executor.AttachTagsToResources(q.TagAPI, q.TagIDs, eips, "eip")
 		if err != nil {
-			klog.Errorf("Failed to add tags to Eip %s, err: %s", *output.EIPs[0], err.Error())
+			klog.Errorf("Failed to add tags to Eip %v, err: %s", eips, err.Error())
+		} else {
+			klog.Infof("Add tag %s to eip %v done", q.TagIDs, eips)
 		}
 	}
 	return eip, nil

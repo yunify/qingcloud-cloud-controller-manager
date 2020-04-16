@@ -106,6 +106,25 @@ func (q *qingCloudLoadBalanceExecutor) Stop(id string) error {
 	return qcclient.WaitJob(q.jobapi, *output.JobID, operationWaitTimeout, waitInterval)
 }
 
+func getEipsFromLB(lb *qcservice.LoadBalancer) []string {
+	var eips []string
+	if lb == nil {
+		return eips
+	}
+	var checkEip = func(eip *qcservice.EIP) {
+		if eip.EIPID != nil && *eip.EIPID != "" {
+			eips = append(eips, *eip.EIPID)
+		}
+	}
+	for _, eip := range lb.EIPs {
+		checkEip(eip)
+	}
+	for _, eip := range lb.Cluster {
+		checkEip(eip)
+	}
+	return eips
+}
+
 func (q *qingCloudLoadBalanceExecutor) Create(input *qcservice.CreateLoadBalancerInput) (*qcservice.LoadBalancer, error) {
 	klog.V(2).Infof("Creating LB: %+v", *input)
 	name := *input.LoadBalancerName
@@ -114,20 +133,32 @@ func (q *qingCloudLoadBalanceExecutor) Create(input *qcservice.CreateLoadBalance
 		return nil, newServerErrorOfLoadBalancer(name, "Create", err)
 	}
 	klog.V(2).Infof("Waiting for Lb %s starting", name)
-	err = q.waitLoadBalancerActive(*output.LoadBalancerID)
+	var lbID = *output.LoadBalancerID
+	err = q.waitLoadBalancerActive(lbID)
 	if err != nil {
-		klog.Errorf("LoadBalancer %s start failed", *output.LoadBalancerID)
+		klog.Errorf("LoadBalancer %s start failed", lbID)
 		return nil, newServerErrorOfLoadBalancer(name, "waitLoadBalancerActive", err)
 	}
 	klog.V(2).Infof("Lb %s is successfully started", name)
-	lb, err := q.GetLoadBalancerByID(*output.LoadBalancerID)
+	lb, err := q.GetLoadBalancerByID(lbID)
 	if err != nil {
 		return nil, newServerErrorOfLoadBalancer(name, "GetLoadBalancerByID", err)
 	}
 	if q.addTag {
-		err = AddTagsToResource(q.tagapi, q.tagIDs, *output.LoadBalancerID, "loadbalancer")
+		err = AttachTagsToResources(q.tagapi, q.tagIDs, []string{lbID}, "loadbalancer")
 		if err != nil {
-			klog.Errorf("Failed to add tag to loadBalancer %s, err: %s", *output.LoadBalancerID, err.Error())
+			klog.Errorf("Failed to attach tag to loadBalancer %s, err: %s", lbID, err.Error())
+		} else {
+			klog.Infof("Attach tag %s to loadBalancer %s done", q.tagIDs, lbID)
+		}
+		var eips = getEipsFromLB(lb)
+		if len(eips) > 0 {
+			err = AttachTagsToResources(q.tagapi, q.tagIDs, eips, "eip")
+			if err != nil {
+				klog.Errorf("Failed to attach tag to eip %v, err: %s", eips, err.Error())
+			} else {
+				klog.Infof("Attach tag %s to eip %v done", q.tagIDs, eips)
+			}
 		}
 	}
 	return lb, nil
@@ -179,7 +210,17 @@ func (q *qingCloudLoadBalanceExecutor) AssociateEip(id string, eips ...string) e
 	if err != nil {
 		return newServerErrorOfLoadBalancer(id, "AssociateEip", err)
 	}
-	return qcclient.WaitJob(q.jobapi, *output.JobID, operationWaitTimeout, waitInterval)
+	err = qcclient.WaitJob(q.jobapi, *output.JobID, operationWaitTimeout, waitInterval)
+	if err != nil {
+		return err
+	}
+	err = AttachTagsToResources(q.tagapi, q.tagIDs, eips, "eip")
+	if err != nil {
+		klog.Errorf("Failed to attach tag to eip %v, err: %s", eips, err.Error())
+	} else {
+		klog.Infof("Attach tag %s to eip %v done", q.tagIDs, eips)
+	}
+	return nil
 }
 
 func (q *qingCloudLoadBalanceExecutor) DissociateEip(id string, eips ...string) error {
@@ -194,7 +235,17 @@ func (q *qingCloudLoadBalanceExecutor) DissociateEip(id string, eips ...string) 
 	if err != nil {
 		return newServerErrorOfLoadBalancer(id, "DissociateEip", err)
 	}
-	return qcclient.WaitJob(q.jobapi, *output.JobID, operationWaitTimeout, waitInterval)
+	err = qcclient.WaitJob(q.jobapi, *output.JobID, operationWaitTimeout, waitInterval)
+	if err != nil {
+		return err
+	}
+	err = DetachTagsFromResources(q.tagapi, q.tagIDs, eips, "eip")
+	if err != nil {
+		klog.Errorf("Failed to detach tag from eip %v, err: %s", eips, err.Error())
+	} else {
+		klog.Infof("Detach tag %s from eip %v done", q.tagIDs, eips)
+	}
+	return nil
 }
 
 func (q *qingCloudLoadBalanceExecutor) waitLoadBalancerActive(id string) error {
@@ -218,6 +269,10 @@ func (q *qingCloudLoadBalanceExecutor) Confirm(id string) error {
 }
 
 func (q *qingCloudLoadBalanceExecutor) Delete(id string) error {
+	lb, err := q.GetLoadBalancerByID(id)
+	if err != nil {
+		return newServerErrorOfLoadBalancer(id, "GetLoadBalancerByID", err)
+	}
 	output, err := q.lbapi.DeleteLoadBalancers(&qcservice.DeleteLoadBalancersInput{LoadBalancers: []*string{&id}})
 	if err != nil {
 		return newServerErrorOfLoadBalancer(id, "Delete", err)
@@ -225,6 +280,15 @@ func (q *qingCloudLoadBalanceExecutor) Delete(id string) error {
 	err = qcclient.WaitJob(q.jobapi, *output.JobID, operationWaitTimeout, waitInterval)
 	if err != nil {
 		return newServerErrorOfLoadBalancer(id, "Wait Deletion Done", err)
+	}
+	var eips = getEipsFromLB(lb)
+	if len(eips) > 0 {
+		err = DetachTagsFromResources(q.tagapi, q.tagIDs, eips, "eip")
+		if err != nil {
+			klog.Errorf("Failed to detach tag from eip %v, err: %s", eips, err.Error())
+		} else {
+			klog.Infof("Detach tag %s from eip %v done", q.tagIDs, eips)
+		}
 	}
 	return nil
 }
