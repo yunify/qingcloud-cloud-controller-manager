@@ -8,8 +8,8 @@ import (
 	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/errors"
 	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/executor"
 	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/loadbalance"
-	v1 "k8s.io/api/core/v1"
-	cloudprovider "k8s.io/cloud-provider"
+	"k8s.io/api/core/v1"
+	"k8s.io/cloud-provider"
 	"k8s.io/klog"
 )
 
@@ -51,6 +51,8 @@ func (qc *QingCloud) LoadBalancer() (cloudprovider.LoadBalancer, bool) {
 // GetLoadBalancer returns whether the specified load balancer exists, and
 // if so, what its status is.
 func (qc *QingCloud) GetLoadBalancer(ctx context.Context, _ string, service *v1.Service) (status *v1.LoadBalancerStatus, exists bool, err error) {
+	patcher := newServicePatcher(qc.corev1interface, service)
+	defer patcher.Patch()
 	lb, err := qc.newLoadBalance(ctx, service, nil, false)
 	if err != nil {
 		return nil, false, err
@@ -80,6 +82,8 @@ func (qc *QingCloud) GetLoadBalancerName(_ context.Context, _ string, service *v
 // parameters as read-only and not modify them.
 // Parameter 'clusterName' is the name of the cluster as presented to kube-controller-manager
 func (qc *QingCloud) EnsureLoadBalancer(ctx context.Context, _ string, service *v1.Service, nodes []*v1.Node) (*v1.LoadBalancerStatus, error) {
+	patcher := newServicePatcher(qc.corev1interface, service)
+	defer patcher.Patch()
 	startTime := time.Now()
 	klog.Infof("===============EnsureLoadBalancer for %s", service.Namespace+"/"+service.Name)
 	defer func() {
@@ -105,6 +109,8 @@ func (qc *QingCloud) EnsureLoadBalancer(ctx context.Context, _ string, service *
 // parameters as read-only and not modify them.
 // Parameter 'clusterName' is the name of the cluster as presented to kube-controller-manager
 func (qc *QingCloud) UpdateLoadBalancer(ctx context.Context, _ string, service *v1.Service, nodes []*v1.Node) error {
+	patcher := newServicePatcher(qc.corev1interface, service)
+	defer patcher.Patch()
 	klog.Infof("===============UpdateLoadBalancer for %s", service.Namespace+"/"+service.Name)
 	startTime := time.Now()
 	defer func() {
