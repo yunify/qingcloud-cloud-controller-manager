@@ -94,9 +94,11 @@ func (q *qingcloudSecurityGroupExecutor) CreateSecurityGroup(sgName string, rule
 	}
 	sg, _ := q.GetSecurityGroupByID(*sgID)
 	if q.addTag {
-		err = AddTagsToResource(q.tagapi, q.tagIDs, *sgID, "security_group")
+		err = AttachTagsToResources(q.tagapi, q.tagIDs, []string{*sgID}, "security_group")
 		if err != nil {
-			klog.Errorf("Failed to add tag to security group %s, err: %s", *sgID, err.Error())
+			klog.Errorf("Failed to attach tag to security group %s, err: %s", *sgID, err.Error())
+		} else {
+			klog.Infof("Attach tag %s to security group %s done", q.tagIDs, *sgID)
 		}
 	}
 	return sg, nil
