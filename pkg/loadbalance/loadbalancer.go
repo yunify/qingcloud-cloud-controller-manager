@@ -35,6 +35,7 @@ type LoadBalancerSpec struct {
 	Nodes       []*corev1.Node
 	Name        string
 	clusterName string
+	NodeCount   int
 	AnnotaionConfig
 }
 
@@ -56,6 +57,7 @@ type NewLoadBalancerOption struct {
 	ClusterName  string
 	SkipCheck    bool
 	DefaultVxnet string
+	NodeCount    int
 }
 
 // NewLoadBalancer create loadbalancer in memory, not in cloud, call 'CreateQingCloudLB' to create a real loadbalancer in qingcloud
@@ -73,6 +75,7 @@ func NewLoadBalancer(opt *NewLoadBalancerOption) (*LoadBalancer, error) {
 	result.service = opt.K8sService
 	result.Nodes = opt.K8sNodes
 	result.clusterName = opt.ClusterName
+	result.NodeCount = opt.NodeCount
 
 	config, err := ParseAnnotation(opt.K8sService.GetAnnotations(), false)
 	if err != nil {
@@ -245,6 +248,7 @@ func (l *LoadBalancer) CreateQingCloudLB() error {
 		LoadBalancerType: &l.ScaleType,
 		LoadBalancerName: &l.Name,
 		SecurityGroup:    l.Status.QcSecurityGroup.SecurityGroupID,
+		NodeCount:        &l.NodeCount,
 	}
 
 	if l.NetworkType == NetworkModePublic {
