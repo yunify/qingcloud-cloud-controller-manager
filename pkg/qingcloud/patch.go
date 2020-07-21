@@ -1,14 +1,15 @@
 package qingcloud
 
 import (
+	"encoding/json"
 	"fmt"
+
+	"k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/strategicpatch"
+	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/klog"
 )
-import corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
-import "k8s.io/api/core/v1"
-import "k8s.io/apimachinery/pkg/types"
-import "encoding/json"
-import "k8s.io/apimachinery/pkg/util/strategicpatch"
 
 type servicePatcher struct {
 	kclient corev1.CoreV1Interface

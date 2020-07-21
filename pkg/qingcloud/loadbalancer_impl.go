@@ -13,6 +13,11 @@ import (
 	"k8s.io/klog"
 )
 
+const (
+	//The default node should be at least two, allowing for a minimum level of high availability.
+	defaultNodeCount = 2
+)
+
 var _ cloudprovider.LoadBalancer = &QingCloud{}
 
 func (qc *QingCloud) newLoadBalance(ctx context.Context, service *v1.Service, nodes []*v1.Node, skipCheck bool) (*loadbalance.LoadBalancer, error) {
@@ -38,6 +43,7 @@ func (qc *QingCloud) newLoadBalance(ctx context.Context, service *v1.Service, no
 		ClusterName:  qc.clusterID,
 		SkipCheck:    skipCheck,
 		DefaultVxnet: qc.defaultVxNetForLB,
+		NodeCount:    defaultNodeCount,
 	}
 	return loadbalance.NewLoadBalancer(opt)
 }
