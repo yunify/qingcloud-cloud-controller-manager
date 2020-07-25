@@ -113,6 +113,8 @@ func (l *Listener) CreateQingCloudListenerWithBackends() error {
 	l.initBackends()
 	err = l.backendList.CreateBackends()
 	if err != nil {
+		//It is possible that the hostname has been modified, and when adding the backend, you can't find the host
+		//by the hostname. we should adding annotation "node.beta.kubernetes.io/instance-id" to the node
 		klog.Errorf("Failed to create backends of listener %s", l.Name)
 		return err
 	}

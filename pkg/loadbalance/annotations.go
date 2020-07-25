@@ -46,6 +46,7 @@ const (
 	ServiceAnnotationLoadBalancerEipSource = "service.beta.kubernetes.io/qingcloud-load-balancer-eip-source"
 
 	//ReuseExistingLB  use existing loadbalancer on the cloud
+	//We can't change any properties.
 	ReuseExistingLB Policy = "reuse-lb"
 	// Shared represent the EIP can be shared with other service which has no port conflict
 	Shared Policy = "reuse"
