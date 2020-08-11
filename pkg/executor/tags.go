@@ -7,6 +7,10 @@ import (
 )
 
 func AttachTagsToResources(tagapi *service.TagService, tags []string, resourceIDs []string, resourceType string) error {
+	if len(tags) <= 0 {
+		return nil
+	}
+
 	input := &service.AttachTagsInput{}
 	for _, tag := range tags {
 		for _, resourceID := range resourceIDs {
@@ -29,6 +33,10 @@ func AttachTagsToResources(tagapi *service.TagService, tags []string, resourceID
 }
 
 func DetachTagsFromResources(tagapi *service.TagService, tags []string, resourceIDs []string, resourceType string) error {
+	if len(tags) <= 0 {
+		return nil
+	}
+
 	input := &service.DetachTagsInput{}
 	for _, tag := range tags {
 		for _, resourceID := range resourceIDs {
