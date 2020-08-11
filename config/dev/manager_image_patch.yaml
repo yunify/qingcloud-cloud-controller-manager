@@ -1,0 +1,15 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cloud-controller-manager
+spec:
+  template:
+    spec:
+      containers:
+        # Change the value of image field below to your controller image URL
+        - image: kubespheredev/cloud-controller-manager:latest
+          name: qingcloud-cloud-controller-manager
+          imagePullPolicy: Always
+          tty: true
+          command:
+            - /bin/sh

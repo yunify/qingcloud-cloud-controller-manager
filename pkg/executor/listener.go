@@ -1,99 +1,86 @@
 package executor
 
 import (
-	"strings"
-
-	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/errors"
+	"fmt"
+	"github.com/davecgh/go-spew/spew"
+	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/apis"
 	qcservice "github.com/yunify/qingcloud-sdk-go/service"
 )
 
-func newServerErrorOfListener(name, method string, e error) error {
-	return errors.NewCommonServerError(ResourceNameListener, name, method, e.Error())
-}
-
-func (q *qingCloudLoadBalanceExecutor) GetListenersOfLB(id, prefix string) ([]*qcservice.LoadBalancerListener, error) {
-	resp, err := q.lbapi.DescribeLoadBalancerListeners(&qcservice.DescribeLoadBalancerListenersInput{
-		LoadBalancer: &id,
-		Verbose:      qcservice.Int(1),
-		Limit:        qcservice.Int(pageLimt),
+func (q *QingCloudClient) GetListeners(id []*string) ([]*apis.LoadBalancerListener, error) {
+	resp, err := q.LBService.DescribeLoadBalancerListeners(&qcservice.DescribeLoadBalancerListenersInput{
+		LoadBalancerListeners: id,
+		Verbose:               qcservice.Int(1),
+		Limit:                 qcservice.Int(pageLimt),
 	})
 	if err != nil {
-		return nil, newServerErrorOfListener(id, "Wait Deletion Done", err)
+		return nil, err
 	}
-	if prefix == "" {
-		return resp.LoadBalancerListenerSet, nil
-	}
-	loadBalancerListeners := []*qcservice.LoadBalancerListener{}
-	for _, l := range resp.LoadBalancerListenerSet {
-		if strings.Contains(*l.LoadBalancerListenerName, prefix) {
-			loadBalancerListeners = append(loadBalancerListeners, l)
-		}
-	}
-	return loadBalancerListeners, nil
+
+	return convertLoadBalancerListener(resp.LoadBalancerListenerSet), nil
 }
 
-func (q *qingCloudLoadBalanceExecutor) DeleteListener(lsnid string) error {
-	output, err := q.lbapi.DeleteLoadBalancerListeners(&qcservice.DeleteLoadBalancerListenersInput{
-		LoadBalancerListeners: []*string{&lsnid},
+func (q *QingCloudClient) DeleteListener(lsnid []*string) error {
+	output, err := q.LBService.DeleteLoadBalancerListeners(&qcservice.DeleteLoadBalancerListenersInput{
+		LoadBalancerListeners: lsnid,
 	})
 	if err != nil {
-		return newServerErrorOfListener(lsnid, "DeleteListener", err)
+		return fmt.Errorf("failed to delete listener %v err=%v", spew.Sdump(lsnid), err)
 	}
 	if *output.RetCode != 0 {
-		return errors.NewCommonServerError(ResourceNameListener, lsnid, "DeleteListener", *output.Message)
+		return fmt.Errorf("failed to delete listener %v output=%v", spew.Sdump(lsnid), spew.Sdump(output))
 	}
 	return nil
 }
 
-func (q *qingCloudLoadBalanceExecutor) CreateListener(input *qcservice.AddLoadBalancerListenersInput) (*qcservice.LoadBalancerListener, error) {
-	output, err := q.lbapi.AddLoadBalancerListeners(input)
-	if err != nil {
-		return nil, newServerErrorOfListener(*input.Listeners[0].LoadBalancerListenerName, "CreateListener", err)
+func convertLoadBalancerListener(inputs []*qcservice.LoadBalancerListener) []*apis.LoadBalancerListener {
+	var result []*apis.LoadBalancerListener
+
+	for _, input := range inputs {
+		result = append(result, &apis.LoadBalancerListener{
+			Spec: apis.LoadBalancerListenerSpec{
+				BackendProtocol:          input.BackendProtocol,
+				ListenerPort:             input.ListenerPort,
+				ListenerProtocol:         input.ListenerProtocol,
+				LoadBalancerListenerName: input.LoadBalancerListenerName,
+				LoadBalancerID:           input.LoadBalancerID,
+			},
+			Status: apis.LoadBalancerListenerStatus{
+				LoadBalancerListenerID: input.LoadBalancerListenerID,
+				LoadBalancerBackends:   convertLoadBalancerBackend(input.Backends),
+			},
+		})
 	}
-	if *output.RetCode != 0 {
-		return nil, errors.NewCommonServerError(ResourceNameListener, *input.LoadBalancer, "CreateListener", *output.Message)
-	}
-	return q.GetListenerByID(*output.LoadBalancerListeners[0])
+
+	return result
 }
 
-func (q *qingCloudLoadBalanceExecutor) GetListenerByID(id string) (*qcservice.LoadBalancerListener, error) {
-	output, err := q.lbapi.DescribeLoadBalancerListeners(&qcservice.DescribeLoadBalancerListenersInput{
-		LoadBalancerListeners: []*string{&id},
-	})
-	if err != nil {
-		return nil, newServerErrorOfListener(id, "GetListenerByID", err)
+func convertFromLoadBalancerListener(inputs []*apis.LoadBalancerListener) []*qcservice.LoadBalancerListener {
+	var result []*qcservice.LoadBalancerListener
+
+	for _, input := range inputs {
+		result = append(result, &qcservice.LoadBalancerListener{
+			BackendProtocol:          input.Spec.BackendProtocol,
+			ListenerPort:             input.Spec.ListenerPort,
+			ListenerProtocol:         input.Spec.BackendProtocol,
+			LoadBalancerListenerName: input.Spec.LoadBalancerListenerName,
+			HealthyCheckMethod:       input.Spec.BackendProtocol,
+		})
 	}
-	if len(output.LoadBalancerListenerSet) == 0 {
-		return nil, errors.NewResourceNotFoundError(ResourceNameListener, id)
-	}
-	return output.LoadBalancerListenerSet[0], nil
+
+	return result
 }
 
-func (q *qingCloudLoadBalanceExecutor) GetListenerByName(id, name string) (*qcservice.LoadBalancerListener, error) {
-	output, err := q.lbapi.DescribeLoadBalancerListeners(&qcservice.DescribeLoadBalancerListenersInput{
-		LoadBalancer: &id,
+//need update lb
+func (q *QingCloudClient) CreateListener(inputs []*apis.LoadBalancerListener) ([]*apis.LoadBalancerListener, error) {
+	id := inputs[0].Spec.LoadBalancerID
+	output, err := q.LBService.AddLoadBalancerListeners(&qcservice.AddLoadBalancerListenersInput{
+		Listeners:    convertFromLoadBalancerListener(inputs),
+		LoadBalancer: id,
 	})
-	if err != nil {
-		return nil, newServerErrorOfListener(name, "GetListenerByName", err)
+	if err != nil || *output.RetCode != 0 {
+		return nil, fmt.Errorf("failed to create listerner, err=%+v, input=%s, output=%s", spew.Sdump(err), spew.Sdump(inputs), spew.Sdump(output))
 	}
-	for _, list := range output.LoadBalancerListenerSet {
-		if *list.LoadBalancerListenerName == name {
-			return list, nil
-		}
-	}
-	return nil, errors.NewResourceNotFoundError(ResourceNameListener, name)
-}
 
-func (q *qingCloudLoadBalanceExecutor) ModifyListener(id, balanceMode string) error {
-	output, err := q.lbapi.ModifyLoadBalancerListenerAttributes(&qcservice.ModifyLoadBalancerListenerAttributesInput{
-		LoadBalancerListener: &id,
-		BalanceMode:          &balanceMode,
-	})
-	if err != nil {
-		return newServerErrorOfListener(id, "ModifyListener", err)
-	}
-	if *output.RetCode != 0 {
-		return errors.NewCommonServerError(ResourceNameListener, id, "ModifyListener", *output.Message)
-	}
-	return nil
+	return q.GetListeners(output.LoadBalancerListeners)
 }

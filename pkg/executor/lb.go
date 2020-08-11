@@ -1,317 +1,248 @@
 package executor
 
 import (
-	"time"
-
+	"fmt"
+	"github.com/davecgh/go-spew/spew"
+	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/apis"
 	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/errors"
 	qcclient "github.com/yunify/qingcloud-sdk-go/client"
 	qcservice "github.com/yunify/qingcloud-sdk-go/service"
+	"github.com/yunify/qingcloud-sdk-go/utils"
 	"k8s.io/klog"
+	"strings"
 )
-
-var _ QingCloudLoadBalancerExecutor = &qingCloudLoadBalanceExecutor{}
 
 const (
-	waitInterval         = 10 * time.Second
-	operationWaitTimeout = 180 * time.Second
-	pageLimt             = 100
+	QingCloudLBIPPrefix = "198.19"
+	DefaultNodeNum      = 2
+	DefaultMode         = 1
+	DefaultLBType       = 0
 )
 
-type qingCloudLoadBalanceExecutor struct {
-	lbapi  *qcservice.LoadBalancerService
-	jobapi *qcservice.JobService
-	tagapi *qcservice.TagService
-	tagIDs []string
-	addTag bool
-	owner  string
-}
+func convertLoadBalancerStatus(lb *qcservice.LoadBalancer) apis.LoadBalancerStatus {
+	var (
+		resultVIP      []string
+		resultListener []apis.LoadBalancerListener
+		createdEIP     []*string
+	)
 
-func newServerErrorOfLoadBalancer(name, method string, e error) error {
-	return errors.NewCommonServerError(ResourceNameLoadBalancer, name, method, e.Error())
-}
+	for _, privateIP := range lb.PrivateIPs {
+		//The IP of this segment is load balancing specific.
+		if !strings.HasPrefix(*privateIP, QingCloudLBIPPrefix) {
+			resultVIP = append(resultVIP, *privateIP)
+		} else {
+			//VIPs tend to be placed first, so if the first one doesn't match, we're out.
+			//The vip is actually in the vxnet field here, but the go sdk doesn't implement this field, so I've tricked it here.
+			break
+		}
+	}
 
-func NewQingCloudLoadBalanceExecutor(owner string, lbapi *qcservice.LoadBalancerService, jobapi *qcservice.JobService, tagapi *qcservice.TagService) QingCloudLoadBalancerExecutor {
-	return &qingCloudLoadBalanceExecutor{
-		lbapi:  lbapi,
-		jobapi: jobapi,
-		tagapi: tagapi,
-		owner:  owner,
+	for _, eip := range lb.Cluster {
+		//iaas bug?  slice contain nil
+		if eip.EIPID == nil || *eip.EIPID == "" {
+			klog.V(4).Infof("invalid lb eip %s", spew.Sdump(lb))
+			continue
+		}
+		resultVIP = append(resultVIP, *eip.EIPAddr)
+		if strings.Compare(*eip.EIPName, AllocateEIPName) == 0 {
+			createdEIP = append(createdEIP, eip.EIPID)
+		}
+	}
+
+	for _, listener := range lb.Listeners {
+		tmp := convertLoadBalancerListener([]*qcservice.LoadBalancerListener{listener})
+		resultListener = append(resultListener, *tmp[0])
+	}
+
+	return apis.LoadBalancerStatus{
+		LoadBalancerID:        lb.LoadBalancerID,
+		VIP:                   resultVIP,
+		LoadBalancerListeners: resultListener,
+		CreatedEIPs:           createdEIP,
 	}
 }
 
-func (q *qingCloudLoadBalanceExecutor) EnableTagService(tagIds []string) {
-	if len(tagIds) > 0 {
-		q.addTag = true
-		q.tagIDs = tagIds
+func convertLoadBalancer(lb *qcservice.LoadBalancer) *apis.LoadBalancer {
+	return &apis.LoadBalancer{
+		Spec: apis.LoadBalancerSpec{
+			LoadBalancerName: lb.LoadBalancerName,
+			LoadBalancerType: lb.LoadBalancerType,
+			NodeCount:        lb.NodeCount,
+			VxNetID:          lb.VxNetID,
+			PrivateIPs:       lb.PrivateIPs,
+			SecurityGroups:   lb.SecurityGroupID,
+			//TODO fill eip
+		},
+		Status: convertLoadBalancerStatus(lb),
 	}
 }
 
-func (q *qingCloudLoadBalanceExecutor) GetLoadBalancerByName(name string) (*qcservice.LoadBalancer, error) {
-	status := []*string{qcservice.String("pending"), qcservice.String("active"), qcservice.String("stopped")}
-	output, err := q.lbapi.DescribeLoadBalancers(&qcservice.DescribeLoadBalancersInput{
+func (q *QingCloudClient) GetLoadBalancerByName(name string) (*apis.LoadBalancer, error) {
+	status := []*string{
+		qcservice.String("pending"),
+		qcservice.String("active"),
+		qcservice.String("stopped"),
+	}
+	input := &qcservice.DescribeLoadBalancersInput{
 		Status:     status,
 		SearchWord: &name,
-		Owner:      &q.owner,
-	})
-	if err != nil {
-		return nil, newServerErrorOfLoadBalancer(name, "GetLoadBalancerByName", err)
+		Owner:      &q.Config.UserID,
+		//> 0 时，会额外返回监听器的信息
+		//    >= 2 时，会返回集群健康检查信息
+		Verbose: qcservice.Int(1),
+	}
+	output, err := q.LBService.DescribeLoadBalancers(input)
+	if err != nil && strings.Contains(err.Error(), "QingCloud Error: Code (1300)") {
+		klog.Warningf("cannot found lb by name, err=%s, input=%s, output=%s", spew.Sdump(err), spew.Sdump(input), spew.Sdump(output))
+		return nil, errors.NewResourceNotFoundError(ResourceNameLoadBalancer, name)
+	} else if err != nil {
+		return nil, fmt.Errorf("cannot found lb by name, err=%s, input=%s, output=%s", spew.Sdump(err), spew.Sdump(input), spew.Sdump(output))
 	}
 	for _, lb := range output.LoadBalancerSet {
 		if lb.LoadBalancerName != nil && *lb.LoadBalancerName == name {
-			return lb, nil
+			return convertLoadBalancer(lb), nil
 		}
 	}
 	return nil, errors.NewResourceNotFoundError(ResourceNameLoadBalancer, name)
 }
 
-func (q *qingCloudLoadBalanceExecutor) GetLoadBalancerByID(id string) (*qcservice.LoadBalancer, error) {
-	output, err := q.lbapi.DescribeLoadBalancers(&qcservice.DescribeLoadBalancersInput{
+func (q *QingCloudClient) GetLoadBalancerByID(id string) (*apis.LoadBalancer, error) {
+	input := &qcservice.DescribeLoadBalancersInput{
 		LoadBalancers: []*string{&id},
-	})
-	if err != nil {
-		return nil, newServerErrorOfLoadBalancer(id, "GetLoadBalancerByID", err)
+		Verbose:       qcservice.Int(2),
 	}
-
-	if len(output.LoadBalancerSet) == 0 {
+	output, err := q.LBService.DescribeLoadBalancers(input)
+	if err != nil && strings.Contains(err.Error(), "QingCloud Error: Code (1300)") {
+		klog.Warningf("cannot found lb by id, err=%s, input=%s, output=%s", spew.Sdump(err), spew.Sdump(input), spew.Sdump(output))
 		return nil, errors.NewResourceNotFoundError(ResourceNameLoadBalancer, id)
+	} else if err != nil {
+		return nil, fmt.Errorf("cannot found lb by id, err=%s, input=%s, output=%s", spew.Sdump(err), spew.Sdump(input), spew.Sdump(output))
 	}
+
 	lb := output.LoadBalancerSet[0]
-	if *lb.Status == qcclient.LoadBalancerStatusCeased || *lb.Status == qcclient.LoadBalancerStatusDeleted {
-		return nil, errors.NewResourceNotFoundError(ResourceNameLoadBalancer, id, " is deleting")
-	}
-	return lb, nil
+	return convertLoadBalancer(lb), nil
 }
 
-func (q *qingCloudLoadBalanceExecutor) Start(id string) error {
-	klog.V(2).Infof("Starting loadBalancer '%s'", id)
-	output, err := q.lbapi.StartLoadBalancers(&qcservice.StartLoadBalancersInput{
-		LoadBalancers: []*string{&id},
-	})
-	if err != nil {
-		klog.Errorln("Failed to start loadbalancer")
-		return newServerErrorOfLoadBalancer(id, "Start", err)
+func (q *QingCloudClient) fillLBDefaultFileds(input *qcservice.CreateLoadBalancerInput) {
+	if input.SecurityGroup == nil {
+		input.SecurityGroup = q.sg.Status.SecurityGroupID
 	}
-	return qcclient.WaitJob(q.jobapi, *output.JobID, operationWaitTimeout, waitInterval)
+
+	if input.NodeCount == nil {
+		input.NodeCount = qcservice.Int(DefaultNodeNum)
+	}
+
+	if input.Mode == nil {
+		input.Mode = qcservice.Int(DefaultMode)
+	}
+
+	if input.LoadBalancerType == nil {
+		input.LoadBalancerType = qcservice.Int(DefaultLBType)
+	}
 }
 
-func (q *qingCloudLoadBalanceExecutor) Stop(id string) error {
-	klog.V(2).Infof("Stopping loadBalancer '%s'", id)
-	output, err := q.lbapi.StopLoadBalancers(&qcservice.StopLoadBalancersInput{
-		LoadBalancers: []*string{&id},
-	})
-	if err != nil {
-		klog.Errorln("Failed to stop loadbalancer")
-		return newServerErrorOfLoadBalancer(id, "Stop", err)
+func (q *QingCloudClient) CreateLB(input *apis.LoadBalancer) (*apis.LoadBalancer, error) {
+	if input.Spec.VxNetID == nil && len(input.Spec.EIPs) <= 0 {
+		return nil, fmt.Errorf("need vxnet or eip, input=%s", spew.Sdump(input))
 	}
-	return qcclient.WaitJob(q.jobapi, *output.JobID, operationWaitTimeout, waitInterval)
-}
 
-func getEipIdsFromLB(lb *qcservice.LoadBalancer) []string {
-	var eips []string
-	if lb == nil {
-		return eips
+	inputLB := &qcservice.CreateLoadBalancerInput{
+		EIPs:             input.Spec.EIPs,
+		LoadBalancerName: input.Spec.LoadBalancerName,
+		LoadBalancerType: input.Spec.LoadBalancerType,
+		NodeCount:        input.Spec.NodeCount,
+		VxNet:            input.Spec.VxNetID,
+		SecurityGroup:    input.Spec.SecurityGroups,
 	}
-	var checkEip = func(eip *qcservice.EIP) {
-		if eip.EIPID != nil && *eip.EIPID != "" {
-			eips = append(eips, *eip.EIPID)
-		}
+	if len(input.Spec.PrivateIPs) > 0 {
+		inputLB.PrivateIP = input.Spec.PrivateIPs[0]
 	}
-	for _, eip := range lb.EIPs {
-		checkEip(eip)
+	q.fillLBDefaultFileds(inputLB)
+	output, err := q.LBService.CreateLoadBalancer(inputLB)
+	if err != nil || *output.RetCode != 0 {
+		return nil, fmt.Errorf("failed to create lb, err=%s, input=%s, output=%s", spew.Sdump(err), spew.Sdump(inputLB), spew.Sdump(output))
 	}
-	for _, eip := range lb.Cluster {
-		checkEip(eip)
-	}
-	return eips
-}
 
-func GetEipsFromLB(lb *qcservice.LoadBalancer) []string {
-	var eips []string
-	if lb == nil {
-		return eips
-	}
-	var checkEip = func(eip *qcservice.EIP) {
-		if eip.EIPAddr != nil && *eip.EIPAddr != "" {
-			eips = append(eips, *eip.EIPAddr)
-		}
-	}
-	for _, eip := range lb.EIPs {
-		checkEip(eip)
-	}
-	for _, eip := range lb.Cluster {
-		checkEip(eip)
-	}
-	return eips
-}
-
-func (q *qingCloudLoadBalanceExecutor) Create(input *qcservice.CreateLoadBalancerInput) (*qcservice.LoadBalancer, error) {
-	klog.V(2).Infof("Creating LB: %+v", *input)
-	name := *input.LoadBalancerName
-	output, err := q.lbapi.CreateLoadBalancer(input)
-	if err != nil {
-		return nil, newServerErrorOfLoadBalancer(name, "Create", err)
-	}
-	klog.V(2).Infof("Waiting for Lb %s starting", name)
 	var lbID = *output.LoadBalancerID
-	err = q.waitLoadBalancerActive(lbID)
+	lb, err := qcclient.WaitLoadBalancerStatus(q.LBService, lbID, qcclient.LoadBalancerStatusActive, operationWaitTimeout, waitInterval)
 	if err != nil {
-		klog.Errorf("LoadBalancer %s start failed", lbID)
-		return nil, newServerErrorOfLoadBalancer(name, "waitLoadBalancerActive", err)
+		return nil, fmt.Errorf("failed to wait lb %s to active, err=%v", lbID, err)
 	}
-	klog.V(2).Infof("Lb %s is successfully started", name)
-	lb, err := q.GetLoadBalancerByID(lbID)
+
+	err = q.attachTagsToResources([]*string{&lbID}, "loadbalancer")
 	if err != nil {
-		return nil, newServerErrorOfLoadBalancer(name, "GetLoadBalancerByID", err)
+		klog.Errorf("Failed to attach tag to loadBalancer %s, err: %v", lbID, err)
 	}
-	if q.addTag {
-		err = AttachTagsToResources(q.tagapi, q.tagIDs, []string{lbID}, "loadbalancer")
-		if err != nil {
-			klog.Errorf("Failed to attach tag to loadBalancer %s, err: %s", lbID, err.Error())
-		} else {
-			klog.Infof("Attach tag %s to loadBalancer %s done", q.tagIDs, lbID)
-		}
-		var eips = getEipIdsFromLB(lb)
-		if len(eips) > 0 {
-			err = AttachTagsToResources(q.tagapi, q.tagIDs, eips, "eip")
-			if err != nil {
-				klog.Errorf("Failed to attach tag to eip %v, err: %s", eips, err.Error())
-			} else {
-				klog.Infof("Attach tag %s to eip %v done", q.tagIDs, eips)
-			}
-		}
-	}
-	return lb, nil
+
+	return convertLoadBalancer(lb), nil
 }
 
-func (q *qingCloudLoadBalanceExecutor) Resize(id string, newtype int) error {
-	klog.V(2).Infof("Detect lb size changed, begin to resize the lb %s", id)
-	err := q.Stop(id)
-	if err != nil {
-		klog.Errorf("Failed to stop lb %s when try to resize", id)
-		return newServerErrorOfLoadBalancer(id, "Stop", err)
+//need update lb
+func (q *QingCloudClient) ModifyLB(conf *apis.LoadBalancer) error {
+	input := &qcservice.ModifyLoadBalancerAttributesInput{
+		LoadBalancer: conf.Status.LoadBalancerID,
+		NodeCount:    conf.Spec.NodeCount,
 	}
-	klog.V(2).Infof("Resizing the lb %s", id)
-	output, err := q.lbapi.ResizeLoadBalancers(&qcservice.ResizeLoadBalancersInput{
-		LoadBalancerType: &newtype,
-		LoadBalancers:    []*string{&id},
-	})
-	if err != nil {
-		return newServerErrorOfLoadBalancer(id, "Resize", err)
+	if len(conf.Spec.PrivateIPs) > 0 {
+		input.PrivateIP = conf.Spec.PrivateIPs[0]
 	}
-	err = qcclient.WaitJob(q.jobapi, *output.JobID, operationWaitTimeout, waitInterval)
-	if err != nil {
-		klog.Errorf("Failed to waiting for lb resizing done")
-		return newServerErrorOfLoadBalancer(id, "waitLoadBalancerResize", err)
+	output, err := q.LBService.ModifyLoadBalancerAttributes(input)
+	if err != nil || *output.RetCode != 0 {
+		return fmt.Errorf("failed to modify lb attr, err=%s, input=%s, output=%s", spew.Sdump(err), spew.Sdump(input), spew.Sdump(output))
 	}
-	return q.Start(id)
-}
 
-func (q *qingCloudLoadBalanceExecutor) Modify(input *qcservice.ModifyLoadBalancerAttributesInput) error {
-	output, err := q.lbapi.ModifyLoadBalancerAttributes(input)
-	if err != nil {
-		return newServerErrorOfLoadBalancer(*input.LoadBalancerName, "Modify", err)
-	}
-	if *output.RetCode != 0 {
-		return errors.NewCommonServerError(ResourceNameLoadBalancer, *input.LoadBalancerName, "Modify", *output.Message)
-	}
+	//need apply modify
 	return nil
 }
 
-func (q *qingCloudLoadBalanceExecutor) AssociateEip(id string, eips ...string) error {
-	if len(eips) == 0 {
+func (q *QingCloudClient) UpdateLB(id *string) error {
+	lb, err := q.GetLoadBalancerByID(*id)
+	if err != nil {
+		return fmt.Errorf("failed get lb %s when update lb, err=%s", *id, err)
+	}
+	if lb.Status.IsApplied != nil && *lb.Status.IsApplied != 0 {
 		return nil
 	}
-	klog.V(2).Infof("Starting to associate Eip %s to loadBalancer '%s'", eips, id)
-	output, err := q.lbapi.AssociateEIPsToLoadBalancer(&qcservice.AssociateEIPsToLoadBalancerInput{
-		EIPs:         qcservice.StringSlice(eips),
-		LoadBalancer: &id,
-	})
-	if err != nil {
-		return newServerErrorOfLoadBalancer(id, "AssociateEip", err)
+
+	updateInput := &qcservice.UpdateLoadBalancersInput{
+		LoadBalancers: []*string{id},
 	}
-	err = qcclient.WaitJob(q.jobapi, *output.JobID, operationWaitTimeout, waitInterval)
-	if err != nil {
-		return err
+	updateOutput, err := q.LBService.UpdateLoadBalancers(updateInput)
+	if err != nil || *updateOutput.RetCode != 0 {
+		return fmt.Errorf("failed to update lb attr, err=%s, input=%s, output=%s", spew.Sdump(err), spew.Sdump(updateInput), spew.Sdump(updateOutput))
 	}
-	err = AttachTagsToResources(q.tagapi, q.tagIDs, eips, "eip")
+	err = qcclient.WaitJob(q.jobService, *updateOutput.JobID, operationWaitTimeout, waitInterval)
 	if err != nil {
-		klog.Errorf("Failed to attach tag to eip %v, err: %s", eips, err.Error())
-	} else {
-		klog.Infof("Attach tag %s to eip %v done", q.tagIDs, eips)
+		return fmt.Errorf("lb %s delete job not completed", *id)
 	}
+
 	return nil
 }
 
-func (q *qingCloudLoadBalanceExecutor) DissociateEip(id string, eips ...string) error {
-	if len(eips) == 0 {
-		return nil
-	}
-	klog.V(2).Infof("Starting to dissociate Eip %s to loadBalancer '%s'", eips, id)
-	output, err := q.lbapi.DissociateEIPsFromLoadBalancer(&qcservice.DissociateEIPsFromLoadBalancerInput{
-		EIPs:         qcservice.StringSlice(eips),
-		LoadBalancer: &id,
-	})
-	if err != nil {
-		return newServerErrorOfLoadBalancer(id, "DissociateEip", err)
-	}
-	err = qcclient.WaitJob(q.jobapi, *output.JobID, operationWaitTimeout, waitInterval)
-	if err != nil {
-		return err
-	}
-	err = DetachTagsFromResources(q.tagapi, q.tagIDs, eips, "eip")
-	if err != nil {
-		klog.Errorf("Failed to detach tag from eip %v, err: %s", eips, err.Error())
-	} else {
-		klog.Infof("Detach tag %s from eip %v done", q.tagIDs, eips)
-	}
-	return nil
-}
+//need update before delete
+func (q *QingCloudClient) DeleteLB(id *string) error {
+	var (
+		err    error
+		output *qcservice.DeleteLoadBalancersOutput
+	)
 
-func (q *qingCloudLoadBalanceExecutor) waitLoadBalancerActive(id string) error {
-	_, err := qcclient.WaitLoadBalancerStatus(q.lbapi, id, qcclient.LoadBalancerStatusActive, operationWaitTimeout, waitInterval)
-	return err
-}
-
-func (q *qingCloudLoadBalanceExecutor) Confirm(id string) error {
-	output, err := q.lbapi.UpdateLoadBalancers(&qcservice.UpdateLoadBalancersInput{
-		LoadBalancers: []*string{&id},
-	})
-	if err != nil {
-		return newServerErrorOfLoadBalancer(id, "Confirm", err)
-	}
-	klog.V(2).Infof("Waiting for updates of lb %s taking effects", id)
-	err = qcclient.WaitJob(q.jobapi, *output.JobID, operationWaitTimeout, waitInterval)
-	if err != nil {
-		return newServerErrorOfLoadBalancer(id, "Wait Confirm Done", err)
-	}
-	return q.waitLoadBalancerActive(id)
-}
-
-func (q *qingCloudLoadBalanceExecutor) Delete(id string) error {
-	lb, err := q.GetLoadBalancerByID(id)
-	if err != nil {
-		return newServerErrorOfLoadBalancer(id, "GetLoadBalancerByID", err)
-	}
-	output, err := q.lbapi.DeleteLoadBalancers(&qcservice.DeleteLoadBalancersInput{LoadBalancers: []*string{&id}})
-	if err != nil {
-		return newServerErrorOfLoadBalancer(id, "Delete", err)
-	}
-	err = qcclient.WaitJob(q.jobapi, *output.JobID, operationWaitTimeout, waitInterval)
-	if err != nil {
-		return newServerErrorOfLoadBalancer(id, "Wait Deletion Done", err)
-	}
-	var eips = getEipIdsFromLB(lb)
-	if len(eips) > 0 {
-		err = DetachTagsFromResources(q.tagapi, q.tagIDs, eips, "eip")
-		if err != nil {
-			klog.Errorf("Failed to detach tag from eip %v, err: %s", eips, err.Error())
-		} else {
-			klog.Infof("Detach tag %s from eip %v done", q.tagIDs, eips)
+	err = utils.WaitForSpecificOrError(func() (bool, error) {
+		output, err = q.LBService.DeleteLoadBalancers(&qcservice.DeleteLoadBalancersInput{
+			LoadBalancers: []*string{id},
+		})
+		if (err != nil && !strings.Contains(err.Error(), "QingCloud Error: Code (1400)")) ||
+			(output != nil && *output.RetCode != 0 && *output.RetCode != 1400) {
+			return false, fmt.Errorf("failed to delete lb %s, err=%s, output=%s", *id, spew.Sdump(err), spew.Sdump(output))
+		} else if err == nil && *output.RetCode == 0 {
+			return true, nil
 		}
-	}
-	return nil
-}
+		return false, nil
+	}, operationWaitTimeout, waitInterval)
 
-func (q *qingCloudLoadBalanceExecutor) GetLBAPI() *qcservice.LoadBalancerService {
-	return q.lbapi
+	err = qcclient.WaitJob(q.jobService, *output.JobID, operationWaitTimeout, waitInterval)
+	if err != nil {
+		return fmt.Errorf("lb %s delete job not completed", *id)
+	}
+
+	return nil
 }
