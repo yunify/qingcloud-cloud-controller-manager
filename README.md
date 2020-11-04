@@ -1,8 +1,12 @@
 # qingcloud-cloud-controller-manager
 > A kubernetes cloud-controller-manager for the qingcloud
 
+## 注意事项
+1. **appcenter中的k8s集群都已自动配置，无需手动安装**
+2. **集群至少需要两个节点，因为k8s不会将master节点加入到lb后端**
+
 ## 如何手动部署 qingcloud 负载均衡器插件
-> 注：appcenter中的k8s集群都已自动配置，无需手动安装
+注意：appcenter中的k8s集群都已自动配置，无需手动安装
 
 1. 如果主机的名称(hostname)已经被修改（默认都是`instance_id`），不再是`instance_id`，需要在各个节点上包括master执行下面的命令
     
