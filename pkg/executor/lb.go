@@ -224,24 +224,39 @@ func (q *QingCloudClient) DeleteLB(id *string) error {
 	var (
 		err    error
 		output *qcservice.DeleteLoadBalancersOutput
+		quit   bool
 	)
 
 	err = utils.WaitForSpecificOrError(func() (bool, error) {
 		output, err = q.LBService.DeleteLoadBalancers(&qcservice.DeleteLoadBalancersInput{
 			LoadBalancers: []*string{id},
 		})
-		if (err != nil && !strings.Contains(err.Error(), "QingCloud Error: Code (1400)")) ||
-			(output != nil && *output.RetCode != 0 && *output.RetCode != 1400) {
-			return false, fmt.Errorf("failed to delete lb %s, err=%s, output=%s", *id, spew.Sdump(err), spew.Sdump(output))
-		} else if err == nil && *output.RetCode == 0 {
+
+		if err != nil {
+			if strings.Contains(err.Error(), "QingCloud Error: Code (2100)") {
+				quit = true
+				return true, nil
+			}
+
+			if !strings.Contains(err.Error(), "QingCloud Error: Code (1400)") {
+				return false, fmt.Errorf("failed to delete lb %s, err=%s, output=%s", *id, spew.Sdump(err), spew.Sdump(output))
+			}
+
+			return false, nil
+		} else {
 			return true, nil
 		}
-		return false, nil
 	}, operationWaitTimeout, waitInterval)
 
-	err = qcclient.WaitJob(q.jobService, *output.JobID, operationWaitTimeout, waitInterval)
+	if quit {
+		return nil
+	}
+
 	if err != nil {
-		return fmt.Errorf("lb %s delete job not completed", *id)
+		err = qcclient.WaitJob(q.jobService, *output.JobID, operationWaitTimeout, waitInterval)
+		if err != nil {
+			return fmt.Errorf("lb %s delete job not completed", *id)
+		}
 	}
 
 	return nil
