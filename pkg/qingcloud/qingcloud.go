@@ -402,6 +402,10 @@ func (qc *QingCloud) createListenersAndBackends(conf *LoadBalancerConfig, status
 // Parameter 'clusterName' is the name of the cluster as presented to kube-controller-manager
 func (qc *QingCloud) EnsureLoadBalancerDeleted(ctx context.Context, _ string, service *v1.Service) error {
 	lbConfig, lb, err := qc.getLoadBalancer(service)
+	if errors.IsResourceNotFound(err) {
+		return nil
+	}
+
 	if err != nil {
 		return err
 	}
