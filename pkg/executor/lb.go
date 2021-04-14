@@ -119,8 +119,12 @@ func (q *QingCloudClient) GetLoadBalancerByID(id string) (*apis.LoadBalancer, er
 		return nil, fmt.Errorf("cannot found lb by id, err=%s, input=%s, output=%s", spew.Sdump(err), spew.Sdump(input), spew.Sdump(output))
 	}
 
-	lb := output.LoadBalancerSet[0]
-	return convertLoadBalancer(lb), nil
+	if len(output.LoadBalancerSet) > 0 {
+		lb := output.LoadBalancerSet[0]
+		return convertLoadBalancer(lb), nil
+	} else {
+		return nil, errors.NewResourceNotFoundError(ResourceNameLoadBalancer, id)
+	}
 }
 
 func (q *QingCloudClient) fillLBDefaultFileds(input *qcservice.CreateLoadBalancerInput) {

@@ -96,7 +96,7 @@ func LBBackendName(config *LoadBalancerConfig, instance string) string {
 	return fmt.Sprintf("backend_%s_%s", config.listenerName, instance)
 }
 
-func ParseServiceLBConfig(cluster string, service *v1.Service) (*LoadBalancerConfig, error) {
+func (qc *QingCloud) ParseServiceLBConfig(cluster string, service *v1.Service) (*LoadBalancerConfig, error) {
 	annotation := service.Annotations
 	if len(annotation) <= 0 {
 		return nil, fmt.Errorf("service %s annotation is empty", service.Namespace+"/"+service.Name)
@@ -134,6 +134,9 @@ func ParseServiceLBConfig(cluster string, service *v1.Service) (*LoadBalancerCon
 		config.NetworkType = networkType
 	case NetworkModeInternal:
 		config.NetworkType = networkType
+		if config.VxNetID == nil && qc.Config.DefaultVxNetForLB != "" {
+			config.VxNetID = qcservice.String(qc.Config.DefaultVxNetForLB)
+		}
 	default:
 		config.NetworkType = NetworkModePublic
 	}

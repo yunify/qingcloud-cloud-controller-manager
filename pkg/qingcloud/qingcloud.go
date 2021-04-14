@@ -160,7 +160,7 @@ func (qc *QingCloud) getLoadBalancer(service *v1.Service) (*LoadBalancerConfig, 
 		conf *LoadBalancerConfig
 	)
 
-	conf, err = ParseServiceLBConfig(qc.Config.ClusterID, service)
+	conf, err = qc.ParseServiceLBConfig(qc.Config.ClusterID, service)
 	if err != nil {
 		return nil, nil, err
 	}
