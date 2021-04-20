@@ -1,12 +1,20 @@
 package executor
 
 import (
+	"fmt"
+	"github.com/davecgh/go-spew/spew"
+	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/apis"
 	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/errors"
+	qcclient "github.com/yunify/qingcloud-sdk-go/client"
 	qcservice "github.com/yunify/qingcloud-sdk-go/service"
 	"k8s.io/klog"
 )
 
-var DefaultLBSecurityGroupRules = []*qcservice.SecurityGroupRule{
+const (
+	DefaultSgName = "k8s_lb_default_sg"
+)
+
+var defaultLBSecurityGroupRules = []*qcservice.SecurityGroupRule{
 	{
 		Priority: qcservice.Int(0),
 		Protocol: qcservice.String("icmp"),
@@ -34,112 +42,122 @@ var DefaultLBSecurityGroupRules = []*qcservice.SecurityGroupRule{
 		Val3:     nil,
 	},
 }
-var _ QingCloudSecurityGroupExecutor = &qingcloudSecurityGroupExecutor{}
 
-func NewQingCloudSecurityGroupExecutor(sgapi *qcservice.SecurityGroupService, tagapi *qcservice.TagService) QingCloudSecurityGroupExecutor {
-	return &qingcloudSecurityGroupExecutor{
-		sgapi:  sgapi,
-		tagapi: tagapi,
+func convertSecurityGroup(sg *qcservice.SecurityGroup) *apis.SecurityGroup {
+	return &apis.SecurityGroup{
+		Spec: apis.SecurityGroupSpec{
+			SecurityGroupName: sg.SecurityGroupName,
+		},
+		Status: apis.SecurityGroupStatus{
+			SecurityGroupID: sg.SecurityGroupID,
+		},
 	}
 }
 
-type qingcloudSecurityGroupExecutor struct {
-	sgapi  *qcservice.SecurityGroupService
-	tagapi *qcservice.TagService
-	addTag bool
-	tagIDs []string
-}
-
-// EnableTagService will add tags to each resource
-func (q *qingcloudSecurityGroupExecutor) EnableTagService(tagIds []string) {
-	if len(tagIds) > 0 {
-		q.addTag = true
-		q.tagIDs = tagIds
+func (q *QingCloudClient) CreateSecurityGroup(input *apis.SecurityGroup) (*apis.SecurityGroup, error) {
+	createInput := &qcservice.CreateSecurityGroupInput{
+		SecurityGroupName: input.Spec.SecurityGroupName,
 	}
-}
+	createOutput, err := q.securityGroupService.CreateSecurityGroup(createInput)
+	if err != nil || *createOutput.RetCode != 0 {
+		return nil, fmt.Errorf("failed to create sg, err=%s, input=%s, output=%s", spew.Sdump(err), spew.Sdump(createInput), spew.Sdump(createOutput))
+	}
 
-func (q *qingcloudSecurityGroupExecutor) GetSecurityGroupByName(name string) (*qcservice.SecurityGroup, error) {
-	input := &qcservice.DescribeSecurityGroupsInput{SearchWord: &name}
-	output, err := q.sgapi.DescribeSecurityGroups(input)
+	input.Status.SecurityGroupID = createOutput.SecurityGroupID
+
+	err = q.attachTagsToResources([]*string{createOutput.SecurityGroupID}, SGTagResourceType)
 	if err != nil {
-		return nil, errors.NewCommonServerError(ResourceNameSecurityGroup, name, "GetSecurityGroupByName", err.Error())
+		klog.Errorf("Failed to attach tag to security group %s, err: %s", spew.Sdump(input), err.Error())
 	}
-	for _, sg := range output.SecurityGroupSet {
-		if sg.SecurityGroupName != nil && *sg.SecurityGroupName == name {
-			return sg, nil
-		}
-	}
-	return nil, errors.NewResourceNotFoundError(ResourceNameSecurityGroup, name)
+
+	return input, nil
 }
 
 // CreateSecurityGroup create a SecurityGroup in qingcloud
-func (q *qingcloudSecurityGroupExecutor) CreateSecurityGroup(sgName string, rules []*qcservice.SecurityGroupRule) (*qcservice.SecurityGroup, error) {
-	createInput := &qcservice.CreateSecurityGroupInput{SecurityGroupName: &sgName}
-	createOutput, err := q.sgapi.CreateSecurityGroup(createInput)
+func (q *QingCloudClient) addSecurityGroupRules(sg *apis.SecurityGroup, rules []*qcservice.SecurityGroupRule) (*apis.SecurityGroup, error) {
+	addRuleInput := &qcservice.AddSecurityGroupRulesInput{
+		SecurityGroup: sg.Status.SecurityGroupID,
+		Rules:         rules,
+	}
+	addRuleOutput, err := q.securityGroupService.AddSecurityGroupRules(addRuleInput)
+	if err != nil || *addRuleOutput.RetCode != 0 {
+		return nil, fmt.Errorf("failed to add sg rules, err=%s, input=%s, output=%s", spew.Sdump(err), spew.Sdump(addRuleInput), spew.Sdump(addRuleOutput))
+	}
+
+	sg.Status.SecurityGroupRuleIDs = addRuleOutput.SecurityGroupRules
+
+	//You can put the returned jobid in the status field, and then the controller
+	//will get the status at the same time.
+	applyRuleInput := &qcservice.ApplySecurityGroupInput{
+		SecurityGroup: sg.Status.SecurityGroupID,
+	}
+	applyRuleOutput, err := q.securityGroupService.ApplySecurityGroup(applyRuleInput)
+	if err != nil || *applyRuleOutput.RetCode != 0 {
+		return nil, fmt.Errorf("failed to apply sg rules, err=%s, input=%s, output=%s", spew.Sdump(err), spew.Sdump(applyRuleInput), spew.Sdump(applyRuleOutput))
+	}
+
+	err = qcclient.WaitJob(q.jobService, *applyRuleOutput.JobID, operationWaitTimeout, sgWaitInterval)
 	if err != nil {
-		return nil, errors.NewCommonServerError(ResourceNameSecurityGroup, sgName, "CreateSecurityGroup", err.Error())
+		return nil, fmt.Errorf("failed to apply sg rules, err=%s, input=%s, output=%s", spew.Sdump(err), spew.Sdump(applyRuleInput), spew.Sdump(applyRuleOutput))
 	}
-	sgID := createOutput.SecurityGroupID
-	addRuleOutput, err := q.sgapi.AddSecurityGroupRules(&qcservice.AddSecurityGroupRulesInput{SecurityGroup: sgID, Rules: rules})
-	if err != nil {
-		return nil, errors.NewCommonServerError(ResourceNameSecurityGroup, sgName, "AddSecurityGroupRules", err.Error())
-	}
-	klog.V(4).Infof("AddSecurityGroupRules SecurityGroup: [%s], output: [%+v] ", *sgID, addRuleOutput)
-	o, err := q.sgapi.ApplySecurityGroup(&qcservice.ApplySecurityGroupInput{SecurityGroup: sgID})
-	if err != nil {
-		return nil, errors.NewCommonServerError(ResourceNameSecurityGroup, sgName, "ApplySecurityGroupRules", err.Error())
-	}
-	if *o.RetCode != 0 {
-		return nil, errors.NewCommonServerError(ResourceNameSecurityGroup, sgName, "ApplySecurityGroupRules", *o.Message)
-	}
-	sg, _ := q.GetSecurityGroupByID(*sgID)
-	if q.addTag {
-		err = AttachTagsToResources(q.tagapi, q.tagIDs, []string{*sgID}, "security_group")
-		if err != nil {
-			klog.Errorf("Failed to attach tag to security group %s, err: %s", *sgID, err.Error())
-		} else {
-			klog.Infof("Attach tag %s to security group %s done", q.tagIDs, *sgID)
-		}
-	}
+
 	return sg, nil
 }
 
-func (q *qingcloudSecurityGroupExecutor) EnsureSecurityGroup(name string) (*qcservice.SecurityGroup, error) {
+func (q *QingCloudClient) DeleteSG(sg *string) error {
+	input := &qcservice.DeleteSecurityGroupsInput{
+		SecurityGroups: []*string{sg},
+	}
+	output, err := q.securityGroupService.DeleteSecurityGroups(input)
+	if err != nil || *output.RetCode != 0 {
+		return fmt.Errorf("failed to delete sg %s, err=%s, output=%s", *sg, spew.Sdump(err), spew.Sdump(output))
+	}
+
+	return nil
+}
+
+//Currently all load balancers that do not specify sg are using the default.
+func (q *QingCloudClient) ensureSecurityGroupByName(name string) (*apis.SecurityGroup, error) {
 	sg, err := q.GetSecurityGroupByName(name)
 	if err != nil {
 		if errors.IsResourceNotFound(err) {
-			sg, err = q.CreateSecurityGroup(name, DefaultLBSecurityGroupRules)
+			sg, err = q.CreateSecurityGroup(&apis.SecurityGroup{
+				Spec: apis.SecurityGroupSpec{
+					SecurityGroupName: &name,
+				},
+			})
 			if err == nil {
-				return sg, nil
+				sg, err = q.addSecurityGroupRules(sg, defaultLBSecurityGroupRules)
 			}
 		}
-		return nil, errors.NewCommonServerError(ResourceNameSecurityGroup, name, "EnsureSecurityGroup", err.Error())
 	}
-	return sg, nil
-}
 
-// GetSecurityGroupByID return SecurityGroup in qingcloud using ID
-func (q *qingcloudSecurityGroupExecutor) GetSecurityGroupByID(id string) (*qcservice.SecurityGroup, error) {
-	input := &qcservice.DescribeSecurityGroupsInput{SecurityGroups: []*string{&id}}
-	output, err := q.sgapi.DescribeSecurityGroups(input)
 	if err != nil {
-		return nil, errors.NewCommonServerError(ResourceNameSecurityGroup, id, "GetSecurityGroupByID", err.Error())
+		q.DeleteSG(sg.Status.SecurityGroupID)
+		return nil, err
+	} else {
+		return sg, nil
 	}
-	if len(output.SecurityGroupSet) > 0 {
-		return output.SecurityGroupSet[0], nil
-	}
-	return nil, errors.NewResourceNotFoundError(ResourceNameSecurityGroup, id)
 }
 
-func (q *qingcloudSecurityGroupExecutor) GetSgAPI() *qcservice.SecurityGroupService {
-	return q.sgapi
-}
-
-func (q *qingcloudSecurityGroupExecutor) Delete(id string) error {
-	input := &qcservice.DeleteSecurityGroupsInput{SecurityGroups: []*string{&id}}
-	_, err := q.sgapi.DeleteSecurityGroups(input)
-	if err != nil {
-		return errors.NewCommonServerError(ResourceNameSecurityGroup, id, "Delete", err.Error())
+func (q *QingCloudClient) GetSecurityGroupByName(name string) (*apis.SecurityGroup, error) {
+	input := &qcservice.DescribeSecurityGroupsInput{
+		SearchWord: &name,
 	}
-	return nil
+	output, err := q.securityGroupService.DescribeSecurityGroups(input)
+	if err != nil || *output.RetCode != 0 {
+		return nil, fmt.Errorf("cannot get sg by name, err=%s, input=%s, output=%s", spew.Sdump(err), spew.Sdump(input), spew.Sdump(output))
+	}
+
+	if len(output.SecurityGroupSet) > 1 {
+		klog.Warningf("more than one sg found by name %s, output=%s", name, spew.Sdump(output))
+	}
+
+	for _, sg := range output.SecurityGroupSet {
+		if sg.SecurityGroupName != nil && *sg.SecurityGroupName == name {
+			return convertSecurityGroup(sg), nil
+		}
+	}
+
+	return nil, errors.NewResourceNotFoundError(ResourceNameSecurityGroup, name)
 }

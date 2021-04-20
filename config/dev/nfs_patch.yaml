@@ -1,0 +1,17 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cloud-controller-manager
+spec:
+  template:
+    spec:
+      volumes:
+        - name: nfs-test
+          nfs:
+              path: /mnt/sharedfolder/
+              server: 172.22.0.2
+      containers:
+        - name: qingcloud-cloud-controller-manager
+          volumeMounts:
+            - mountPath: /mnt/
+              name: nfs-test

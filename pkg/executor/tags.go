@@ -6,54 +6,28 @@ import (
 	"github.com/yunify/qingcloud-sdk-go/service"
 )
 
-func AttachTagsToResources(tagapi *service.TagService, tags []string, resourceIDs []string, resourceType string) error {
-	if len(tags) <= 0 {
+func (i *QingCloudClient) attachTagsToResources(resourceIDs []*string, resourceType string) error {
+	if len(i.Config.TagIDs) <= 0 {
 		return nil
 	}
 
 	input := &service.AttachTagsInput{}
-	for _, tag := range tags {
+	for _, tag := range i.Config.TagIDs {
 		for _, resourceID := range resourceIDs {
 			p := &service.ResourceTagPair{
-				ResourceID:   &resourceID,
+				ResourceID:   resourceID,
 				TagID:        service.String(tag),
 				ResourceType: &resourceType,
 			}
 			input.ResourceTagPairs = append(input.ResourceTagPairs, p)
 		}
 	}
-	output, err := tagapi.AttachTags(input)
+	output, err := i.tagService.AttachTags(input)
 	if err != nil {
-		return errors.NewCommonServerError("tag", fmt.Sprintf("%v", resourceIDs), "AttachTagsToResources", err.Error())
+		return errors.NewCommonServerError("tag", fmt.Sprintf("%v", resourceIDs), "attachTagsToResources", err.Error())
 	}
 	if *output.RetCode != 0 {
-		return errors.NewCommonServerError("tag", fmt.Sprintf("%v", resourceIDs), "AttachTagsToResources", *output.Message)
-	}
-	return nil
-}
-
-func DetachTagsFromResources(tagapi *service.TagService, tags []string, resourceIDs []string, resourceType string) error {
-	if len(tags) <= 0 {
-		return nil
-	}
-
-	input := &service.DetachTagsInput{}
-	for _, tag := range tags {
-		for _, resourceID := range resourceIDs {
-			p := &service.ResourceTagPair{
-				ResourceID:   &resourceID,
-				TagID:        service.String(tag),
-				ResourceType: &resourceType,
-			}
-			input.ResourceTagPairs = append(input.ResourceTagPairs, p)
-		}
-	}
-	output, err := tagapi.DetachTags(input)
-	if err != nil {
-		return errors.NewCommonServerError("tag", fmt.Sprintf("%v", resourceIDs), "DetachTagsFromResources", err.Error())
-	}
-	if *output.RetCode != 0 {
-		return errors.NewCommonServerError("tag", fmt.Sprintf("%v", resourceIDs), "DetachTagsFromResources", *output.Message)
+		return errors.NewCommonServerError("tag", fmt.Sprintf("%v", resourceIDs), "attachTagsToResources", *output.Message)
 	}
 	return nil
 }

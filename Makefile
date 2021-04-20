@@ -1,73 +1,48 @@
 # tab space is 4
 # GitHub viewer defaults to 8, change with ?ts=4 in URL
 
-# Vars describing project
-NAME= qingcloud-cloud-controller-manager
 GIT_REPOSITORY= github.com/yunify/qingcloud-cloud-controller-manager
-IMG?= kubespheredev/cloud-controller-manager:v1.4.2
-
-# Generate vars to be included from external script
-# Allows using bash to generate complex vars, such as project versions
-GENERATE_VERSION_INFO_SCRIPT	= ./generate_version.sh
-GENERATE_VERSION_INFO_OUTPUT	= version_info
-
-# Define newline needed for subsitution to allow evaluating multiline script output
-define newline
+IMG?= kubespheredev/cloud-controller-manager:latest
+#Debug level: 0, 1, 2 (1 true, 2 use bash)
+DEBUG?= 0
+DOCKERFILE?= deploy/Dockerfile
+TARGET?= default
+DEPLOY?= deploy/kube-cloud-controller-manager.yaml
 
 
-endef
-
-# Call the version_info script with keyvalue option and evaluate the output
-# Will import the keyvalue pairs and make available as Makefile variables
-# Use dummy variable to only have execute once
-$(eval $(subst #,$(newline),$(shell $(GENERATE_VERSION_INFO_SCRIPT) keyvalue | tr '\n' '#')))
-# Call the verson_info script with json option and store result into output file and variable
-# Will only execute once due to ':='
-#GENERATE_VERSION_INFO			:= $(shell $(GENERATE_VERSION_INFO_SCRIPT) json | tee $(GENERATE_VERSION_INFO_OUTPUT))
-
-# Set defaults for needed vars in case version_info script did not set
-# Revision set to number of commits ahead
-VERSION							?= 0.0
-COMMITS							?= 0
-REVISION						?= $(COMMITS)
-BUILD_LABEL						?= unknown_build
-BUILD_DATE						?= $(shell date -u +%Y%m%d.%H%M%S)
-GIT_SHA1						?= unknown_sha1
-
-IMAGE_LABLE         ?= $(BUILD_LABEL)
+ifneq ($(DEBUG), 0)
+	DOCKERFILE = deploy/Dockerfile.debug
+	TARGET = dev
+endif
 
 # default just build binary
-default							: go-build
-
-# target for debugging / printing variables
-print-%							:
-								@echo '$*=$($*)'
+default: build
 
 # perform go build on project
-go-build						: bin/qingcloud-cloud-controller-manager
+build: bin/qingcloud-cloud-controller-manager
 
-bin/qingcloud-cloud-controller-manager                     : 
-								CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "-w" -o bin/manager ./cmd/main.go
+bin/qingcloud-cloud-controller-manager:
+ifeq ($(DEBUG), 0)
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "-w" -o bin/manager ./cmd/main.go
+else
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -gcflags "all=-N -l" -o bin/manager ./cmd/main.go
+endif
 
-bin/.docker-images-build-timestamp                         : bin/qingcloud-cloud-controller-manager Makefile Dockerfile
-								docker build -q -t $(DOCKER_IMAGE_NAME):$(IMAGE_LABLE) -t dockerhub.qingcloud.com/$(DOCKER_IMAGE_NAME):$(IMAGE_LABLE) . > bin/.docker-images-build-timestamp
+publish: test build
+	docker build -t ${IMG}  -f ${DOCKERFILE} bin/
+	@echo "updating kustomize image patch file for manager resource"
+	sed -i'' -e 's@image: .*@image: '"${IMG}"'@' config/${TARGET}/manager_image_patch.yaml
+	docker push ${IMG}
+	kustomize build config/${TARGET} > ${DEPLOY}
 
-publish                         : test go-build
-								docker build -t ${IMG}  -f deploy/Dockerfile bin/
-								docker push ${IMG}
-clean                           :
-								rm -rf bin/ && if -f bin/.docker-images-build-timestamp then docker rmi `cat bin/.docker-images-build-timestamp`
-test                            : fmt vet
-								go test -v -cover -mod=vendor ./pkg/...
-fmt								:
-								go fmt ./pkg/... ./cmd/... ./test/pkg/...
+clean:
+	rm -rf bin/
+
+test: fmt vet
+	go test -v -cover  ./pkg/...
+fmt:
+	go fmt ./pkg/... ./cmd/...
 vet:
-								go vet ./pkg/... ./cmd/... ./test/pkg/...
+	go vet ./pkg/... ./cmd/...
 
-debug:
-								./hack/debug.sh
-								
-.PHONY							: default all go-build clean install-docker test
-
-e2e:
-								./hack/e2e.sh
+.PHONY : clean

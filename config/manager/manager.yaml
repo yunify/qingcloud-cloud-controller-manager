@@ -1,0 +1,62 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    component: cloud-controller-manager
+    tier: control-plane
+  name: cloud-controller-manager
+spec:
+  selector:
+    matchLabels:
+      app: yunify-cloud-controller-manager
+  template:
+    metadata:
+      labels:
+        app: yunify-cloud-controller-manager
+      annotations:
+        scheduler.alpha.kubernetes.io/critical-pod: ''
+    spec:
+      nodeSelector:
+        node-role.kubernetes.io/master: ""
+      containers:
+        - command:
+            - /manager
+            - -v=3
+            - --cloud-provider=qingcloud
+            - --cloud-config=/etc/kubernetes/qingcloud.yaml
+          image: kubesphere/cloud-controller-manager:v1.4.4
+          imagePullPolicy: IfNotPresent
+          name: qingcloud-cloud-controller-manager
+          resources:
+            requests:
+              cpu: 100m
+              memory: 50Mi
+            limits:
+              cpu: 200m
+              memory: 100Mi
+          volumeMounts:
+            - mountPath: /etc/kubernetes
+              name: lbconfig
+              readOnly: true
+            - mountPath: /etc/qingcloud
+              name: qingcloud
+              readOnly: true
+      serviceAccountName: cloud-controller-manager
+      tolerations:
+        # this taint is set by all kubelets running `--cloud-provider=external`
+        # so we should tolerate it to schedule the digitalocean ccm
+        - key: "node.cloudprovider.kubernetes.io/uninitialized"
+          value: "true"
+          effect: "NoSchedule"
+        - key: "CriticalAddonsOnly"
+          operator: "Exists"
+        # cloud controller manages should be able to run on masters
+        - key: "node-role.kubernetes.io/master"
+          effect: NoSchedule
+      volumes:
+        - configMap:
+            name: lbconfig
+          name: lbconfig
+        - name:  qingcloud
+          secret:
+            secretName: qcsecret

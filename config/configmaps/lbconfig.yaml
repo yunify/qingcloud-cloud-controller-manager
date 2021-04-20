@@ -1,0 +1,15 @@
+apiVersion: v1
+data:
+  qingcloud.yaml: |-
+    zone: ap2a
+    defaultVxNetForLB: vxnet-cfn58ev
+    clusterID: mycluster
+    instanceIDs:
+     - i-7iisycou
+     - i-egd3s6ug
+    tagIDs:
+     - tag-3exuweah
+kind: ConfigMap
+metadata:
+  name: lbconfig
+
