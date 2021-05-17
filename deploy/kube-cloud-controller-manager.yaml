@@ -1,68 +1,3 @@
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  labels:
-    component: cloud-controller-manager
-    tier: control-plane
-  name: cloud-controller-manager
-  namespace: kube-system
-spec:
-  selector:
-    matchLabels:
-      app: yunify-cloud-controller-manager
-  template:
-    metadata:
-      labels:
-        app: yunify-cloud-controller-manager
-      annotations:
-        scheduler.alpha.kubernetes.io/critical-pod: ''
-    spec:
-      nodeSelector:
-        node-role.kubernetes.io/master: ""
-      containers:
-      - command:
-        - /manager
-        - -v=3
-        - --cloud-provider=qingcloud
-        - --cloud-config=/etc/kubernetes/qingcloud.yaml
-        image: kubesphere/cloud-controller-manager:v1.4.4
-        imagePullPolicy: IfNotPresent
-        name: qingcloud-cloud-controller-manager
-        resources:
-          requests:
-            cpu: 100m
-            memory: 50Mi
-          limits:
-            cpu: 200m
-            memory: 100Mi
-        volumeMounts:
-        - mountPath: /etc/kubernetes
-          name: lbconfig
-          readOnly: true
-        - mountPath: /etc/qingcloud
-          name: qingcloud
-          readOnly: true
-      serviceAccountName: cloud-controller-manager
-      tolerations:
-        # this taint is set by all kubelets running `--cloud-provider=external`
-        # so we should tolerate it to schedule the digitalocean ccm
-        - key: "node.cloudprovider.kubernetes.io/uninitialized"
-          value: "true"
-          effect: "NoSchedule"
-        - key: "CriticalAddonsOnly"
-          operator: "Exists"
-        # cloud controller manages should be able to run on masters
-        - key: "node-role.kubernetes.io/master"
-          effect: NoSchedule
-      volumes:
-      - configMap:
-          name: lbconfig
-        name: lbconfig
-      - name:  qingcloud
-        secret:
-          secretName: qcsecret
-
----
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -163,8 +98,8 @@ rules:
   - watch
   - update
 ---
-kind: ClusterRoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
 metadata:
   name: system:cloud-controller-manager
 roleRef:
@@ -175,3 +110,64 @@ subjects:
 - kind: ServiceAccount
   name: cloud-controller-manager
   namespace: kube-system
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    component: cloud-controller-manager
+    tier: control-plane
+  name: cloud-controller-manager
+  namespace: kube-system
+spec:
+  selector:
+    matchLabels:
+      app: yunify-cloud-controller-manager
+  template:
+    metadata:
+      annotations:
+        scheduler.alpha.kubernetes.io/critical-pod: ""
+      labels:
+        app: yunify-cloud-controller-manager
+    spec:
+      containers:
+      - command:
+        - /manager
+        - -v=3
+        - --cloud-provider=qingcloud
+        - --cloud-config=/etc/kubernetes/qingcloud.yaml
+        image: kubesphere/cloud-controller-manager:v1.4.6
+        imagePullPolicy: IfNotPresent
+        name: qingcloud-cloud-controller-manager
+        resources:
+          limits:
+            cpu: 200m
+            memory: 100Mi
+          requests:
+            cpu: 100m
+            memory: 50Mi
+        volumeMounts:
+        - mountPath: /etc/kubernetes
+          name: lbconfig
+          readOnly: true
+        - mountPath: /etc/qingcloud
+          name: qingcloud
+          readOnly: true
+      nodeSelector:
+        node-role.kubernetes.io/master: ""
+      serviceAccountName: cloud-controller-manager
+      tolerations:
+      - effect: NoSchedule
+        key: node.cloudprovider.kubernetes.io/uninitialized
+        value: "true"
+      - key: CriticalAddonsOnly
+        operator: Exists
+      - effect: NoSchedule
+        key: node-role.kubernetes.io/master
+      volumes:
+      - configMap:
+          name: lbconfig
+        name: lbconfig
+      - name: qingcloud
+        secret:
+          secretName: qcsecret
