@@ -2,6 +2,7 @@ package executor
 
 import (
 	"fmt"
+
 	"github.com/davecgh/go-spew/spew"
 	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/apis"
 	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/errors"
@@ -143,6 +144,7 @@ func (q *QingCloudClient) ensureSecurityGroupByName(name string) (*apis.Security
 func (q *QingCloudClient) GetSecurityGroupByName(name string) (*apis.SecurityGroup, error) {
 	input := &qcservice.DescribeSecurityGroupsInput{
 		SearchWord: &name,
+		Owner:      &q.Config.UserID,
 	}
 	output, err := q.securityGroupService.DescribeSecurityGroups(input)
 	if err != nil || *output.RetCode != 0 {
