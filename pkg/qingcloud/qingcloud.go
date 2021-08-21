@@ -117,6 +117,10 @@ func (qc *QingCloud) Instances() (cloudprovider.Instances, bool) {
 	return nil, false
 }
 
+func (qc *QingCloud) InstancesV2() (cloudprovider.InstancesV2, bool) {
+	return nil, false
+}
+
 func (qc *QingCloud) Zones() (cloudprovider.Zones, bool) {
 	return nil, false
 }
@@ -339,25 +343,25 @@ func (qc *QingCloud) UpdateLoadBalancer(ctx context.Context, _ string, service *
 		return err
 	}
 
-	var (
-		toDeleteBackends []*string
-		toAddBackends    []*apis.LoadBalancerBackend
-	)
 	for _, listener := range listeners {
+		var toDeleteBackends []*string
+		var toAddBackends []*apis.LoadBalancerBackend
+
 		toDelete, toAdd := diffBackend(listener, nodes)
 		toDeleteBackends = append(toDeleteBackends, toDelete...)
 		toAddBackends = append(toAddBackends, generateLoadBalancerBackends(toAdd, listener, service.Spec.Ports)...)
-	}
-	if len(toDeleteBackends) > 0 {
-		err = qc.Client.DeleteBackends(toDeleteBackends)
-		if err != nil {
-			return err
+
+		if len(toDeleteBackends) > 0 {
+			err = qc.Client.DeleteBackends(toDeleteBackends)
+			if err != nil {
+				return err
+			}
 		}
-	}
-	if len(toAddBackends) > 0 {
-		_, err = qc.Client.CreateBackends(toAddBackends)
-		if err != nil {
-			return err
+		if len(toAddBackends) > 0 {
+			_, err = qc.Client.CreateBackends(toAddBackends)
+			if err != nil {
+				return err
+			}
 		}
 	}
 
