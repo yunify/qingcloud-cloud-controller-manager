@@ -117,6 +117,10 @@ func (qc *QingCloud) Instances() (cloudprovider.Instances, bool) {
 	return nil, false
 }
 
+func (qc *QingCloud) InstancesV2() (cloudprovider.InstancesV2, bool) {
+	return nil, false
+}
+
 func (qc *QingCloud) Zones() (cloudprovider.Zones, bool) {
 	return nil, false
 }
