@@ -339,25 +339,20 @@ func (qc *QingCloud) UpdateLoadBalancer(ctx context.Context, _ string, service *
 		return err
 	}
 
-	var (
-		toDeleteBackends []*string
-		toAddBackends    []*apis.LoadBalancerBackend
-	)
 	for _, listener := range listeners {
 		toDelete, toAdd := diffBackend(listener, nodes)
-		toDeleteBackends = append(toDeleteBackends, toDelete...)
-		toAddBackends = append(toAddBackends, generateLoadBalancerBackends(toAdd, listener, service.Spec.Ports)...)
-	}
-	if len(toDeleteBackends) > 0 {
-		err = qc.Client.DeleteBackends(toDeleteBackends)
-		if err != nil {
-			return err
+		if len(toDelete) > 0 {
+			err = qc.Client.DeleteBackends(toDelete)
+			if err != nil {
+				return err
+			}
 		}
-	}
-	if len(toAddBackends) > 0 {
-		_, err = qc.Client.CreateBackends(toAddBackends)
-		if err != nil {
-			return err
+		toAddBackends := generateLoadBalancerBackends(toAdd, listener, service.Spec.Ports)
+		if len(toAddBackends) > 0 {
+			_, err = qc.Client.CreateBackends(toAddBackends)
+			if err != nil {
+				return err
+			}
 		}
 	}
 
