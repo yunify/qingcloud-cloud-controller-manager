@@ -2,7 +2,7 @@
 # GitHub viewer defaults to 8, change with ?ts=4 in URL
 
 GIT_REPOSITORY= github.com/yunify/qingcloud-cloud-controller-manager
-IMG?= kubespheredev/cloud-controller-manager:latest
+IMG?= qingcloud/cloud-controller-manager:latest
 #Debug level: 0, 1, 2 (1 true, 2 use bash)
 DEBUG?= 0
 DOCKERFILE?= deploy/Dockerfile
