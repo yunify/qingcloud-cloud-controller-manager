@@ -193,10 +193,12 @@ func (qc *QingCloud) EnsureLoadBalancer(ctx context.Context, _ string, service *
 		//it for now, not update it.
 
 		//need modify attribute
+		modify := false
 		if result := needUpdateAttr(conf, lb); result != nil {
 			if err = qc.Client.ModifyLB(result); err != nil {
 				return nil, err
 			}
+			modify = true
 		}
 
 		//update listener
@@ -228,6 +230,11 @@ func (qc *QingCloud) EnsureLoadBalancer(ctx context.Context, _ string, service *
 				if err != nil {
 					return nil, err
 				}
+			}
+
+			if len(toAdd) == 0 && len(toDelete) == 0 && modify == false {
+				klog.Infof("Skip UpdateLB for loadbalancers %s", *lb.Status.LoadBalancerID)
+				return convertLoadBalancerStatus(&lb.Status), nil
 			}
 		}
 
