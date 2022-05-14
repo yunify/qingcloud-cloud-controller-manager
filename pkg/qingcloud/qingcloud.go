@@ -187,6 +187,8 @@ func (qc *QingCloud) getLoadBalancer(service *v1.Service) (*LoadBalancerConfig, 
 func (qc *QingCloud) EnsureLoadBalancer(ctx context.Context, _ string, service *v1.Service, nodes []*v1.Node) (*v1.LoadBalancerStatus, error) {
 	conf, lb, err := qc.getLoadBalancer(service)
 
+	klog.Infof("==== Loadbalancer %s config %s ====", spew.Sdump(lb), spew.Sdump(conf))
+
 	//1. ensure & update lb
 	if err == nil {
 		//The configuration of the load balancer will be independent, so we'll just create
@@ -215,7 +217,7 @@ func (qc *QingCloud) EnsureLoadBalancer(ctx context.Context, _ string, service *
 				return nil, err
 			}
 
-			toDelete, toAdd := diffListeners(listeners, service.Spec.Ports)
+			toDelete, toAdd := diffListeners(listeners, conf, service.Spec.Ports)
 			klog.Infof("listeners %s will be deleted, %s will be added", spew.Sdump(toDelete), spew.Sdump(toAdd))
 
 			if len(toDelete) > 0 {
@@ -239,6 +241,8 @@ func (qc *QingCloud) EnsureLoadBalancer(ctx context.Context, _ string, service *
 		}
 
 		//update backend
+
+		//update eip
 
 	} else if errors.IsResourceNotFound(err) {
 		if conf.Policy == ReuseExistingLB || conf.Policy == Shared {

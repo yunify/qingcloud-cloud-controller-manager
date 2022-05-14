@@ -5,8 +5,11 @@ import (
 	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/apis"
 	qcservice "github.com/yunify/qingcloud-sdk-go/service"
 	"k8s.io/api/core/v1"
+	"strconv"
 	"strings"
 )
+
+const defaultListenerHeathyCheckOption = "10|5|2|5"
 
 // Make sure qingcloud instance hostname or override-hostname (if provided) is equal to InstanceId
 // Recommended to use override-hostname
@@ -83,7 +86,25 @@ func filterListeners(listeners []apis.LoadBalancerListener, prefix string) []*st
 	return result
 }
 
-func diffListeners(listeners []*apis.LoadBalancerListener, ports []v1.ServicePort) (toDelete []*string, toAdd []v1.ServicePort) {
+func getHealthyCheckFromAnnotation(annotationConf map[int]healthyChek, port int, proto string) healthyChek {
+	option := defaultListenerHeathyCheckOption
+	healthyCheck := healthyChek{
+		method: &proto,
+		option: &option,
+	}
+	if annotationConf != nil {
+		hc := annotationConf[port]
+		if hc.option != nil {
+			healthyCheck.option = hc.option
+		}
+		if hc.method != nil {
+			healthyCheck.method = hc.method
+		}
+	}
+	return healthyCheck
+}
+
+func diffListeners(listeners []*apis.LoadBalancerListener, conf *LoadBalancerConfig, ports []v1.ServicePort) (toDelete []*string, toAdd []v1.ServicePort) {
 	svcNodePort := make(map[string]int)
 	for _, listener := range listeners {
 		if len(listener.Status.LoadBalancerBackends) > 0 {
@@ -91,12 +112,15 @@ func diffListeners(listeners []*apis.LoadBalancerListener, ports []v1.ServicePor
 		}
 	}
 
+	hcs, _ := parseHeathyCheck(conf)
 	for _, port := range ports {
 		add := true
+		healthyCheck := getHealthyCheckFromAnnotation(hcs, int(port.Port), strings.ToLower(string(port.Protocol)))
 		for _, listener := range listeners {
 			if *listener.Spec.ListenerPort == int(port.Port) &&
 				strings.EqualFold(*listener.Spec.ListenerProtocol, string(port.Protocol)) &&
-				svcNodePort[*listener.Status.LoadBalancerListenerID] == int(port.NodePort) {
+				svcNodePort[*listener.Status.LoadBalancerListenerID] == int(port.NodePort) &&
+				(*healthyCheck.option == *listener.Spec.HealthyCheckOption && *healthyCheck.method == *listener.Spec.HealthyCheckMethod) {
 				add = false
 				break
 			}
@@ -109,9 +133,11 @@ func diffListeners(listeners []*apis.LoadBalancerListener, ports []v1.ServicePor
 	for _, listener := range listeners {
 		delete := true
 		for _, port := range ports {
+			healthyCheck := getHealthyCheckFromAnnotation(hcs, int(port.Port), strings.ToLower(string(port.Protocol)))
 			if *listener.Spec.ListenerPort == int(port.Port) &&
 				strings.EqualFold(*listener.Spec.ListenerProtocol, string(port.Protocol)) &&
-				svcNodePort[*listener.Status.LoadBalancerListenerID] == int(port.NodePort) {
+				svcNodePort[*listener.Status.LoadBalancerListenerID] == int(port.NodePort) &&
+				(*healthyCheck.option == *listener.Spec.HealthyCheckOption && *healthyCheck.method == *listener.Spec.HealthyCheckMethod) {
 				delete = false
 				break
 			}
@@ -161,9 +187,93 @@ func generateLoadBalancerBackends(nodes []*v1.Node, listener *apis.LoadBalancerL
 	return backends
 }
 
-func generateLoadBalancerListeners(conf *LoadBalancerConfig, lb *apis.LoadBalancer, ports []v1.ServicePort) ([]*apis.LoadBalancerListener, error) {
-	var result []*apis.LoadBalancerListener
+type healthyChek struct {
+	method *string
+	option *string
+}
 
+func parseMethods(data string) (map[int]string, error) {
+	methods := strings.Split(data, ",")
+	rst := make(map[int]string, len(methods))
+	for _, method := range methods {
+		m := strings.Split(method, ":")
+		if len(m) != 2 {
+			return nil, fmt.Errorf("wrong format: (%s)", data)
+		}
+		port, err := strconv.Atoi(m[0])
+		if err != nil {
+			return nil, fmt.Errorf("wrong format: (%s)", data)
+		}
+		rst[port] = m[1]
+	}
+	return rst, nil
+}
+
+func parseOptions(data string) (map[int]string, error) {
+	methods := strings.Split(data, ",")
+	rst := make(map[int]string, len(methods))
+	for _, method := range methods {
+		m := strings.Split(method, ":")
+		if len(m) != 2 {
+			return nil, fmt.Errorf("wrong format: (%s)", data)
+		}
+		port, err := strconv.Atoi(m[0])
+		if err != nil {
+			return nil, fmt.Errorf("wrong format: (%s)", data)
+		}
+		rst[port] = m[1]
+	}
+	return rst, nil
+}
+
+func parseHeathyCheck(conf *LoadBalancerConfig) (map[int]healthyChek, error) {
+	if conf == nil ||
+		(conf.healthyCheckMethod == nil && conf.healthyCheckOption == nil) {
+		return nil, nil
+	}
+
+	var methods map[int]string
+	var options map[int]string
+	var err error
+	if conf.healthyCheckMethod != nil {
+		methods, err = parseMethods(*conf.healthyCheckMethod)
+	}
+	if conf.healthyCheckOption != nil {
+		options, err = parseOptions(*conf.healthyCheckOption)
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	h := map[int]healthyChek{}
+	for port, method := range methods {
+		h[port] = healthyChek{
+			method: qcservice.String(method),
+		}
+	}
+
+	for port, option := range options {
+		if data, ok := h[port]; ok {
+			data.option = qcservice.String(option)
+			h[port] = data
+		} else {
+			h[port] = healthyChek{
+				option: qcservice.String(option),
+			}
+		}
+	}
+
+	return h, nil
+}
+
+func generateLoadBalancerListeners(conf *LoadBalancerConfig, lb *apis.LoadBalancer, ports []v1.ServicePort) ([]*apis.LoadBalancerListener, error) {
+	hcs, err := parseHeathyCheck(conf)
+	if err != nil {
+		return nil, err
+	}
+
+	var result []*apis.LoadBalancerListener
 	for _, port := range ports {
 		protocol := ""
 		switch port.Protocol {
@@ -175,6 +285,7 @@ func generateLoadBalancerListeners(conf *LoadBalancerConfig, lb *apis.LoadBalanc
 			return nil, fmt.Errorf("loadbalance not support protocol %s", port.Protocol)
 		}
 
+		healthyCheck := getHealthyCheckFromAnnotation(hcs, int(port.Port), strings.ToLower(string(port.Protocol)))
 		result = append(result, &apis.LoadBalancerListener{
 			Spec: apis.LoadBalancerListenerSpec{
 				BackendProtocol:          &protocol,
@@ -182,6 +293,8 @@ func generateLoadBalancerListeners(conf *LoadBalancerConfig, lb *apis.LoadBalanc
 				ListenerPort:             qcservice.Int(int(port.Port)),
 				LoadBalancerListenerName: &conf.listenerName,
 				LoadBalancerID:           lb.Status.LoadBalancerID,
+				HealthyCheckMethod:       healthyCheck.method,
+				HealthyCheckOption:       healthyCheck.option,
 			},
 		})
 	}
