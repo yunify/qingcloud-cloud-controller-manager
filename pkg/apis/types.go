@@ -87,6 +87,7 @@ type LoadBalancerListenerSpec struct {
 	LoadBalancerID           *string `json:"loadbalancer_id" name:"loadbalancer_id"`
 	HealthyCheckMethod       *string `json:"healthy_check_method" name:"healthy_check_method"`
 	HealthyCheckOption       *string `json:"healthy_check_option" name:"healthy_check_option"`
+	BalanceMode              *string `json:"balance_mode" name:"balance_mode"`
 }
 
 type LoadBalancerListenerStatus struct {

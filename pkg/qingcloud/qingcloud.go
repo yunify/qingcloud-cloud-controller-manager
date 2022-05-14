@@ -186,8 +186,7 @@ func (qc *QingCloud) getLoadBalancer(service *v1.Service) (*LoadBalancerConfig, 
 // Parameter 'clusterName' is the name of the cluster as presented to kube-controller-manager
 func (qc *QingCloud) EnsureLoadBalancer(ctx context.Context, _ string, service *v1.Service, nodes []*v1.Node) (*v1.LoadBalancerStatus, error) {
 	conf, lb, err := qc.getLoadBalancer(service)
-
-	klog.Infof("==== Loadbalancer %s config %s ====", spew.Sdump(lb), spew.Sdump(conf))
+	klog.V(4).Infof("==== EnsureLoadBalancer %s config %s ====", spew.Sdump(lb), spew.Sdump(conf))
 
 	//1. ensure & update lb
 	if err == nil {
@@ -241,8 +240,6 @@ func (qc *QingCloud) EnsureLoadBalancer(ctx context.Context, _ string, service *
 		}
 
 		//update backend
-
-		//update eip
 
 	} else if errors.IsResourceNotFound(err) {
 		if conf.Policy == ReuseExistingLB || conf.Policy == Shared {

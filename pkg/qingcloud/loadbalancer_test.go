@@ -134,7 +134,6 @@ func TestDiffListeners(t *testing.T) {
 		ports     []v1.ServicePort
 		toDelete  []*string
 		toAdd     []v1.ServicePort
-		conf      *LoadBalancerConfig
 	}{
 		{
 			listeners: []*apis.LoadBalancerListener{
@@ -273,37 +272,11 @@ func TestDiffListeners(t *testing.T) {
 						},
 					},
 				},
-				{
-					Spec: apis.LoadBalancerListenerSpec{
-						ListenerPort:     qcservice.Int(8081),
-						ListenerProtocol: qcservice.String("tcp"),
-					},
-					Status: apis.LoadBalancerListenerStatus{
-						LoadBalancerListenerID: qcservice.String("testListenerHealthyCheck"),
-						LoadBalancerBackends: []*apis.LoadBalancerBackend{
-							{
-								Spec: apis.LoadBalancerBackendSpec{
-									LoadBalancerBackendName: qcservice.String("instance1"),
-									Port:                    qcservice.Int(9090),
-									ResourceID:              qcservice.String("instance1"),
-								},
-								Status: apis.LoadBalancerBackendStatus{
-									LoadBalancerBackendID: qcservice.String("testBackend"),
-								},
-							},
-						},
-					},
-				},
 			},
 			ports: []v1.ServicePort{
 				{
 					Protocol: v1.ProtocolTCP,
 					Port:     8080,
-					NodePort: 9090,
-				},
-				{
-					Protocol: v1.ProtocolTCP,
-					Port:     8081,
 					NodePort: 9091,
 				},
 			},
@@ -313,22 +286,13 @@ func TestDiffListeners(t *testing.T) {
 					Port:     8080,
 					NodePort: 9091,
 				},
-				{
-					Protocol: v1.ProtocolTCP,
-					Port:     8081,
-					NodePort: 9091,
-				},
 			},
-			toDelete: []*string{qcservice.String("testListener"), qcservice.String("testListenerHealthyCheck")},
-			conf: &LoadBalancerConfig{
-				healthyCheckMethod: qcservice.String("8081:tcp"),
-				healthyCheckOption: qcservice.String("8081:12|5|2|5"), //changed
-			},
+			toDelete: []*string{qcservice.String("testListener")},
 		},
 	}
 
 	for _, tc := range testCases {
-		toDelete, toAdd := diffListeners(tc.listeners, tc.conf, tc.ports)
+		toDelete, toAdd := diffListeners(tc.listeners, tc.ports)
 		//fmt.Printf("delete=%s, add=%s", spew.Sdump(toDelete), spew.Sdump(toAdd))
 		if !reflect.DeepEqual(toDelete, tc.toDelete) || !reflect.DeepEqual(toAdd, tc.toAdd) {
 			t.Fail()
