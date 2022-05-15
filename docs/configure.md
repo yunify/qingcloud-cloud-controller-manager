@@ -111,6 +111,39 @@ spec:
     targetPort:  80
 ```
 
+## 四、配置LB的监听器属性
+
+### 如何配置
+1. 设置监听器的健康检查方式，`service.beta.kubernetes.io/qingcloud-lb-listener-healthycheckmethod`，对于 tcp 协议默认是 tcp 方式，对于 udp 协议默认是 udp 方式
+2. 设置监听器的健康检查参数，`service.beta.kubernetes.io/qingcloud-lb-listener-healthycheckoption`，默认是 "10|5|2|5"
+3. 支持 roundrobin/leastconn/source 三种负载均衡方式，`service.beta.kubernetes.io/qingcloud-lb-listener-balancemode`，默认是 roundrobin
+
+因为一个LB会有多个监听器，所以进行service注解设置时，通过如下格式区分不同监听器：`80:xxx,443:xxx`。
+
+### 参考Service
+```yaml
+kind: Service
+apiVersion: v1
+metadata:
+  name:  reuse-lb
+  annotations:
+    service.beta.kubernetes.io/qingcloud-load-balancer-eip-strategy: "reuse-lb"
+    service.beta.kubernetes.io/qingcloud-load-balancer-id: "lb-oglqftju"
+    service.beta.kubernetes.io/qingcloud-lb-listener-healthycheckmethod: "8090:tcp"
+    service.beta.kubernetes.io/qingcloud-lb-listener-healthycheckoption: "8090:10|5|2|5"
+    service.beta.kubernetes.io/qingcloud-lb-listener-balancemode: "8090:source"
+spec:
+  selector:
+    app:  mylbapp
+  type:  LoadBalancer
+  ports:
+  - name:  http
+    port:  8090
+    protocol: TCP
+    targetPort:  80
+```
+监听器参数说明：https://docsv3.qingcloud.com/network/loadbalancer/api/listener/modify_listener_attribute/
+
 ## 配置内网负载均衡器
 ### 已知问题
 k8s在ipvs模式下，kube-proxy会把内网负载均衡器的ip绑定在ipvs接口上，这样会导致从LB过来的包被drop（进来的是主网卡，但是出去的时候发现ipvs有这么一个ip，路由不一致）故目前无法在IPVS模式下使用内网负载均衡器。参考[issue](https://github.com/kubernetes/kubernetes/issues/79783)
