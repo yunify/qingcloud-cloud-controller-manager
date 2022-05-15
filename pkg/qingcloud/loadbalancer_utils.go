@@ -212,6 +212,10 @@ type healthyChek struct {
 }
 
 // data format like this: port1:conf,port2:conf,port3:conf
+// Example:
+//  1)healthycheckmethod: "80:tcp,443:tcp"
+//  2)healthycheckoption: "80:10|5|2|5,443:10|5|2|5"
+//  3)balancemode: "80:roundrobin,443:leastconn,8080:source"
 func parseLsnAnnotaionData(data string) (map[int]string, error) {
 	methods := strings.Split(data, ",")
 	rst := make(map[int]string, len(methods))
