@@ -7,6 +7,6 @@ spec:
     spec:
       containers:
         # Change the value of image field below to your controller image URL
-        - image: qingcloud/cloud-controller-manager:v1.4.8
+        - image: qingcloud/cloud-controller-manager:v1.4.10
           name: qingcloud-cloud-controller-manager
           imagePullPolicy: IfNotPresent
