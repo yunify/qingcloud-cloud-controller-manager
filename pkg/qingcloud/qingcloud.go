@@ -186,6 +186,7 @@ func (qc *QingCloud) getLoadBalancer(service *v1.Service) (*LoadBalancerConfig, 
 // Parameter 'clusterName' is the name of the cluster as presented to kube-controller-manager
 func (qc *QingCloud) EnsureLoadBalancer(ctx context.Context, _ string, service *v1.Service, nodes []*v1.Node) (*v1.LoadBalancerStatus, error) {
 	conf, lb, err := qc.getLoadBalancer(service)
+	klog.V(4).Infof("==== EnsureLoadBalancer %s config %s ====", spew.Sdump(lb), spew.Sdump(conf))
 
 	//1. ensure & update lb
 	if err == nil {
@@ -193,10 +194,12 @@ func (qc *QingCloud) EnsureLoadBalancer(ctx context.Context, _ string, service *
 		//it for now, not update it.
 
 		//need modify attribute
+		modify := false
 		if result := needUpdateAttr(conf, lb); result != nil {
 			if err = qc.Client.ModifyLB(result); err != nil {
 				return nil, err
 			}
+			modify = true
 		}
 
 		//update listener
@@ -213,7 +216,7 @@ func (qc *QingCloud) EnsureLoadBalancer(ctx context.Context, _ string, service *
 				return nil, err
 			}
 
-			toDelete, toAdd := diffListeners(listeners, service.Spec.Ports)
+			toDelete, toAdd := diffListeners(listeners, conf, service.Spec.Ports)
 			klog.Infof("listeners %s will be deleted, %s will be added", spew.Sdump(toDelete), spew.Sdump(toAdd))
 
 			if len(toDelete) > 0 {
@@ -228,6 +231,11 @@ func (qc *QingCloud) EnsureLoadBalancer(ctx context.Context, _ string, service *
 				if err != nil {
 					return nil, err
 				}
+			}
+
+			if len(toAdd) == 0 && len(toDelete) == 0 && modify == false {
+				klog.Infof("Skip UpdateLB for loadbalancers %s", *lb.Status.LoadBalancerID)
+				return convertLoadBalancerStatus(&lb.Status), nil
 			}
 		}
 

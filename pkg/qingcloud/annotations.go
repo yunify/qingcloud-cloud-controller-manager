@@ -68,6 +68,12 @@ const (
 	//3. Configure sg
 
 	//4. Configure listener
+	// tcp or http, such as "80:tcp,443:tcp"
+	ServiceAnnotationListenerHealthyCheckMethod = "service.beta.kubernetes.io/qingcloud-lb-listener-healthycheckmethod"
+	// inter | timeout | fall | rise , such as "80:10|5|2|5,443:10|5|2|5", default is "*:10|5|2|5"
+	ServiceAnnotationListenerHealthyCheckOption = "service.beta.kubernetes.io/qingcloud-lb-listener-healthycheckoption"
+	// roundrobin / leastconn / source
+	ServiceAnnotationListenerBalanceMode = "service.beta.kubernetes.io/qingcloud-lb-listener-balancemode"
 )
 
 type LoadBalancerConfig struct {
@@ -80,6 +86,11 @@ type LoadBalancerConfig struct {
 	LoadBalancerType *int
 	NodeCount        *int
 	InternalIP       *string
+
+	//listener attrs
+	healthyCheckMethod *string
+	healthyCheckOption *string
+	balanceMode        *string
 
 	//It's just for defining names, nothing more.
 	NetworkType      string
@@ -126,6 +137,15 @@ func (qc *QingCloud) ParseServiceLBConfig(cluster string, service *v1.Service) (
 	}
 	if internalReuseID, ok := annotation[ServiceAnnotationLoadBalancerInternalReuseID]; ok {
 		config.InternalReuseID = &internalReuseID
+	}
+	if healthyCheckMethod, ok := annotation[ServiceAnnotationListenerHealthyCheckMethod]; ok {
+		config.healthyCheckMethod = &healthyCheckMethod
+	}
+	if healthyCheckOption, ok := annotation[ServiceAnnotationListenerHealthyCheckOption]; ok {
+		config.healthyCheckOption = &healthyCheckOption
+	}
+	if balanceMode, ok := annotation[ServiceAnnotationListenerBalanceMode]; ok {
+		config.balanceMode = &balanceMode
 	}
 
 	networkType := annotation[ServiceAnnotationLoadBalancerNetworkType]

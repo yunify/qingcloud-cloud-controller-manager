@@ -1,12 +1,14 @@
 package qingcloud
 
 import (
-	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/apis"
+	"reflect"
+	"testing"
+
 	qcservice "github.com/yunify/qingcloud-sdk-go/service"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"reflect"
-	"testing"
+
+	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/apis"
 )
 
 func TestConvertLoadBalancerStatus(t *testing.T) {
@@ -134,13 +136,17 @@ func TestDiffListeners(t *testing.T) {
 		ports     []v1.ServicePort
 		toDelete  []*string
 		toAdd     []v1.ServicePort
+		conf      *LoadBalancerConfig
 	}{
 		{
 			listeners: []*apis.LoadBalancerListener{
 				{
 					Spec: apis.LoadBalancerListenerSpec{
-						ListenerPort:     qcservice.Int(8080),
-						ListenerProtocol: qcservice.String("tcp"),
+						ListenerPort:       qcservice.Int(8080),
+						ListenerProtocol:   qcservice.String("tcp"),
+						HealthyCheckMethod: qcservice.String("tcp"),
+						HealthyCheckOption: qcservice.String("10|5|2|5"),
+						BalanceMode:        qcservice.String("roundrobin"),
 					},
 					Status: apis.LoadBalancerListenerStatus{
 						LoadBalancerListenerID: qcservice.String("testListener"),
@@ -173,8 +179,11 @@ func TestDiffListeners(t *testing.T) {
 			listeners: []*apis.LoadBalancerListener{
 				{
 					Spec: apis.LoadBalancerListenerSpec{
-						ListenerPort:     qcservice.Int(8080),
-						ListenerProtocol: qcservice.String("tcp"),
+						ListenerPort:       qcservice.Int(8080),
+						ListenerProtocol:   qcservice.String("tcp"),
+						HealthyCheckMethod: qcservice.String("tcp"),
+						HealthyCheckOption: qcservice.String("10|5|2|5"),
+						BalanceMode:        qcservice.String("roundrobin"),
 					},
 					Status: apis.LoadBalancerListenerStatus{
 						LoadBalancerListenerID: qcservice.String("testListener"),
@@ -213,8 +222,11 @@ func TestDiffListeners(t *testing.T) {
 			listeners: []*apis.LoadBalancerListener{
 				{
 					Spec: apis.LoadBalancerListenerSpec{
-						ListenerPort:     qcservice.Int(8080),
-						ListenerProtocol: qcservice.String("tcp"),
+						ListenerPort:       qcservice.Int(8080),
+						ListenerProtocol:   qcservice.String("tcp"),
+						HealthyCheckMethod: qcservice.String("tcp"),
+						HealthyCheckOption: qcservice.String("10|5|2|5"),
+						BalanceMode:        qcservice.String("roundrobin"),
 					},
 					Status: apis.LoadBalancerListenerStatus{
 						LoadBalancerListenerID: qcservice.String("testListener"),
@@ -253,8 +265,11 @@ func TestDiffListeners(t *testing.T) {
 			listeners: []*apis.LoadBalancerListener{
 				{
 					Spec: apis.LoadBalancerListenerSpec{
-						ListenerPort:     qcservice.Int(8080),
-						ListenerProtocol: qcservice.String("tcp"),
+						ListenerPort:       qcservice.Int(8080),
+						ListenerProtocol:   qcservice.String("tcp"),
+						HealthyCheckMethod: qcservice.String("tcp"),
+						HealthyCheckOption: qcservice.String("10|5|2|5"),
+						BalanceMode:        qcservice.String("roundrobin"),
 					},
 					Status: apis.LoadBalancerListenerStatus{
 						LoadBalancerListenerID: qcservice.String("testListener"),
@@ -288,11 +303,57 @@ func TestDiffListeners(t *testing.T) {
 				},
 			},
 			toDelete: []*string{qcservice.String("testListener")},
+		},
+		{
+			listeners: []*apis.LoadBalancerListener{
+				{
+					Spec: apis.LoadBalancerListenerSpec{
+						ListenerPort:       qcservice.Int(8080),
+						ListenerProtocol:   qcservice.String("tcp"),
+						HealthyCheckMethod: qcservice.String("tcp"),
+						HealthyCheckOption: qcservice.String("10|5|2|5"),
+						BalanceMode:        qcservice.String("roundrobin"),
+					},
+					Status: apis.LoadBalancerListenerStatus{
+						LoadBalancerListenerID: qcservice.String("testListenerBalanceMode"),
+						LoadBalancerBackends: []*apis.LoadBalancerBackend{
+							{
+								Spec: apis.LoadBalancerBackendSpec{
+									LoadBalancerBackendName: qcservice.String("instance1"),
+									Port:                    qcservice.Int(9090),
+									ResourceID:              qcservice.String("instance1"),
+								},
+								Status: apis.LoadBalancerBackendStatus{
+									LoadBalancerBackendID: qcservice.String("testBackend"),
+								},
+							},
+						},
+					},
+				},
+			},
+			ports: []v1.ServicePort{
+				{
+					Protocol: v1.ProtocolTCP,
+					Port:     8080,
+					NodePort: 9090,
+				},
+			},
+			conf: &LoadBalancerConfig{
+				balanceMode: qcservice.String("8080:source"), // change balanceMode
+			},
+			toAdd: []v1.ServicePort{
+				{
+					Protocol: v1.ProtocolTCP,
+					Port:     8080,
+					NodePort: 9090,
+				},
+			},
+			toDelete: []*string{qcservice.String("testListenerBalanceMode")},
 		},
 	}
 
 	for _, tc := range testCases {
-		toDelete, toAdd := diffListeners(tc.listeners, tc.ports)
+		toDelete, toAdd := diffListeners(tc.listeners, tc.conf, tc.ports)
 		//fmt.Printf("delete=%s, add=%s", spew.Sdump(toDelete), spew.Sdump(toAdd))
 		if !reflect.DeepEqual(toDelete, tc.toDelete) || !reflect.DeepEqual(toAdd, tc.toAdd) {
 			t.Fail()
