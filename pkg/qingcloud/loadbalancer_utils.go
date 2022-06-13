@@ -2,11 +2,11 @@ package qingcloud
 
 import (
 	"fmt"
-	"k8s.io/api/core/v1"
 	"strconv"
 	"strings"
 
 	qcservice "github.com/yunify/qingcloud-sdk-go/service"
+	v1 "k8s.io/api/core/v1"
 
 	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/apis"
 )
@@ -118,6 +118,16 @@ func getBalanceMode(annotationConf map[int]string, port int) *string {
 	return &balanceMode
 }
 
+func getCertificate(annotationConf map[int]string, port int) *string {
+	if annotationConf != nil {
+		certID := annotationConf[port]
+		if certID != "" {
+			return &certID
+		}
+	}
+	return nil
+}
+
 func diffListeners(listeners []*apis.LoadBalancerListener, conf *LoadBalancerConfig, ports []v1.ServicePort) (toDelete []*string, toAdd []v1.ServicePort) {
 	svcNodePort := make(map[string]int)
 	for _, listener := range listeners {
@@ -137,7 +147,8 @@ func diffListeners(listeners []*apis.LoadBalancerListener, conf *LoadBalancerCon
 				strings.EqualFold(*listener.Spec.ListenerProtocol, string(port.Protocol)) &&
 				svcNodePort[*listener.Status.LoadBalancerListenerID] == int(port.NodePort) &&
 				*balanceMode == *listener.Spec.BalanceMode &&
-				(*healthyCheck.option == *listener.Spec.HealthyCheckOption && *healthyCheck.method == *listener.Spec.HealthyCheckMethod) {
+				(*healthyCheck.option == *listener.Spec.HealthyCheckOption && *healthyCheck.method == *listener.Spec.HealthyCheckMethod) &&
+				equalCertificate(listener, conf, port) {
 				add = false
 				break
 			}
@@ -156,7 +167,8 @@ func diffListeners(listeners []*apis.LoadBalancerListener, conf *LoadBalancerCon
 				strings.EqualFold(*listener.Spec.ListenerProtocol, string(port.Protocol)) &&
 				svcNodePort[*listener.Status.LoadBalancerListenerID] == int(port.NodePort) &&
 				*balanceMode == *listener.Spec.BalanceMode &&
-				(*healthyCheck.option == *listener.Spec.HealthyCheckOption && *healthyCheck.method == *listener.Spec.HealthyCheckMethod) {
+				(*healthyCheck.option == *listener.Spec.HealthyCheckOption && *healthyCheck.method == *listener.Spec.HealthyCheckMethod) &&
+				equalCertificate(listener, conf, port) {
 				delete = false
 				break
 			}
@@ -177,8 +189,13 @@ func getLoadBalancerListenerNodePort(listener *apis.LoadBalancerListener, ports 
 	}
 
 	for _, port := range ports {
+		lsnProtocol := listener.Spec.ListenerProtocol
+		if *listener.Spec.ListenerProtocol == "https" && port.Protocol == v1.ProtocolTCP {
+			*lsnProtocol = "tcp"
+		}
+
 		if *listener.Spec.ListenerPort == int(port.Port) &&
-			strings.EqualFold(*listener.Spec.ListenerProtocol, string(port.Protocol)) {
+			strings.EqualFold(*lsnProtocol, string(port.Protocol)) {
 			result = qcservice.Int(int(port.NodePort))
 			return result
 		}
@@ -282,6 +299,13 @@ func parseBalanceMode(conf *LoadBalancerConfig) (map[int]string, error) {
 	return parseLsnAnnotaionData(*conf.balanceMode)
 }
 
+func parseCertificate(conf *LoadBalancerConfig) (map[int]string, error) {
+	if conf == nil || conf.ServerCertificate == nil {
+		return nil, nil
+	}
+	return parseLsnAnnotaionData(*conf.ServerCertificate)
+}
+
 func generateLoadBalancerListeners(conf *LoadBalancerConfig, lb *apis.LoadBalancer, ports []v1.ServicePort) ([]*apis.LoadBalancerListener, error) {
 	hcs, err := parseHeathyCheck(conf)
 	if err != nil {
@@ -293,9 +317,15 @@ func generateLoadBalancerListeners(conf *LoadBalancerConfig, lb *apis.LoadBalanc
 		return nil, err
 	}
 
+	certs, err := parseCertificate(conf)
+	if err != nil {
+		return nil, err
+	}
+
 	var result []*apis.LoadBalancerListener
 	for _, port := range ports {
 		protocol := ""
+		serverCertificate := []*string{}
 		switch port.Protocol {
 		case v1.ProtocolUDP:
 			protocol = "udp"
@@ -307,16 +337,23 @@ func generateLoadBalancerListeners(conf *LoadBalancerConfig, lb *apis.LoadBalanc
 
 		healthyCheck := getHealthyCheck(hcs, int(port.Port), strings.ToLower(string(port.Protocol)))
 		balanceMode := getBalanceMode(bms, int(port.Port))
+		certID := getCertificate(certs, int(port.Port))
+		listenerProtocol := protocol
+		if protocol == "tcp" && certID != nil {
+			listenerProtocol = "https"
+			serverCertificate = append(serverCertificate, certID)
+		}
 		result = append(result, &apis.LoadBalancerListener{
 			Spec: apis.LoadBalancerListenerSpec{
 				BackendProtocol:          &protocol,
-				ListenerProtocol:         &protocol,
+				ListenerProtocol:         &listenerProtocol,
 				ListenerPort:             qcservice.Int(int(port.Port)),
 				LoadBalancerListenerName: &conf.listenerName,
 				LoadBalancerID:           lb.Status.LoadBalancerID,
 				HealthyCheckMethod:       healthyCheck.method,
 				HealthyCheckOption:       healthyCheck.option,
 				BalanceMode:              balanceMode,
+				ServerCertificateID:      serverCertificate,
 			},
 		})
 	}
@@ -362,4 +399,22 @@ func diffBackend(listener *apis.LoadBalancerListener, nodes []*v1.Node) (toDelet
 	}
 
 	return
+}
+
+func equalCertificate(listener *apis.LoadBalancerListener, conf *LoadBalancerConfig, port v1.ServicePort) bool {
+	certs, _ := parseCertificate(conf)
+	certID := getCertificate(certs, int(port.Port))
+	if certID == nil && len(listener.Spec.ServerCertificateID) == 0 {
+		return true
+	}
+
+	if certID != nil {
+		for _, cert := range listener.Spec.ServerCertificateID {
+			if *cert == *certID {
+				return true
+			}
+		}
+	}
+
+	return false
 }

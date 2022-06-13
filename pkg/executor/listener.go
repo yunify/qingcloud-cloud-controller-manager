@@ -2,6 +2,7 @@ package executor
 
 import (
 	"fmt"
+
 	"github.com/davecgh/go-spew/spew"
 	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/apis"
 	qcservice "github.com/yunify/qingcloud-sdk-go/service"
@@ -47,6 +48,7 @@ func convertLoadBalancerListener(inputs []*qcservice.LoadBalancerListener) []*ap
 				HealthyCheckMethod:       input.HealthyCheckMethod,
 				HealthyCheckOption:       input.HealthyCheckOption,
 				BalanceMode:              input.BalanceMode,
+				ServerCertificateID:      input.ServerCertificateID,
 			},
 			Status: apis.LoadBalancerListenerStatus{
 				LoadBalancerListenerID: input.LoadBalancerListenerID,
@@ -65,11 +67,12 @@ func convertFromLoadBalancerListener(inputs []*apis.LoadBalancerListener) []*qcs
 		result = append(result, &qcservice.LoadBalancerListener{
 			BackendProtocol:          input.Spec.BackendProtocol,
 			ListenerPort:             input.Spec.ListenerPort,
-			ListenerProtocol:         input.Spec.BackendProtocol,
+			ListenerProtocol:         input.Spec.ListenerProtocol,
 			LoadBalancerListenerName: input.Spec.LoadBalancerListenerName,
 			HealthyCheckMethod:       input.Spec.HealthyCheckMethod,
 			HealthyCheckOption:       input.Spec.HealthyCheckOption,
 			BalanceMode:              input.Spec.BalanceMode,
+			ServerCertificateID:      input.Spec.ServerCertificateID,
 		})
 	}
 

@@ -81,13 +81,14 @@ type LoadBalancerBackend struct {
 type LoadBalancerListenerSpec struct {
 	BackendProtocol *string `json:"backend_protocol" name:"backend_protocol"`
 	// BalanceMode's available values: roundrobin, leastconn, source
-	ListenerPort             *int    `json:"listener_port" name:"listener_port"`
-	ListenerProtocol         *string `json:"listener_protocol" name:"listener_protocol"`
-	LoadBalancerListenerName *string `json:"loadbalancer_listener_name" name:"loadbalancer_listener_name"`
-	LoadBalancerID           *string `json:"loadbalancer_id" name:"loadbalancer_id"`
-	HealthyCheckMethod       *string `json:"healthy_check_method" name:"healthy_check_method"`
-	HealthyCheckOption       *string `json:"healthy_check_option" name:"healthy_check_option"`
-	BalanceMode              *string `json:"balance_mode" name:"balance_mode"`
+	ListenerPort             *int      `json:"listener_port" name:"listener_port"`
+	ListenerProtocol         *string   `json:"listener_protocol" name:"listener_protocol"`
+	LoadBalancerListenerName *string   `json:"loadbalancer_listener_name" name:"loadbalancer_listener_name"`
+	LoadBalancerID           *string   `json:"loadbalancer_id" name:"loadbalancer_id"`
+	HealthyCheckMethod       *string   `json:"healthy_check_method" name:"healthy_check_method"`
+	HealthyCheckOption       *string   `json:"healthy_check_option" name:"healthy_check_option"`
+	BalanceMode              *string   `json:"balance_mode" name:"balance_mode"`
+	ServerCertificateID      []*string `json:"server_certificate_id" name:"server_certificate_id"`
 }
 
 type LoadBalancerListenerStatus struct {

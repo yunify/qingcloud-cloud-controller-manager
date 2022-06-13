@@ -350,6 +350,52 @@ func TestDiffListeners(t *testing.T) {
 			},
 			toDelete: []*string{qcservice.String("testListenerBalanceMode")},
 		},
+		{
+			listeners: []*apis.LoadBalancerListener{
+				{
+					Spec: apis.LoadBalancerListenerSpec{
+						ListenerPort:       qcservice.Int(8080),
+						ListenerProtocol:   qcservice.String("tcp"),
+						HealthyCheckMethod: qcservice.String("tcp"),
+						HealthyCheckOption: qcservice.String("10|5|2|5"),
+						BalanceMode:        qcservice.String("roundrobin"),
+					},
+					Status: apis.LoadBalancerListenerStatus{
+						LoadBalancerListenerID: qcservice.String("testListenerCert"),
+						LoadBalancerBackends: []*apis.LoadBalancerBackend{
+							{
+								Spec: apis.LoadBalancerBackendSpec{
+									LoadBalancerBackendName: qcservice.String("instance1"),
+									Port:                    qcservice.Int(9090),
+									ResourceID:              qcservice.String("instance1"),
+								},
+								Status: apis.LoadBalancerBackendStatus{
+									LoadBalancerBackendID: qcservice.String("testBackend"),
+								},
+							},
+						},
+					},
+				},
+			},
+			ports: []v1.ServicePort{
+				{
+					Protocol: v1.ProtocolTCP,
+					Port:     8080,
+					NodePort: 9090,
+				},
+			},
+			conf: &LoadBalancerConfig{
+				ServerCertificate: qcservice.String("8080:sc-llluxekm"), // change cert
+			},
+			toAdd: []v1.ServicePort{
+				{
+					Protocol: v1.ProtocolTCP,
+					Port:     8080,
+					NodePort: 9090,
+				},
+			},
+			toDelete: []*string{qcservice.String("testListenerCert")},
+		},
 	}
 
 	for _, tc := range testCases {

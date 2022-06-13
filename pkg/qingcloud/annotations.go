@@ -2,11 +2,13 @@ package qingcloud
 
 import (
 	"fmt"
-	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/util"
-	qcservice "github.com/yunify/qingcloud-sdk-go/service"
-	"k8s.io/api/core/v1"
 	"strconv"
 	"strings"
+
+	qcservice "github.com/yunify/qingcloud-sdk-go/service"
+	v1 "k8s.io/api/core/v1"
+
+	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/util"
 )
 
 const (
@@ -74,6 +76,8 @@ const (
 	ServiceAnnotationListenerHealthyCheckOption = "service.beta.kubernetes.io/qingcloud-lb-listener-healthycheckoption"
 	// roundrobin / leastconn / source
 	ServiceAnnotationListenerBalanceMode = "service.beta.kubernetes.io/qingcloud-lb-listener-balancemode"
+	// port:certificate, such as "6443:sc-77oko7zj,8443:sc-77oko7zj"
+	ServiceAnnotationListenerServerCertificate = "service.beta.kubernetes.io/qingcloud-lb-listener-cert"
 )
 
 type LoadBalancerConfig struct {
@@ -91,6 +95,7 @@ type LoadBalancerConfig struct {
 	healthyCheckMethod *string
 	healthyCheckOption *string
 	balanceMode        *string
+	ServerCertificate  *string
 
 	//It's just for defining names, nothing more.
 	NetworkType      string
@@ -146,6 +151,9 @@ func (qc *QingCloud) ParseServiceLBConfig(cluster string, service *v1.Service) (
 	}
 	if balanceMode, ok := annotation[ServiceAnnotationListenerBalanceMode]; ok {
 		config.balanceMode = &balanceMode
+	}
+	if serverCertificate, ok := annotation[ServiceAnnotationListenerServerCertificate]; ok {
+		config.ServerCertificate = &serverCertificate
 	}
 
 	networkType := annotation[ServiceAnnotationLoadBalancerNetworkType]
