@@ -2,14 +2,16 @@ package executor
 
 import (
 	"fmt"
+	"strings"
+
 	"github.com/davecgh/go-spew/spew"
-	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/apis"
 	qcclient "github.com/yunify/qingcloud-sdk-go/client"
 	qcservice "github.com/yunify/qingcloud-sdk-go/service"
 	"github.com/yunify/qingcloud-sdk-go/utils"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/klog"
-	"strings"
+
+	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/apis"
 )
 
 const (

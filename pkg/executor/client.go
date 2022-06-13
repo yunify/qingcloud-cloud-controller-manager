@@ -2,10 +2,12 @@ package executor
 
 import (
 	"fmt"
-	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/apis"
+	"time"
+
 	qcconfig "github.com/yunify/qingcloud-sdk-go/config"
 	qcservice "github.com/yunify/qingcloud-sdk-go/service"
-	"time"
+
+	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/apis"
 )
 
 const (

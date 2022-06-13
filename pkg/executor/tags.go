@@ -2,8 +2,10 @@ package executor
 
 import (
 	"fmt"
-	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/errors"
+
 	"github.com/yunify/qingcloud-sdk-go/service"
+
+	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/errors"
 )
 
 func (i *QingCloudClient) attachTagsToResources(resourceIDs []*string, resourceType string) error {
