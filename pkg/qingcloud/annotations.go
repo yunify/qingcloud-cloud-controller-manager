@@ -78,6 +78,8 @@ const (
 	ServiceAnnotationListenerBalanceMode = "service.beta.kubernetes.io/qingcloud-lb-listener-balancemode"
 	// port:certificate, such as "6443:sc-77oko7zj,8443:sc-77oko7zj"
 	ServiceAnnotationListenerServerCertificate = "service.beta.kubernetes.io/qingcloud-lb-listener-cert"
+	// port:protocol, such as "443:https,80:http"
+	ServiceAnnotationListenerProtocol = "service.beta.kubernetes.io/qingcloud-lb-listener-protocol"
 )
 
 type LoadBalancerConfig struct {
@@ -96,6 +98,7 @@ type LoadBalancerConfig struct {
 	healthyCheckOption *string
 	balanceMode        *string
 	ServerCertificate  *string
+	Protocol           *string
 
 	//It's just for defining names, nothing more.
 	NetworkType      string
@@ -154,6 +157,9 @@ func (qc *QingCloud) ParseServiceLBConfig(cluster string, service *v1.Service) (
 	}
 	if serverCertificate, ok := annotation[ServiceAnnotationListenerServerCertificate]; ok {
 		config.ServerCertificate = &serverCertificate
+	}
+	if protocol, ok := annotation[ServiceAnnotationListenerProtocol]; ok {
+		config.Protocol = &protocol
 	}
 
 	networkType := annotation[ServiceAnnotationLoadBalancerNetworkType]

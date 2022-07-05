@@ -361,7 +361,7 @@ func TestDiffListeners(t *testing.T) {
 						BalanceMode:        qcservice.String("roundrobin"),
 					},
 					Status: apis.LoadBalancerListenerStatus{
-						LoadBalancerListenerID: qcservice.String("testListenerCert"),
+						LoadBalancerListenerID: qcservice.String("testListenerProtocol"),
 						LoadBalancerBackends: []*apis.LoadBalancerBackend{
 							{
 								Spec: apis.LoadBalancerBackendSpec{
@@ -385,6 +385,7 @@ func TestDiffListeners(t *testing.T) {
 				},
 			},
 			conf: &LoadBalancerConfig{
+				Protocol:          qcservice.String("8080:https"),       //change protocol
 				ServerCertificate: qcservice.String("8080:sc-llluxekm"), // change cert
 			},
 			toAdd: []v1.ServicePort{
@@ -394,13 +395,13 @@ func TestDiffListeners(t *testing.T) {
 					NodePort: 9090,
 				},
 			},
-			toDelete: []*string{qcservice.String("testListenerCert")},
+			toDelete: []*string{qcservice.String("testListenerProtocol")},
 		},
 	}
 
 	for _, tc := range testCases {
 		toDelete, toAdd := diffListeners(tc.listeners, tc.conf, tc.ports)
-		//fmt.Printf("delete=%s, add=%s", spew.Sdump(toDelete), spew.Sdump(toAdd))
+		// fmt.Printf("delete=%s, add=%s", spew.Sdump(toDelete), spew.Sdump(toAdd))
 		if !reflect.DeepEqual(toDelete, tc.toDelete) || !reflect.DeepEqual(toAdd, tc.toAdd) {
 			t.Fail()
 		}
