@@ -128,6 +128,30 @@ func getCertificate(annotationConf map[int]string, port int) *string {
 	return nil
 }
 
+func getProtocol(annotationConf map[int]string, port int) *string {
+	var protocol string
+	if annotationConf != nil {
+		protocolConf := annotationConf[port]
+		switch protocolConf {
+		case "https", "HTTPS":
+			protocol = "https"
+		case "http", "HTTP":
+			protocol = "http"
+		case "tcp", "TCP":
+			protocol = "tcp"
+		case "udp", "UDP":
+			protocol = "upd"
+		default:
+			protocol = ""
+		}
+	}
+	if protocol != "" {
+		return &protocol
+	} else {
+		return nil
+	}
+}
+
 func diffListeners(listeners []*apis.LoadBalancerListener, conf *LoadBalancerConfig, ports []v1.ServicePort) (toDelete []*string, toAdd []v1.ServicePort) {
 	svcNodePort := make(map[string]int)
 	for _, listener := range listeners {
@@ -144,11 +168,11 @@ func diffListeners(listeners []*apis.LoadBalancerListener, conf *LoadBalancerCon
 		balanceMode := getBalanceMode(bms, int(port.Port))
 		for _, listener := range listeners {
 			if *listener.Spec.ListenerPort == int(port.Port) &&
-				strings.EqualFold(*listener.Spec.ListenerProtocol, string(port.Protocol)) &&
+				// strings.EqualFold(*listener.Spec.ListenerProtocol, string(port.Protocol)) &&
 				svcNodePort[*listener.Status.LoadBalancerListenerID] == int(port.NodePort) &&
 				*balanceMode == *listener.Spec.BalanceMode &&
 				(*healthyCheck.option == *listener.Spec.HealthyCheckOption && *healthyCheck.method == *listener.Spec.HealthyCheckMethod) &&
-				equalCertificate(listener, conf, port) {
+				equalProtocol(listener, conf, port) {
 				add = false
 				break
 			}
@@ -164,11 +188,11 @@ func diffListeners(listeners []*apis.LoadBalancerListener, conf *LoadBalancerCon
 			healthyCheck := getHealthyCheck(hcs, int(port.Port), strings.ToLower(string(port.Protocol)))
 			balanceMode := getBalanceMode(bms, int(port.Port))
 			if *listener.Spec.ListenerPort == int(port.Port) &&
-				strings.EqualFold(*listener.Spec.ListenerProtocol, string(port.Protocol)) &&
+				// strings.EqualFold(*listener.Spec.ListenerProtocol, string(port.Protocol)) &&
 				svcNodePort[*listener.Status.LoadBalancerListenerID] == int(port.NodePort) &&
 				*balanceMode == *listener.Spec.BalanceMode &&
 				(*healthyCheck.option == *listener.Spec.HealthyCheckOption && *healthyCheck.method == *listener.Spec.HealthyCheckMethod) &&
-				equalCertificate(listener, conf, port) {
+				equalProtocol(listener, conf, port) {
 				delete = false
 				break
 			}
@@ -190,7 +214,7 @@ func getLoadBalancerListenerNodePort(listener *apis.LoadBalancerListener, ports 
 
 	for _, port := range ports {
 		lsnProtocol := listener.Spec.ListenerProtocol
-		if *listener.Spec.ListenerProtocol == "https" && port.Protocol == v1.ProtocolTCP {
+		if (*lsnProtocol == "https" || *lsnProtocol == "http") && port.Protocol == v1.ProtocolTCP {
 			*lsnProtocol = "tcp"
 		}
 
@@ -233,10 +257,15 @@ type healthyChek struct {
 //  1)healthycheckmethod: "80:tcp,443:tcp"
 //  2)healthycheckoption: "80:10|5|2|5,443:10|5|2|5"
 //  3)balancemode: "80:roundrobin,443:leastconn,8080:source"
+//  4)cert: "443:sc-77oko7zj,80:sc-77oko7zj"
+//  5)protocol: "443:https,80:http"
 func parseLsnAnnotaionData(data string) (map[int]string, error) {
 	methods := strings.Split(data, ",")
 	rst := make(map[int]string, len(methods))
 	for _, method := range methods {
+		if method == "" {
+			continue
+		}
 		m := strings.Split(method, ":")
 		if len(m) != 2 {
 			return nil, fmt.Errorf("wrong format: (%s)", data)
@@ -306,6 +335,13 @@ func parseCertificate(conf *LoadBalancerConfig) (map[int]string, error) {
 	return parseLsnAnnotaionData(*conf.ServerCertificate)
 }
 
+func parseProtocol(conf *LoadBalancerConfig) (map[int]string, error) {
+	if conf == nil || conf.Protocol == nil {
+		return nil, nil
+	}
+	return parseLsnAnnotaionData(*conf.Protocol)
+}
+
 func generateLoadBalancerListeners(conf *LoadBalancerConfig, lb *apis.LoadBalancer, ports []v1.ServicePort) ([]*apis.LoadBalancerListener, error) {
 	hcs, err := parseHeathyCheck(conf)
 	if err != nil {
@@ -318,6 +354,11 @@ func generateLoadBalancerListeners(conf *LoadBalancerConfig, lb *apis.LoadBalanc
 	}
 
 	certs, err := parseCertificate(conf)
+	if err != nil {
+		return nil, err
+	}
+
+	protocols, err := parseProtocol(conf)
 	if err != nil {
 		return nil, err
 	}
@@ -337,16 +378,25 @@ func generateLoadBalancerListeners(conf *LoadBalancerConfig, lb *apis.LoadBalanc
 
 		healthyCheck := getHealthyCheck(hcs, int(port.Port), strings.ToLower(string(port.Protocol)))
 		balanceMode := getBalanceMode(bms, int(port.Port))
+		listenerProtocol := getProtocol(protocols, int(port.Port))
 		certID := getCertificate(certs, int(port.Port))
-		listenerProtocol := protocol
-		if protocol == "tcp" && certID != nil {
-			listenerProtocol = "https"
-			serverCertificate = append(serverCertificate, certID)
+
+		if listenerProtocol == nil {
+			listenerProtocol = &protocol
+		} else if *listenerProtocol == "https" {
+			protocol = "http"
+			if certID != nil {
+				serverCertificate = append(serverCertificate, certID)
+			} else {
+				return nil, fmt.Errorf("loadbalance listener with https protocol must config certificate")
+			}
+		} else if *listenerProtocol == "http" {
+			protocol = "http"
 		}
 		result = append(result, &apis.LoadBalancerListener{
 			Spec: apis.LoadBalancerListenerSpec{
 				BackendProtocol:          &protocol,
-				ListenerProtocol:         &listenerProtocol,
+				ListenerProtocol:         listenerProtocol,
 				ListenerPort:             qcservice.Int(int(port.Port)),
 				LoadBalancerListenerName: &conf.listenerName,
 				LoadBalancerID:           lb.Status.LoadBalancerID,
@@ -416,5 +466,36 @@ func equalCertificate(listener *apis.LoadBalancerListener, conf *LoadBalancerCon
 		}
 	}
 
+	return false
+}
+
+func equalProtocol(listener *apis.LoadBalancerListener, conf *LoadBalancerConfig, port v1.ServicePort) bool {
+	protocols, _ := parseProtocol(conf)
+	lsnProtocol := getProtocol(protocols, int(port.Port))
+
+	if lsnProtocol == nil {
+		lsnProtocol = qcservice.String(strings.ToLower(string(port.Protocol)))
+	}
+
+	if *lsnProtocol == *listener.Spec.ListenerProtocol {
+		if *lsnProtocol == "https" {
+			// check cert
+			certs, _ := parseCertificate(conf)
+			certIDConf := getCertificate(certs, int(port.Port))
+			if certIDConf == nil && len(listener.Spec.ServerCertificateID) == 0 {
+				return true
+			}
+
+			if certIDConf != nil {
+				for _, cert := range listener.Spec.ServerCertificateID {
+					if *cert == *certIDConf {
+						return true
+					}
+				}
+			}
+			return false
+		}
+		return true
+	}
 	return false
 }
