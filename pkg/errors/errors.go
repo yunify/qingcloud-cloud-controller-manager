@@ -31,6 +31,7 @@ func NewResourceNotFoundError(resource, name string, message ...string) error {
 		Type:         ResourceNotFound,
 		ResourceType: resource,
 		Action:       "GetResource",
+		ResouceName:  name,
 	}
 	if len(message) > 0 {
 		e.Message = message[0]
@@ -52,6 +53,7 @@ func NewCommonServerError(resource, name, action, message string) error {
 		ResourceType: resource,
 		Message:      message,
 		Action:       action,
+		ResouceName:  name,
 	}
 }
 
