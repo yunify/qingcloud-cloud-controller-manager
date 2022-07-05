@@ -210,6 +210,7 @@ func (qc *QingCloud) EnsureLoadBalancer(ctx context.Context, _ string, service *
 		if len(listenerIDs) <= 0 {
 			klog.Infof("create listeners for loadbalancers %s, service ports %s", *lb.Status.LoadBalancerID, spew.Sdump(service.Spec.Ports))
 			if err = qc.createListenersAndBackends(conf, lb, service.Spec.Ports, nodes); err != nil {
+				klog.Errorf("createListenersAndBackends for loadbalancer %s error: %v", *lb.Status.LoadBalancerID, err)
 				return nil, err
 			}
 		} else {
@@ -338,6 +339,7 @@ func (qc *QingCloud) EnsureLoadBalancer(ctx context.Context, _ string, service *
 // Parameter 'clusterName' is the name of the cluster as presented to kube-controller-manager
 func (qc *QingCloud) UpdateLoadBalancer(ctx context.Context, _ string, service *v1.Service, nodes []*v1.Node) error {
 	conf, lb, err := qc.getLoadBalancer(service)
+	klog.V(4).Infof("==== UpdateLoadBalancer %s config %s ====", spew.Sdump(lb), spew.Sdump(conf))
 	if err != nil {
 		return err
 	}
@@ -381,10 +383,12 @@ func (qc *QingCloud) UpdateLoadBalancer(ctx context.Context, _ string, service *
 func (qc *QingCloud) createListenersAndBackends(conf *LoadBalancerConfig, status *apis.LoadBalancer, ports []v1.ServicePort, nodes []*v1.Node) error {
 	listeners, err := generateLoadBalancerListeners(conf, status, ports)
 	if err != nil {
+		klog.Errorf("generateLoadBalancerListeners for loadbalancer %s error: %v", *status.Status.LoadBalancerID, err)
 		return err
 	}
 	listeners, err = qc.Client.CreateListener(listeners)
 	if err != nil {
+		klog.Errorf("CreateListener for loadbalancer %s error: %v", *status.Status.LoadBalancerID, err)
 		return err
 	}
 
@@ -393,6 +397,7 @@ func (qc *QingCloud) createListenersAndBackends(conf *LoadBalancerConfig, status
 		backends := generateLoadBalancerBackends(nodes, listener, ports)
 		_, err = qc.Client.CreateBackends(backends)
 		if err != nil {
+			klog.Errorf("CreateBackends for loadbalancer %s error: %v", *status.Status.LoadBalancerID, err)
 			return err
 		}
 
@@ -411,6 +416,7 @@ func (qc *QingCloud) createListenersAndBackends(conf *LoadBalancerConfig, status
 // Parameter 'clusterName' is the name of the cluster as presented to kube-controller-manager
 func (qc *QingCloud) EnsureLoadBalancerDeleted(ctx context.Context, _ string, service *v1.Service) error {
 	lbConfig, lb, err := qc.getLoadBalancer(service)
+	klog.V(4).Infof("==== EnsureLoadBalancerDeleted %s config %s ====", spew.Sdump(lb), spew.Sdump(lbConfig))
 	if errors.IsResourceNotFound(err) {
 		return nil
 	}
