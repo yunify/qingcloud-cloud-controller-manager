@@ -148,6 +148,89 @@ spec:
 ```
 监听器参数说明：https://docsv3.qingcloud.com/network/loadbalancer/api/listener/modify_listener_attribute/
 
+## 五、配置LB监听器backend
+### 如何配置
+根据 `service` 的 `externalTrafficPolicy` 字段的取值，决定LB监听器backend的添加策略
+  - `Local`: 只会添加提供服务pod所在的Worker节点为LB监听器的backend
+  - `Cluster`: 如果`service`中不显式指定 `externalTrafficPolicy` 字段的值，则默认为`Cluster`；这种模式下，可以通过给服务添加相关注解来指定LB监听器backend的添加规则
+
+`Cluster`模式下，目前支持的 `service` 注解有：
+- 使用指定Label的Worker节点作为后端服务器， `service.beta.kubernetes.io/qingcloud-lb-backend-label`，可以指定多个Label，多个Label以逗号分隔。例如：`key1=value1,key2=value2`，多个Label之间是And关系。同时，在需要成为后端服务器的Worker节点打上`key1=value1,key2=value2`的Label；只有服务指定的所有Label的key和value都和Worker节点匹配时，Worker节点会被选为服务的后端服务器；没有此注解则添加所有Worker节点为backend
+
+### 参考示例
+#### Local模式
+将服务的`externalTrafficPolicy`指定为`Local`，只添加pod所在Worker节点为backend
+
+```yaml
+kind: Service
+apiVersion: v1
+metadata:
+  name:  reuse-lb
+  annotations:
+    service.beta.kubernetes.io/qingcloud-load-balancer-eip-strategy: "reuse-lb"
+    service.beta.kubernetes.io/qingcloud-load-balancer-id: "lb-oglqftju"
+spec:
+  externalTrafficPolicy: Local
+  selector:
+    app:  mylbapp
+  type:  LoadBalancer
+  ports:
+  - name:  http
+    port:  8090
+    protocol: TCP
+    targetPort:  80
+```
+
+#### Cluster模式
+将服务的`externalTrafficPolicy`指定为`Cluster`，并在服务的注解`service.beta.kubernetes.io/qingcloud-lb-backend-label`中指定要添加为backend的worker节点的label:
+
+```yaml
+kind: Service
+apiVersion: v1
+metadata:
+  name:  reuse-lb
+  annotations:
+    service.beta.kubernetes.io/qingcloud-load-balancer-eip-strategy: "reuse-lb"
+    service.beta.kubernetes.io/qingcloud-load-balancer-id: "lb-oglqftju"
+    service.beta.kubernetes.io/qingcloud-lb-backend-label: "test-label-key1=value1,test-label-key2=value2"
+spec:
+  externalTrafficPolicy: Cluster
+  selector:
+    app:  mylbapp
+  type:  LoadBalancer
+  ports:
+  - name:  http
+    port:  8090
+    protocol: TCP
+    targetPort:  80
+```
+
+Worker节点如果要添加为上述服务的backend,则必须同时有下面两个label；注意只有其中一个label并不会添加为上述服务的backend:
+
+```yaml
+apiVersion: v1
+kind: Node
+metadata:
+  annotations:
+    csi.volume.kubernetes.io/nodeid: '{"csi-qingcloud":"i-k5rl67a6"}'
+    node.alpha.kubernetes.io/ttl: "0"
+    node.beta.kubernetes.io/instance-id: i-k5rl67a6
+  creationTimestamp: "2022-07-15T07:59:59Z"
+  labels:
+    test-label-key1: value1
+    test-label-key2: value2
+  name: worker-p001
+  resourceVersion: "13094827"
+  uid: b711ce74-9785-41bf-b0ac-777e3c9c0c34
+spec:
+  podCIDR: 10.10.1.0/24
+  podCIDRs:
+  - 10.10.1.0/24
+status:
+  ...
+```
+
+
 ## 配置内网负载均衡器
 ### 已知问题
 k8s在ipvs模式下，kube-proxy会把内网负载均衡器的ip绑定在ipvs接口上，这样会导致从LB过来的包被drop（进来的是主网卡，但是出去的时候发现ipvs有这么一个ip，路由不一致）故目前无法在IPVS模式下使用内网负载均衡器。参考[issue](https://github.com/kubernetes/kubernetes/issues/79783)

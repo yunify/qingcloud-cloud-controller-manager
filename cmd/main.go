@@ -27,7 +27,7 @@ import (
 
 	"github.com/spf13/pflag"
 	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/cloud-provider"
+	cloudprovider "k8s.io/cloud-provider"
 	"k8s.io/cloud-provider/app"
 	"k8s.io/cloud-provider/app/config"
 	"k8s.io/cloud-provider/options"
@@ -36,8 +36,11 @@ import (
 	_ "k8s.io/component-base/metrics/prometheus/clientgo" // load all the prometheus client-go plugins
 	_ "k8s.io/component-base/metrics/prometheus/version"  // for version metric registration
 	"k8s.io/klog/v2"
+
 	// For existing cloud providers, the option to import legacy providers is still available.
 	// e.g. _"k8s.io/legacy-cloud-providers/<provider>"
+	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/controllers/clusternode"
+	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/controllers/endpoint"
 	_ "github.com/yunify/qingcloud-cloud-controller-manager/pkg/qingcloud"
 )
 
@@ -50,7 +53,7 @@ func main() {
 	}
 
 	fss := cliflag.NamedFlagSets{}
-	command := app.NewCloudControllerManagerCommand(ccmOptions, cloudInitializer, app.DefaultInitFuncConstructors, fss, wait.NeverStop)
+	command := app.NewCloudControllerManagerCommand(ccmOptions, cloudInitializer, controllerInitializers(), fss, wait.NeverStop)
 
 	// TODO: once we switch everything over to Cobra commands, we can go back to calling
 	// utilflag.InitFlags() (by removing its pflag.Parse() call). For now, we have to set the
@@ -86,4 +89,11 @@ func cloudInitializer(config *config.CompletedConfig) cloudprovider.Interface {
 		}
 	}
 	return cloud
+}
+
+func controllerInitializers() map[string]app.InitFuncConstructor {
+	controllerInitializers := app.DefaultInitFuncConstructors
+	controllerInitializers["endpoint"] = endpoint.StartEndpointControllerWrapper
+	controllerInitializers["clusternode"] = clusternode.StartClusterNodeControllerWrapper
+	return controllerInitializers
 }
