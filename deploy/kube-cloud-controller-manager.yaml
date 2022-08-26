@@ -48,6 +48,7 @@ rules:
   resources:
   - services
   verbs:
+  - get
   - list
   - patch
   - update
@@ -80,7 +81,7 @@ rules:
 - apiGroups:
   - ""
   resources:
-  - endpoints
+  - pods
   verbs:
   - create
   - get

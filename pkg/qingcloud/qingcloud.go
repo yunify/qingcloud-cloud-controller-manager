@@ -48,9 +48,10 @@ type QingCloud struct {
 	Config *Config
 	Client executor.QingCloudClientInterface
 
-	nodeInformer    corev1informer.NodeInformer
-	serviceInformer corev1informer.ServiceInformer
-	corev1interface corev1.CoreV1Interface
+	nodeInformer     corev1informer.NodeInformer
+	serviceInformer  corev1informer.ServiceInformer
+	endpointInformer corev1informer.EndpointsInformer
+	corev1interface  corev1.CoreV1Interface
 }
 
 func init() {
@@ -99,6 +100,10 @@ func (qc *QingCloud) Initialize(clientBuilder cloudprovider.ControllerClientBuil
 	serviceInformer := sharedInformer.Core().V1().Services()
 	go serviceInformer.Informer().Run(stop)
 	qc.serviceInformer = serviceInformer
+
+	endpointInformer := sharedInformer.Core().V1().Endpoints()
+	go endpointInformer.Informer().Run(stop)
+	qc.endpointInformer = endpointInformer
 
 	qc.corev1interface = clientset.CoreV1()
 }
@@ -189,6 +194,17 @@ func (qc *QingCloud) getLoadBalancer(service *v1.Service) (*LoadBalancerConfig, 
 func (qc *QingCloud) EnsureLoadBalancer(ctx context.Context, _ string, service *v1.Service, nodes []*v1.Node) (*v1.LoadBalancerStatus, error) {
 	conf, lb, err := qc.getLoadBalancer(service)
 	klog.V(4).Infof("==== EnsureLoadBalancer %s config %s ====", spew.Sdump(lb), spew.Sdump(conf))
+	if err != nil && !errors.IsResourceNotFound(err) {
+		klog.Errorf("getLoadBalancer for service %s error: %v", service.Name, err)
+		return nil, err
+	}
+
+	// filter nodes by service externalTrafficPolicy
+	nodes, err = qc.filterNodes(ctx, service, nodes, conf)
+	if err != nil {
+		klog.Errorf("filterNodes for service %s with externalTrafficPolicy %s error: %v", service.Name, service.Spec.ExternalTrafficPolicy, err)
+		return nil, err
+	}
 
 	//1. ensure & update lb
 	if err == nil {
@@ -213,36 +229,66 @@ func (qc *QingCloud) EnsureLoadBalancer(ctx context.Context, _ string, service *
 				klog.Errorf("createListenersAndBackends for loadbalancer %s error: %v", *lb.Status.LoadBalancerID, err)
 				return nil, err
 			}
+			modify = true
 		} else {
 			listeners, err := qc.Client.GetListeners(listenerIDs)
 			if err != nil {
 				return nil, err
 			}
 
+			//update listerner
 			toDelete, toAdd := diffListeners(listeners, conf, service.Spec.Ports)
-			klog.Infof("listeners %s will be deleted, %s will be added", spew.Sdump(toDelete), spew.Sdump(toAdd))
-
 			if len(toDelete) > 0 {
+				klog.Infof("listeners %s will be deleted for lb %s", spew.Sdump(toDelete), *lb.Status.LoadBalancerID)
 				err = qc.Client.DeleteListener(toDelete)
 				if err != nil {
 					return nil, err
 				}
+				modify = true
 			}
 
 			if len(toAdd) > 0 {
+				klog.Infof("listeners  %s will be added for lb %s", spew.Sdump(toAdd), *lb.Status.LoadBalancerID)
 				err = qc.createListenersAndBackends(conf, lb, toAdd, nodes)
 				if err != nil {
 					return nil, err
 				}
+				modify = true
 			}
 
-			if len(toAdd) == 0 && len(toDelete) == 0 && modify == false {
-				klog.Infof("Skip UpdateLB for loadbalancers %s", *lb.Status.LoadBalancerID)
+			//update backend; for example, service annotation for backend label changed
+			if len(toAdd) == 0 && len(toDelete) == 0 {
+				for _, listener := range listeners {
+					toDelete, toAdd := diffBackend(listener, nodes)
+
+					if len(toDelete) > 0 {
+						klog.Infof("backend %s will be deleted for listener %s(%s) of lb %s",
+							spew.Sdump(toDelete), *listener.Spec.LoadBalancerListenerName, *listener.Spec.LoadBalancerListenerID, *lb.Status.LoadBalancerID)
+						err = qc.Client.DeleteBackends(toDelete)
+						if err != nil {
+							return nil, err
+						}
+						modify = true
+					}
+
+					toAddBackends := generateLoadBalancerBackends(toAdd, listener, service.Spec.Ports)
+					if len(toAddBackends) > 0 {
+						klog.Infof("backend %s will be added for listener %s(%s) of lb %s",
+							spew.Sdump(toAddBackends), *listener.Spec.LoadBalancerListenerName, *listener.Spec.LoadBalancerListenerID, *lb.Status.LoadBalancerID)
+						_, err = qc.Client.CreateBackends(toAddBackends)
+						if err != nil {
+							return nil, err
+						}
+						modify = true
+					}
+				}
+			}
+
+			if !modify {
+				klog.Infof("no change for listeners %v of lb %s, skip UpdateLB", spew.Sdump(listenerIDs), *lb.Status.LoadBalancerID)
 				return convertLoadBalancerStatus(&lb.Status), nil
 			}
 		}
-
-		//update backend
 
 	} else if errors.IsResourceNotFound(err) {
 		if conf.Policy == ReuseExistingLB || conf.Policy == Shared {
@@ -338,9 +384,18 @@ func (qc *QingCloud) EnsureLoadBalancer(ctx context.Context, _ string, service *
 // parameters as read-only and not modify them.
 // Parameter 'clusterName' is the name of the cluster as presented to kube-controller-manager
 func (qc *QingCloud) UpdateLoadBalancer(ctx context.Context, _ string, service *v1.Service, nodes []*v1.Node) error {
+	var modify bool
+
 	conf, lb, err := qc.getLoadBalancer(service)
 	klog.V(4).Infof("==== UpdateLoadBalancer %s config %s ====", spew.Sdump(lb), spew.Sdump(conf))
 	if err != nil {
+		klog.Errorf("getLoadBalancer for service %s error: %v", service.Name, err)
+		return err
+	}
+
+	nodes, err = qc.filterNodes(ctx, service, nodes, conf)
+	if err != nil {
+		klog.Errorf("filterNodes for service %s with externalTrafficPolicy %s error: %v", service.Name, service.Spec.ExternalTrafficPolicy, err)
 		return err
 	}
 
@@ -357,27 +412,35 @@ func (qc *QingCloud) UpdateLoadBalancer(ctx context.Context, _ string, service *
 
 	for _, listener := range listeners {
 		toDelete, toAdd := diffBackend(listener, nodes)
+
 		if len(toDelete) > 0 {
+			klog.Infof("backend %s will be deleted for listener %s(%s) of lb %s",
+				spew.Sdump(toDelete), *listener.Spec.LoadBalancerListenerName, *listener.Spec.LoadBalancerListenerID, *lb.Status.LoadBalancerID)
 			err = qc.Client.DeleteBackends(toDelete)
 			if err != nil {
 				return err
 			}
+			modify = true
 		}
+
 		toAddBackends := generateLoadBalancerBackends(toAdd, listener, service.Spec.Ports)
 		if len(toAddBackends) > 0 {
+			klog.Infof("backend %s will be added for listener %s(%s) of lb %s",
+				spew.Sdump(toAddBackends), *listener.Spec.LoadBalancerListenerName, *listener.Spec.LoadBalancerListenerID, *lb.Status.LoadBalancerID)
 			_, err = qc.Client.CreateBackends(toAddBackends)
 			if err != nil {
 				return err
 			}
+			modify = true
 		}
 	}
 
-	err = qc.Client.UpdateLB(lb.Status.LoadBalancerID)
-	if err != nil {
-		return err
+	if !modify {
+		klog.Infof("no backend change for listeners %v of lb %s, skip UpdateLB", spew.Sdump(listenerIDs), *lb.Status.LoadBalancerID)
+		return nil
 	}
 
-	return nil
+	return qc.Client.UpdateLB(lb.Status.LoadBalancerID)
 }
 
 func (qc *QingCloud) createListenersAndBackends(conf *LoadBalancerConfig, status *apis.LoadBalancer, ports []v1.ServicePort, nodes []*v1.Node) error {
@@ -454,4 +517,67 @@ func (qc *QingCloud) EnsureLoadBalancerDeleted(ctx context.Context, _ string, se
 	//delete sg
 
 	return nil
+}
+
+// filterNodes filter nodes by service externalTrafficPolicy and service backend label annotation
+func (qc *QingCloud) filterNodes(ctx context.Context, svc *v1.Service, nodes []*v1.Node, lbconfog *LoadBalancerConfig) (newNodes []*v1.Node, err error) {
+
+	if svc.Spec.ExternalTrafficPolicy == v1.ServiceExternalTrafficPolicyTypeLocal {
+		klog.Infof("filter nodes for service %s/%s by real worker nodes", svc.Namespace, svc.Name)
+
+		// 1. get endpoint to get real worker node
+		nodeExists := make(map[string]bool)
+		ep, err := qc.endpointInformer.Lister().Endpoints(svc.Namespace).Get(svc.Name)
+		if err != nil {
+			return nil, fmt.Errorf("get endpoint %s/%s error: %v", svc.Namespace, svc.Name, err)
+		}
+		for _, sub := range ep.Subsets {
+			for _, addr := range sub.Addresses {
+				nodeExists[*addr.NodeName] = true
+			}
+		}
+
+		// 2. filter node
+		for _, node := range nodes {
+			if nodeExists[node.Name] {
+				newNodes = append(newNodes, node)
+			}
+		}
+	} else {
+		if lbconfog.BackendLabel != "" {
+			klog.Infof("filter nodes for service %s/%s by backend label: %s", svc.Namespace, svc.Name, lbconfog.BackendLabel)
+
+			// filter by label
+			labelMap, err := parseBackendLabel(lbconfog)
+			if err != nil {
+				return nil, fmt.Errorf("parseBackendLabel error: %v", err)
+			}
+
+			for i, node := range nodes {
+				count := 0
+				for k, v := range labelMap {
+					l, ok := node.Labels[k]
+					if ok && (l == v) {
+						count++
+					} else {
+						break
+					}
+				}
+				if count == len(labelMap) {
+					newNodes = append(newNodes, nodes[i])
+				}
+			}
+		} else {
+			// no need to filter
+			newNodes = nodes
+		}
+	}
+
+	var resultNames []string
+	for _, node := range newNodes {
+		resultNames = append(resultNames, node.Name)
+	}
+	klog.Infof("filter node result for service %s/%s: %v", svc.Namespace, svc.Name, resultNames)
+
+	return newNodes, nil
 }

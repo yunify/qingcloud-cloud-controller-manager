@@ -44,6 +44,7 @@ func convertLoadBalancerListener(inputs []*qcservice.LoadBalancerListener) []*ap
 				ListenerPort:             input.ListenerPort,
 				ListenerProtocol:         input.ListenerProtocol,
 				LoadBalancerListenerName: input.LoadBalancerListenerName,
+				LoadBalancerListenerID:   input.LoadBalancerListenerID,
 				LoadBalancerID:           input.LoadBalancerID,
 				HealthyCheckMethod:       input.HealthyCheckMethod,
 				HealthyCheckOption:       input.HealthyCheckOption,

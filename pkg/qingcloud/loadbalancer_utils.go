@@ -340,6 +340,30 @@ func parseProtocol(conf *LoadBalancerConfig) (map[int]string, error) {
 	return parseLsnAnnotaionData(*conf.Protocol)
 }
 
+func parseAnnotationIntoStringMap(data string) (map[string]string, error) {
+	parts := strings.Split(data, ",")
+	rst := make(map[string]string, len(parts))
+	for _, part := range parts {
+		if part == "" {
+			continue
+		}
+		p := strings.Split(part, "=")
+		if len(p) != 2 {
+			return nil, fmt.Errorf("wrong format: (%s)", data)
+		}
+
+		rst[p[0]] = p[1]
+	}
+	return rst, nil
+}
+
+func parseBackendLabel(conf *LoadBalancerConfig) (map[string]string, error) {
+	if conf == nil || conf.BackendLabel == "" {
+		return nil, nil
+	}
+	return parseAnnotationIntoStringMap(conf.BackendLabel)
+}
+
 func generateLoadBalancerListeners(conf *LoadBalancerConfig, lb *apis.LoadBalancer, ports []v1.ServicePort) ([]*apis.LoadBalancerListener, error) {
 	hcs, err := parseHeathyCheck(conf)
 	if err != nil {

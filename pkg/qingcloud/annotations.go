@@ -80,6 +80,10 @@ const (
 	ServiceAnnotationListenerServerCertificate = "service.beta.kubernetes.io/qingcloud-lb-listener-cert"
 	// port:protocol, such as "443:https,80:http"
 	ServiceAnnotationListenerProtocol = "service.beta.kubernetes.io/qingcloud-lb-listener-protocol"
+
+	// 5. Configure backend
+	// backend label, such as "key1=value1,key2=value2"
+	ServiceAnnotationBackendLabel = "service.beta.kubernetes.io/qingcloud-lb-backend-label"
 )
 
 type LoadBalancerConfig struct {
@@ -99,6 +103,9 @@ type LoadBalancerConfig struct {
 	balanceMode        *string
 	ServerCertificate  *string
 	Protocol           *string
+
+	//backend
+	BackendLabel string
 
 	//It's just for defining names, nothing more.
 	NetworkType      string
@@ -160,6 +167,9 @@ func (qc *QingCloud) ParseServiceLBConfig(cluster string, service *v1.Service) (
 	}
 	if protocol, ok := annotation[ServiceAnnotationListenerProtocol]; ok {
 		config.Protocol = &protocol
+	}
+	if backendLabel, ok := annotation[ServiceAnnotationBackendLabel]; ok {
+		config.BackendLabel = backendLabel
 	}
 
 	networkType := annotation[ServiceAnnotationLoadBalancerNetworkType]
