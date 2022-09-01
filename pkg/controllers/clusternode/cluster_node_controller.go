@@ -21,6 +21,7 @@ import (
 	genericcontrollermanager "k8s.io/controller-manager/app"
 	"k8s.io/klog"
 
+	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/controllers/utils"
 	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/qingcloud"
 )
 
@@ -175,16 +176,18 @@ func (cnc *ClusterNodeController) handleNodesUpdate(key string) error {
 
 	// 1. get node list
 	var nodes []*corev1.Node
-	nodeList, err := cnc.nodeLister.List(labels.NewSelector())
+	nodeList, err := cnc.nodeLister.List(labels.Everything())
 	if err != nil {
 		return fmt.Errorf("get node list error: %v", err)
 	}
 	for i, _ := range nodeList {
-		nodes = append(nodes, nodeList[i])
+		if utils.NodeConditionCheck(nodeList[i]) {
+			nodes = append(nodes, nodeList[i])
+		}
 	}
 
 	// 2. list all service
-	svcs, err := cnc.serviceLister.List(labels.NewSelector())
+	svcs, err := cnc.serviceLister.List(labels.Everything())
 	if err != nil {
 		return fmt.Errorf("list service  error: %v", err)
 	}

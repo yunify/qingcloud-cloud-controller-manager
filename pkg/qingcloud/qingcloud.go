@@ -200,10 +200,10 @@ func (qc *QingCloud) EnsureLoadBalancer(ctx context.Context, _ string, service *
 	}
 
 	// filter nodes by service externalTrafficPolicy
-	nodes, err = qc.filterNodes(ctx, service, nodes, conf)
-	if err != nil {
-		klog.Errorf("filterNodes for service %s with externalTrafficPolicy %s error: %v", service.Name, service.Spec.ExternalTrafficPolicy, err)
-		return nil, err
+	nodes, e := qc.filterNodes(ctx, service, nodes, conf)
+	if e != nil {
+		klog.Errorf("filterNodes for service %s/%s with externalTrafficPolicy %s error: %v", service.Namespace, service.Name, service.Spec.ExternalTrafficPolicy, e)
+		return nil, e
 	}
 
 	//1. ensure & update lb
@@ -262,7 +262,7 @@ func (qc *QingCloud) EnsureLoadBalancer(ctx context.Context, _ string, service *
 					toDelete, toAdd := diffBackend(listener, nodes)
 
 					if len(toDelete) > 0 {
-						klog.Infof("backend %s will be deleted for listener %s(%s) of lb %s",
+						klog.Infof("backends %s will be deleted for listener %s(%s) of lb %s",
 							spew.Sdump(toDelete), *listener.Spec.LoadBalancerListenerName, *listener.Spec.LoadBalancerListenerID, *lb.Status.LoadBalancerID)
 						err = qc.Client.DeleteBackends(toDelete)
 						if err != nil {
@@ -273,7 +273,7 @@ func (qc *QingCloud) EnsureLoadBalancer(ctx context.Context, _ string, service *
 
 					toAddBackends := generateLoadBalancerBackends(toAdd, listener, service.Spec.Ports)
 					if len(toAddBackends) > 0 {
-						klog.Infof("backend %s will be added for listener %s(%s) of lb %s",
+						klog.Infof("backends %s will be added for listener %s(%s) of lb %s",
 							spew.Sdump(toAddBackends), *listener.Spec.LoadBalancerListenerName, *listener.Spec.LoadBalancerListenerID, *lb.Status.LoadBalancerID)
 						_, err = qc.Client.CreateBackends(toAddBackends)
 						if err != nil {
@@ -414,7 +414,7 @@ func (qc *QingCloud) UpdateLoadBalancer(ctx context.Context, _ string, service *
 		toDelete, toAdd := diffBackend(listener, nodes)
 
 		if len(toDelete) > 0 {
-			klog.Infof("backend %s will be deleted for listener %s(%s) of lb %s",
+			klog.Infof("backends %s will be deleted for listener %s(%s) of lb %s",
 				spew.Sdump(toDelete), *listener.Spec.LoadBalancerListenerName, *listener.Spec.LoadBalancerListenerID, *lb.Status.LoadBalancerID)
 			err = qc.Client.DeleteBackends(toDelete)
 			if err != nil {
@@ -425,7 +425,7 @@ func (qc *QingCloud) UpdateLoadBalancer(ctx context.Context, _ string, service *
 
 		toAddBackends := generateLoadBalancerBackends(toAdd, listener, service.Spec.Ports)
 		if len(toAddBackends) > 0 {
-			klog.Infof("backend %s will be added for listener %s(%s) of lb %s",
+			klog.Infof("backends %s will be added for listener %s(%s) of lb %s",
 				spew.Sdump(toAddBackends), *listener.Spec.LoadBalancerListenerName, *listener.Spec.LoadBalancerListenerID, *lb.Status.LoadBalancerID)
 			_, err = qc.Client.CreateBackends(toAddBackends)
 			if err != nil {
@@ -566,6 +566,11 @@ func (qc *QingCloud) filterNodes(ctx context.Context, svc *v1.Service, nodes []*
 				if count == len(labelMap) {
 					newNodes = append(newNodes, nodes[i])
 				}
+			}
+			// if there are no available nodes , use all nodes
+			if len(newNodes) == 0 {
+				klog.Infof("there are no available nodes for service %s/%s, use all nodes!", svc.Namespace, svc.Name)
+				newNodes = nodes
 			}
 		} else {
 			// no need to filter
