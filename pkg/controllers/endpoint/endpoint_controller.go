@@ -20,6 +20,8 @@ import (
 	cloudcontrollerconfig "k8s.io/cloud-provider/app/config"
 	genericcontrollermanager "k8s.io/controller-manager/app"
 	"k8s.io/klog"
+
+	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/controllers/utils"
 )
 
 const (
@@ -181,12 +183,14 @@ func (epc *EndpointController) handleEndpointsUpdate(key string) error {
 
 	// 2. get node list
 	var nodes []*corev1.Node
-	nodeList, err := epc.nodeLister.List(labels.NewSelector())
+	nodeList, err := epc.nodeLister.List(labels.Everything())
 	if err != nil {
 		return fmt.Errorf("get node list error: %v", err)
 	}
 	for i, _ := range nodeList {
-		nodes = append(nodes, nodeList[i])
+		if utils.NodeConditionCheck(nodeList[i]) {
+			nodes = append(nodes, nodeList[i])
+		}
 	}
 
 	// 3. update lb
