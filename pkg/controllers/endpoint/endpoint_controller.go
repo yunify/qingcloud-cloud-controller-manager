@@ -177,9 +177,10 @@ func (epc *EndpointController) handleEndpointsUpdate(key string) error {
 	}
 	// ignore service which service type != loadbalancer or externalTrafficPolicy != Local
 	if svc.Spec.Type != corev1.ServiceTypeLoadBalancer || svc.Spec.ExternalTrafficPolicy != corev1.ServiceExternalTrafficPolicyTypeLocal {
-		klog.Infof("service %s serviceType = %s, externalTrafficPolicy = %s, skip handle endpoint update", svc.Name, svc.Spec.Type, svc.Spec.ExternalTrafficPolicy)
+		klog.V(4).Infof("service %s serviceType = %s, externalTrafficPolicy = %s, skip handle endpoint update", svc.Name, svc.Spec.Type, svc.Spec.ExternalTrafficPolicy)
 		return nil
 	}
+	klog.Infof("service %s serviceType = %s, externalTrafficPolicy = %s, going to handle endpoint update", svc.Name, svc.Spec.Type, svc.Spec.ExternalTrafficPolicy)
 
 	// 2. get node list
 	var nodes []*corev1.Node

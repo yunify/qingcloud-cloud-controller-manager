@@ -65,6 +65,12 @@ func convertLoadBalancerStatus(lb *qcservice.LoadBalancer) apis.LoadBalancerStat
 }
 
 func convertLoadBalancer(lb *qcservice.LoadBalancer) *apis.LoadBalancer {
+	var eipsID []*string
+	for _, eip := range lb.Cluster {
+		if *eip.EIPID != "" {
+			eipsID = append(eipsID, eip.EIPID)
+		}
+	}
 	return &apis.LoadBalancer{
 		Spec: apis.LoadBalancerSpec{
 			LoadBalancerName: lb.LoadBalancerName,
@@ -73,7 +79,7 @@ func convertLoadBalancer(lb *qcservice.LoadBalancer) *apis.LoadBalancer {
 			VxNetID:          lb.VxNetID,
 			PrivateIPs:       lb.PrivateIPs,
 			SecurityGroups:   lb.SecurityGroupID,
-			//TODO fill eip
+			EIPs:             eipsID,
 		},
 		Status: convertLoadBalancerStatus(lb),
 	}
@@ -258,10 +264,73 @@ func (q *QingCloudClient) DeleteLB(id *string) error {
 		return nil
 	}
 
-	if err != nil {
+	if output != nil && err == nil {
+		if *output.RetCode != 0 {
+			return fmt.Errorf("failed to delete lb %s, code=%d, message=%s", *id, *output.RetCode, *output.Message)
+		}
+
 		err = qcclient.WaitJob(q.jobService, *output.JobID, operationWaitTimeout, waitInterval)
 		if err != nil {
 			return fmt.Errorf("lb %s delete job not completed", *id)
+		}
+	}
+
+	return nil
+}
+
+func (q *QingCloudClient) AssociateEIPsToLB(id *string, eips []*string) error {
+	var err error
+	var output *qcservice.AssociateEIPsToLoadBalancerOutput
+
+	if len(eips) == 0 {
+		return nil
+	}
+
+	output, err = q.LBService.AssociateEIPsToLoadBalancer(&qcservice.AssociateEIPsToLoadBalancerInput{
+		EIPs:         eips,
+		LoadBalancer: id,
+	})
+	if err != nil {
+		return fmt.Errorf("associate eip %s to lb %s error: %v", spew.Sdump(eips), *id, err)
+	}
+
+	if output != nil {
+		if *output.RetCode != 0 {
+			return fmt.Errorf("associate eip %s to lb %s failed, code=%d, message=%s", spew.Sdump(eips), *id, *output.RetCode, *output.Message)
+		}
+
+		err = qcclient.WaitJob(q.jobService, *output.JobID, operationWaitTimeout, waitInterval)
+		if err != nil {
+			return fmt.Errorf("associate eip %s to lb %s job not completed, err %v", spew.Sdump(eips), *id, err)
+		}
+	}
+
+	return nil
+}
+func (q *QingCloudClient) DissociateEIPsFromLB(id *string, eips []*string) error {
+	var err error
+	var output *qcservice.DissociateEIPsFromLoadBalancerOutput
+
+	if len(eips) == 0 {
+		return nil
+	}
+
+	output, err = q.LBService.DissociateEIPsFromLoadBalancer(&qcservice.DissociateEIPsFromLoadBalancerInput{
+		EIPs:         eips,
+		LoadBalancer: id,
+	})
+	if err != nil {
+		return fmt.Errorf("dissociate eips %s from lb %s error: %v", spew.Sdump(eips), *id, err)
+	}
+
+	if output != nil {
+		if *output.RetCode != 0 {
+			return fmt.Errorf("dissociate eip %s from lb %s failed, code=%d, message=%s", spew.Sdump(eips), *id, *output.RetCode, *output.Message)
+		}
+
+		err = qcclient.WaitJob(q.jobService, *output.JobID, operationWaitTimeout, waitInterval)
+		if err != nil {
+			return fmt.Errorf("dissociate eip %s from lb %s job not completed, err %v", spew.Sdump(eips), *id, err)
 		}
 	}
 

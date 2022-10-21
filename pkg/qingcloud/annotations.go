@@ -173,14 +173,14 @@ func (qc *QingCloud) ParseServiceLBConfig(cluster string, service *v1.Service) (
 	}
 
 	networkType := annotation[ServiceAnnotationLoadBalancerNetworkType]
+	if config.VxNetID == nil && qc.Config.DefaultVxNetForLB != "" {
+		config.VxNetID = qcservice.String(qc.Config.DefaultVxNetForLB)
+	}
 	switch networkType {
 	case NetworkModePublic:
 		config.NetworkType = networkType
 	case NetworkModeInternal:
 		config.NetworkType = networkType
-		if config.VxNetID == nil && qc.Config.DefaultVxNetForLB != "" {
-			config.VxNetID = qcservice.String(qc.Config.DefaultVxNetForLB)
-		}
 	default:
 		config.NetworkType = NetworkModePublic
 	}
