@@ -155,7 +155,9 @@ spec:
   - `Cluster`: 如果`service`中不显式指定 `externalTrafficPolicy` 字段的值，则默认为`Cluster`；这种模式下，可以通过给服务添加相关注解来指定LB监听器backend的添加规则
 
 `Cluster`模式下，目前支持的 `service` 注解有：
-- 使用指定Label的Worker节点作为后端服务器， `service.beta.kubernetes.io/qingcloud-lb-backend-label`，可以指定多个Label，多个Label以逗号分隔。例如：`key1=value1,key2=value2`，多个Label之间是And关系。同时，在需要成为后端服务器的Worker节点打上`key1=value1,key2=value2`的Label；只有服务指定的所有Label的key和value都和Worker节点匹配时，Worker节点会被选为服务的后端服务器；没有此注解则添加所有Worker节点为backend
+- 使用指定Label的Worker节点作为后端服务器， `service.beta.kubernetes.io/qingcloud-lb-backend-label`，可以指定多个Label，多个Label以逗号分隔。例如：`key1=value1,key2=value2`，多个Label之间是And关系。同时，在需要成为后端服务器的Worker节点打上`key1=value1,key2=value2`的Label；只有服务指定的所有Label的key和value都和Worker节点匹配时，Worker节点会被选为服务的后端服务器；没有此注解则添加所有Worker节点为backend；通过注解过滤节点后，如果没有满足条件的节点，为了避免服务中断，会添加所有Worker节点为后端服务器；
+
+> 本章节所说的"所有Worker节点"特指所有 `Ready` 状态的Worker节点；
 
 ### 参考示例
 #### Local模式

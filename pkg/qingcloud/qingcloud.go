@@ -220,11 +220,18 @@ func (qc *QingCloud) EnsureLoadBalancer(ctx context.Context, _ string, service *
 			modify = true
 		}
 
+		// update eips
+		err = qc.updateLBEip(conf, lb)
+		if err != nil {
+			klog.Errorf("update eip for lb %s error %v", *lb.Status.LoadBalancerID, err)
+			return nil, err
+		}
+
 		//update listener
 		listenerIDs := filterListeners(lb.Status.LoadBalancerListeners, conf.listenerName)
 		klog.Infof("The loadbalancer %s has the following listeners %s", *lb.Status.LoadBalancerID, spew.Sdump(listenerIDs))
 		if len(listenerIDs) <= 0 {
-			klog.Infof("create listeners for loadbalancers %s, service ports %s", *lb.Status.LoadBalancerID, spew.Sdump(service.Spec.Ports))
+			klog.Infof("creating listeners for loadbalancers %s, service ports %s", *lb.Status.LoadBalancerID, spew.Sdump(service.Spec.Ports))
 			if err = qc.createListenersAndBackends(conf, lb, service.Spec.Ports, nodes); err != nil {
 				klog.Errorf("createListenersAndBackends for loadbalancer %s error: %v", *lb.Status.LoadBalancerID, err)
 				return nil, err
@@ -300,46 +307,10 @@ func (qc *QingCloud) EnsureLoadBalancer(ctx context.Context, _ string, service *
 		//1. create lb
 		//1.1 prepare eip
 		if len(conf.EipIDs) <= 0 && conf.EipSource != nil {
-			var (
-				eip *apis.EIP
-			)
-
-			switch *conf.EipSource {
-			case AllocateOnly:
-				eip, err = qc.Client.AllocateEIP(nil)
-			case UseAvailableOnly:
-				eips, err := qc.Client.GetAvaliableEIPs()
-				if err != nil {
-					return nil, err
-				}
-
-				if len(eips) <= 0 {
-					return nil, fmt.Errorf("no avaliable eips")
-				}
-
-				eip = eips[0]
-			case UseAvailableOrAllocateOne:
-				eips, err := qc.Client.GetAvaliableEIPs()
-				if err != nil {
-					return nil, err
-				}
-
-				if len(eips) <= 0 {
-					eip, err = qc.Client.AllocateEIP(nil)
-					if err != nil {
-						return nil, err
-					}
-				} else {
-					eip = eips[0]
-				}
-			}
-
+			eip, err := qc.prepareEip(conf.EipSource)
 			if err != nil {
 				return nil, err
-			} else if eip == nil {
-				return nil, fmt.Errorf("has no eip")
 			}
-
 			conf.EipIDs = []*string{eip.Status.EIPID}
 		}
 		//1.2 prepare sg
@@ -368,7 +339,7 @@ func (qc *QingCloud) EnsureLoadBalancer(ctx context.Context, _ string, service *
 	}
 
 	if len(lb.Status.VIP) <= 0 {
-		return nil, fmt.Errorf("loadbalance has not vip, please spec it")
+		return nil, fmt.Errorf("loadbalance has no vip, please spec it")
 	}
 
 	err = qc.Client.UpdateLB(lb.Status.LoadBalancerID)

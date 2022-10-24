@@ -49,6 +49,8 @@ type QingCloudClientInterface interface {
 	CreateLB(input *apis.LoadBalancer) (*apis.LoadBalancer, error)
 	DeleteLB(id *string) error
 	UpdateLB(id *string) error
+	AssociateEIPsToLB(id *string, eips []*string) error
+	DissociateEIPsFromLB(id *string, eips []*string) error
 
 	//sg
 	GetSecurityGroupByName(name string) (*apis.SecurityGroup, error)
