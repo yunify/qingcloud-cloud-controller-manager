@@ -4,9 +4,11 @@ import (
 	"fmt"
 
 	"github.com/davecgh/go-spew/spew"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/klog/v2"
 
 	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/apis"
+	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/util"
 )
 
 func (qc *QingCloud) prepareEip(eipSource *string) (eip *apis.EIP, err error) {
@@ -142,4 +144,41 @@ func (qc *QingCloud) updateLBEip(config *LoadBalancerConfig, lb *apis.LoadBalanc
 	}
 
 	return nil
+}
+
+func (qc *QingCloud) diffBackend(listener *apis.LoadBalancerListener, nodes []*v1.Node, conf *LoadBalancerConfig, svc *v1.Service) (toDelete []*string, toAdd []*v1.Node) {
+	var backendLeftID []*string
+	for _, backend := range listener.Status.LoadBalancerBackends {
+		if !nodesHasBackend(*backend.Spec.LoadBalancerBackendName, nodes) {
+			toDelete = append(toDelete, backend.Status.LoadBalancerBackendID)
+		} else {
+			backendLeftID = append(backendLeftID, backend.Status.LoadBalancerBackendID)
+		}
+	}
+
+	// filter backend nodes by count
+	if svc.Spec.ExternalTrafficPolicy == v1.ServiceExternalTrafficPolicyTypeCluster && conf.BackendCountConfig != "" {
+		backendLeftCount := len(listener.Status.LoadBalancerBackends) - len(toDelete)
+		if backendLeftCount > conf.BackendCountResult {
+			// delete some
+			toDelete = append(toDelete, util.GetRandomItems(backendLeftID, backendLeftCount-conf.BackendCountResult)...)
+		} else {
+			// add some
+			var nodeLeft []*v1.Node
+			for _, node := range nodes {
+				if !backendsHasNode(node, listener.Status.LoadBalancerBackends) {
+					nodeLeft = append(nodeLeft, node)
+				}
+			}
+			toAdd = append(toAdd, getRandomNodes(nodeLeft, conf.BackendCountResult-backendLeftCount)...)
+		}
+	} else {
+		for _, node := range nodes {
+			if !backendsHasNode(node, listener.Status.LoadBalancerBackends) {
+				toAdd = append(toAdd, node)
+			}
+		}
+	}
+
+	return
 }

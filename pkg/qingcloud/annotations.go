@@ -80,10 +80,14 @@ const (
 	ServiceAnnotationListenerServerCertificate = "service.beta.kubernetes.io/qingcloud-lb-listener-cert"
 	// port:protocol, such as "443:https,80:http"
 	ServiceAnnotationListenerProtocol = "service.beta.kubernetes.io/qingcloud-lb-listener-protocol"
+	// port:timeout, such as "443:50", the value must in range 10 ～ 86400
+	ServiceAnnotationListenerTimeout = "service.beta.kubernetes.io/qingcloud-lb-listener-timeout"
 
 	// 5. Configure backend
 	// backend label, such as "key1=value1,key2=value2"
 	ServiceAnnotationBackendLabel = "service.beta.kubernetes.io/qingcloud-lb-backend-label"
+	// backend count limit, if value is 0 or greater than cluster ready worker, will use default value : 1/3 of cluster ready worker
+	ServiceAnnotationBackendCount = "service.beta.kubernetes.io/qingcloud-lb-backend-count"
 )
 
 type LoadBalancerConfig struct {
@@ -105,7 +109,9 @@ type LoadBalancerConfig struct {
 	Protocol           *string
 
 	//backend
-	BackendLabel string
+	BackendLabel       string
+	BackendCountConfig string
+	BackendCountResult int
 
 	//It's just for defining names, nothing more.
 	NetworkType      string
@@ -170,6 +176,13 @@ func (qc *QingCloud) ParseServiceLBConfig(cluster string, service *v1.Service) (
 	}
 	if backendLabel, ok := annotation[ServiceAnnotationBackendLabel]; ok {
 		config.BackendLabel = backendLabel
+	}
+	if backendCount, ok := annotation[ServiceAnnotationBackendCount]; ok {
+		_, err := strconv.Atoi(backendCount)
+		if err != nil {
+			return nil, fmt.Errorf("please spec a valid value of loadBalancer backend count")
+		}
+		config.BackendCountConfig = backendCount
 	}
 
 	networkType := annotation[ServiceAnnotationLoadBalancerNetworkType]

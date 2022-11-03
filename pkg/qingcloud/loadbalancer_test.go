@@ -400,7 +400,7 @@ func TestDiffListeners(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		toDelete, toAdd := diffListeners(tc.listeners, tc.conf, tc.ports)
+		toDelete, toAdd, _ := diffListeners(tc.listeners, tc.conf, tc.ports)
 		// fmt.Printf("delete=%s, add=%s", spew.Sdump(toDelete), spew.Sdump(toAdd))
 		if !reflect.DeepEqual(toDelete, tc.toDelete) || !reflect.DeepEqual(toAdd, tc.toAdd) {
 			t.Fail()
