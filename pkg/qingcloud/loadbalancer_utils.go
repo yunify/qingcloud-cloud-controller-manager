@@ -1,7 +1,9 @@
 package qingcloud
 
 import (
+	"crypto/rand"
 	"fmt"
+	"math/big"
 	"strconv"
 	"strings"
 
@@ -152,7 +154,7 @@ func getProtocol(annotationConf map[int]string, port int) *string {
 	}
 }
 
-func diffListeners(listeners []*apis.LoadBalancerListener, conf *LoadBalancerConfig, ports []v1.ServicePort) (toDelete []*string, toAdd []v1.ServicePort) {
+func diffListeners(listeners []*apis.LoadBalancerListener, conf *LoadBalancerConfig, ports []v1.ServicePort) (toDelete []*string, toAdd []v1.ServicePort, toKeep []*apis.LoadBalancerListener) {
 	svcNodePort := make(map[string]int)
 	for _, listener := range listeners {
 		if len(listener.Status.LoadBalancerBackends) > 0 {
@@ -197,6 +199,8 @@ func diffListeners(listeners []*apis.LoadBalancerListener, conf *LoadBalancerCon
 		}
 		if delete {
 			toDelete = append(toDelete, listener.Status.LoadBalancerListenerID)
+		} else {
+			toKeep = append(toKeep, listener)
 		}
 	}
 
@@ -520,4 +524,19 @@ func equalProtocol(listener *apis.LoadBalancerListener, conf *LoadBalancerConfig
 		return true
 	}
 	return false
+}
+
+func getRandomNodes(nodes []*v1.Node, count int) (result []*v1.Node) {
+	resultMap := make(map[int64]bool)
+	length := int64(len(nodes))
+
+	for i := 0; i < count; {
+		r, _ := rand.Int(rand.Reader, big.NewInt(length))
+		if !resultMap[r.Int64()] {
+			result = append(result, nodes[r.Int64()])
+			resultMap[r.Int64()] = true
+			i++
+		}
+	}
+	return
 }

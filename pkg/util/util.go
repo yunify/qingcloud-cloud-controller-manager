@@ -5,6 +5,8 @@
 package util
 
 import (
+	"crypto/rand"
+	"math/big"
 	"strings"
 	"time"
 
@@ -80,4 +82,19 @@ func TwoArrayEqual(a []int, b []int) bool {
 		}
 	}
 	return true
+}
+
+func GetRandomItems(items []*string, count int) (result []*string) {
+	resultMap := make(map[int64]bool)
+	length := int64(len(items))
+
+	for i := 0; i < count; {
+		r, _ := rand.Int(rand.Reader, big.NewInt(length))
+		if !resultMap[r.Int64()] {
+			result = append(result, items[r.Int64()])
+			resultMap[r.Int64()] = true
+			i++
+		}
+	}
+	return
 }

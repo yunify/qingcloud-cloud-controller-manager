@@ -11,6 +11,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"strconv"
 
 	"github.com/davecgh/go-spew/spew"
 	yaml "gopkg.in/yaml.v2"
@@ -27,8 +28,9 @@ import (
 )
 
 const (
-	ProviderName = "qingcloud"
-	QYConfigPath = "/etc/qingcloud/config.yaml"
+	ProviderName        = "qingcloud"
+	QYConfigPath        = "/etc/qingcloud/config.yaml"
+	DefaultBackendCount = 3
 )
 
 type Config struct {
@@ -232,7 +234,7 @@ func (qc *QingCloud) EnsureLoadBalancer(ctx context.Context, _ string, service *
 		klog.Infof("The loadbalancer %s has the following listeners %s", *lb.Status.LoadBalancerID, spew.Sdump(listenerIDs))
 		if len(listenerIDs) <= 0 {
 			klog.Infof("creating listeners for loadbalancers %s, service ports %s", *lb.Status.LoadBalancerID, spew.Sdump(service.Spec.Ports))
-			if err = qc.createListenersAndBackends(conf, lb, service.Spec.Ports, nodes); err != nil {
+			if err = qc.createListenersAndBackends(conf, lb, service.Spec.Ports, nodes, service); err != nil {
 				klog.Errorf("createListenersAndBackends for loadbalancer %s error: %v", *lb.Status.LoadBalancerID, err)
 				return nil, err
 			}
@@ -244,7 +246,7 @@ func (qc *QingCloud) EnsureLoadBalancer(ctx context.Context, _ string, service *
 			}
 
 			//update listerner
-			toDelete, toAdd := diffListeners(listeners, conf, service.Spec.Ports)
+			toDelete, toAdd, toKeep := diffListeners(listeners, conf, service.Spec.Ports)
 			if len(toDelete) > 0 {
 				klog.Infof("listeners %s will be deleted for lb %s", spew.Sdump(toDelete), *lb.Status.LoadBalancerID)
 				err = qc.Client.DeleteListener(toDelete)
@@ -256,7 +258,7 @@ func (qc *QingCloud) EnsureLoadBalancer(ctx context.Context, _ string, service *
 
 			if len(toAdd) > 0 {
 				klog.Infof("listeners  %s will be added for lb %s", spew.Sdump(toAdd), *lb.Status.LoadBalancerID)
-				err = qc.createListenersAndBackends(conf, lb, toAdd, nodes)
+				err = qc.createListenersAndBackends(conf, lb, toAdd, nodes, service)
 				if err != nil {
 					return nil, err
 				}
@@ -264,30 +266,29 @@ func (qc *QingCloud) EnsureLoadBalancer(ctx context.Context, _ string, service *
 			}
 
 			//update backend; for example, service annotation for backend label changed
-			if len(toAdd) == 0 && len(toDelete) == 0 {
-				for _, listener := range listeners {
-					toDelete, toAdd := diffBackend(listener, nodes)
+			for _, listener := range toKeep {
+				// toDelete, toAdd := diffBackend(listener, nodes)
+				toDelete, toAdd := qc.diffBackend(listener, nodes, conf, service)
 
-					if len(toDelete) > 0 {
-						klog.Infof("backends %s will be deleted for listener %s(%s) of lb %s",
-							spew.Sdump(toDelete), *listener.Spec.LoadBalancerListenerName, *listener.Spec.LoadBalancerListenerID, *lb.Status.LoadBalancerID)
-						err = qc.Client.DeleteBackends(toDelete)
-						if err != nil {
-							return nil, err
-						}
-						modify = true
+				if len(toDelete) > 0 {
+					klog.Infof("backends %s will be deleted for listener %s(%s) of lb %s",
+						spew.Sdump(toDelete), *listener.Spec.LoadBalancerListenerName, *listener.Spec.LoadBalancerListenerID, *lb.Status.LoadBalancerID)
+					err = qc.Client.DeleteBackends(toDelete)
+					if err != nil {
+						return nil, err
 					}
+					modify = true
+				}
 
-					toAddBackends := generateLoadBalancerBackends(toAdd, listener, service.Spec.Ports)
-					if len(toAddBackends) > 0 {
-						klog.Infof("backends %s will be added for listener %s(%s) of lb %s",
-							spew.Sdump(toAddBackends), *listener.Spec.LoadBalancerListenerName, *listener.Spec.LoadBalancerListenerID, *lb.Status.LoadBalancerID)
-						_, err = qc.Client.CreateBackends(toAddBackends)
-						if err != nil {
-							return nil, err
-						}
-						modify = true
+				toAddBackends := generateLoadBalancerBackends(toAdd, listener, service.Spec.Ports)
+				if len(toAddBackends) > 0 {
+					klog.Infof("backends %s will be added for listener %s(%s) of lb %s",
+						spew.Sdump(toAddBackends), *listener.Spec.LoadBalancerListenerName, *listener.Spec.LoadBalancerListenerID, *lb.Status.LoadBalancerID)
+					_, err = qc.Client.CreateBackends(toAddBackends)
+					if err != nil {
+						return nil, err
 					}
+					modify = true
 				}
 			}
 
@@ -316,6 +317,7 @@ func (qc *QingCloud) EnsureLoadBalancer(ctx context.Context, _ string, service *
 		//1.2 prepare sg
 		//default sg set by Client auto
 		//1.3 create lb
+		klog.Infof("creating loadbalance for service %s/%s", service.Namespace, service.Name)
 		lb, err = qc.Client.CreateLB(&apis.LoadBalancer{
 			Spec: apis.LoadBalancerSpec{
 				LoadBalancerName: &conf.LoadBalancerName,
@@ -331,7 +333,7 @@ func (qc *QingCloud) EnsureLoadBalancer(ctx context.Context, _ string, service *
 		}
 
 		//create listener
-		if err = qc.createListenersAndBackends(conf, lb, service.Spec.Ports, nodes); err != nil {
+		if err = qc.createListenersAndBackends(conf, lb, service.Spec.Ports, nodes, service); err != nil {
 			return nil, err
 		}
 	} else {
@@ -382,7 +384,8 @@ func (qc *QingCloud) UpdateLoadBalancer(ctx context.Context, _ string, service *
 	}
 
 	for _, listener := range listeners {
-		toDelete, toAdd := diffBackend(listener, nodes)
+		// toDelete, toAdd := diffBackend(listener, nodes)
+		toDelete, toAdd := qc.diffBackend(listener, nodes, conf, service)
 
 		if len(toDelete) > 0 {
 			klog.Infof("backends %s will be deleted for listener %s(%s) of lb %s",
@@ -414,7 +417,7 @@ func (qc *QingCloud) UpdateLoadBalancer(ctx context.Context, _ string, service *
 	return qc.Client.UpdateLB(lb.Status.LoadBalancerID)
 }
 
-func (qc *QingCloud) createListenersAndBackends(conf *LoadBalancerConfig, status *apis.LoadBalancer, ports []v1.ServicePort, nodes []*v1.Node) error {
+func (qc *QingCloud) createListenersAndBackends(conf *LoadBalancerConfig, status *apis.LoadBalancer, ports []v1.ServicePort, nodes []*v1.Node, svc *v1.Service) error {
 	listeners, err := generateLoadBalancerListeners(conf, status, ports)
 	if err != nil {
 		klog.Errorf("generateLoadBalancerListeners for loadbalancer %s error: %v", *status.Status.LoadBalancerID, err)
@@ -426,7 +429,19 @@ func (qc *QingCloud) createListenersAndBackends(conf *LoadBalancerConfig, status
 		return err
 	}
 
-	//create backend
+	// filter backend nodes by count
+	if svc.Spec.ExternalTrafficPolicy == v1.ServiceExternalTrafficPolicyTypeCluster && conf.BackendCountConfig != "" {
+		klog.Infof("service %s/%s has lb backend count annotation, try to get %d random nodes as backend", svc.Namespace, svc.Name, conf.BackendCountResult)
+		nodes = getRandomNodes(nodes, conf.BackendCountResult)
+
+		var resultNames []string
+		for _, node := range nodes {
+			resultNames = append(resultNames, node.Name)
+		}
+		klog.Infof("get random nodes result for service %s/%s: %v", svc.Namespace, svc.Name, resultNames)
+	}
+
+	// create backend
 	for _, listener := range listeners {
 		backends := generateLoadBalancerBackends(nodes, listener, ports)
 		_, err = qc.Client.CreateBackends(backends)
@@ -515,7 +530,7 @@ func (qc *QingCloud) filterNodes(ctx context.Context, svc *v1.Service, nodes []*
 			}
 		}
 	} else {
-		if lbconfog.BackendLabel != "" {
+		if lbconfog.BackendLabel != "" { // filter by node label
 			klog.Infof("filter nodes for service %s/%s by backend label: %s", svc.Namespace, svc.Name, lbconfog.BackendLabel)
 
 			// filter by label
@@ -543,6 +558,28 @@ func (qc *QingCloud) filterNodes(ctx context.Context, svc *v1.Service, nodes []*
 				klog.Infof("there are no available nodes for service %s/%s, use all nodes!", svc.Namespace, svc.Name)
 				newNodes = nodes
 			}
+			// clear lb backend count config
+			lbconfog.BackendCountConfig = ""
+		} else if lbconfog.BackendCountConfig != "" { //filter by backend count config
+			var backendCountResult int
+
+			backendCountConfig, _ := strconv.Atoi(lbconfog.BackendCountConfig)
+			if backendCountConfig > 0 && backendCountConfig <= len(nodes) {
+				backendCountResult = backendCountConfig
+			} else {
+				//invalid count config, use default value (1/3 of all nodes)
+				if len(nodes) <= 3 {
+					backendCountResult = len(nodes)
+				} else {
+					backendCountResult = len(nodes) / 3
+					if backendCountResult < 3 {
+						backendCountResult = DefaultBackendCount
+					}
+				}
+			}
+
+			lbconfog.BackendCountResult = backendCountResult
+			newNodes = nodes
 		} else {
 			// no need to filter
 			newNodes = nodes

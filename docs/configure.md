@@ -155,7 +155,13 @@ spec:
   - `Cluster`: 如果`service`中不显式指定 `externalTrafficPolicy` 字段的值，则默认为`Cluster`；这种模式下，可以通过给服务添加相关注解来指定LB监听器backend的添加规则
 
 `Cluster`模式下，目前支持的 `service` 注解有：
-- 使用指定Label的Worker节点作为后端服务器， `service.beta.kubernetes.io/qingcloud-lb-backend-label`，可以指定多个Label，多个Label以逗号分隔。例如：`key1=value1,key2=value2`，多个Label之间是And关系。同时，在需要成为后端服务器的Worker节点打上`key1=value1,key2=value2`的Label；只有服务指定的所有Label的key和value都和Worker节点匹配时，Worker节点会被选为服务的后端服务器；没有此注解则添加所有Worker节点为backend；通过注解过滤节点后，如果没有满足条件的节点，为了避免服务中断，会添加所有Worker节点为后端服务器；
+> 以下各种过滤节点的方式不能结合使用，如果指定了多个，则会按照以下注解的说明顺序选用第一个匹配到的注解，并按照该方法过滤节点；
+- 使用指定Label的Worker节点作为后端服务器， `service.beta.kubernetes.io/qingcloud-lb-backend-label`，可以指定多个Label，多个Label以逗号分隔。例如：`key1=value1,key2=value2`，多个Label之间是And关系。同时，在需要成为后端服务器的Worker节点打上`key1=value1,key2=value2`的Label；只有服务指定的所有Label的key和value都和Worker节点匹配时，Worker节点会被选为服务的后端服务器；特殊情况说明：
+  - 没有此注解则添加所有Worker节点为backend；
+  - 通过注解过滤节点后，如果没有满足条件的节点，为了避免服务中断，会添加所有Worker节点为后端服务器；
+- 使用指定数量的Worker节点作为后端服务器，`service.beta.kubernetes.io/qingcloud-lb-backend-count`，通过此注解指定该服务使用的lb backend节点数量；如果服务添加了该注解，就认为用户想使用该特性；如果指定的数量为0或者不在可用节点数量的范围内，则使用默认值：集群所有节点的1/3；如果集群中节点状态发生变化，但是当前服务的lb后端数量就是用户指定的数量，并且已添加的所有lb后端节点在集群中都是ready状态的，则不会更新lb的backend；默认值特殊情况说明：
+  - 如果集群总worker节点数少于3个，则添加所有worker节点为backend，不再按照比例计算节点数；
+  - 如果集群总worker节点数多于3个，若按照比例计算后少于3个，则设置为3个;
 
 > 本章节所说的"所有Worker节点"特指所有 `Ready` 状态的Worker节点；
 
@@ -184,6 +190,7 @@ spec:
 ```
 
 #### Cluster模式
+##### 使用指定Label的Worker节点作为后端服务器
 将服务的`externalTrafficPolicy`指定为`Cluster`，并在服务的注解`service.beta.kubernetes.io/qingcloud-lb-backend-label`中指定要添加为backend的worker节点的label:
 
 ```yaml
@@ -232,6 +239,28 @@ status:
   ...
 ```
 
+##### 使用指定数量的Worker节点作为后端服务器
+
+```yaml
+kind: Service
+apiVersion: v1
+metadata:
+  name:  reuse-lb
+  annotations:
+    service.beta.kubernetes.io/qingcloud-load-balancer-eip-strategy: "reuse-lb"
+    service.beta.kubernetes.io/qingcloud-load-balancer-id: "lb-oglqftju"
+    service.beta.kubernetes.io/qingcloud-lb-backend-count: "3"
+spec:
+  externalTrafficPolicy: Cluster
+  selector:
+    app:  mylbapp
+  type:  LoadBalancer
+  ports:
+  - name:  http
+    port:  8090
+    protocol: TCP
+    targetPort:  80
+```
 
 ## 配置内网负载均衡器
 ### 已知问题
