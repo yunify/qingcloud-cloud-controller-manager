@@ -29,7 +29,7 @@ func (q *QingCloudClient) DeleteBackends(ids []*string) error {
 	return err
 }
 
-//need update lb
+// need update lb
 func (q *QingCloudClient) CreateBackends(backends []*apis.LoadBalancerBackend) ([]*string, error) {
 	if len(backends) <= 0 {
 		return nil, nil

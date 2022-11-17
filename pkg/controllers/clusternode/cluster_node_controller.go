@@ -99,7 +99,7 @@ func New(
 	return cnc, nil
 }
 
-//check if node label changed
+// check if node label changed
 func (cnc *ClusterNodeController) needsUpdate(old, new *corev1.Node) bool {
 
 	if len(old.Labels) != len(new.Labels) {

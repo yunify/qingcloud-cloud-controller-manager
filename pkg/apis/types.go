@@ -90,6 +90,7 @@ type LoadBalancerListenerSpec struct {
 	HealthyCheckOption       *string   `json:"healthy_check_option" name:"healthy_check_option"`
 	BalanceMode              *string   `json:"balance_mode" name:"balance_mode"`
 	ServerCertificateID      []*string `json:"server_certificate_id" name:"server_certificate_id"`
+	Timeout                  *int      `json:"timeout" name:"timeout"`
 }
 
 type LoadBalancerListenerStatus struct {

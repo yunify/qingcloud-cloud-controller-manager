@@ -189,7 +189,7 @@ func (q *QingCloudClient) CreateLB(input *apis.LoadBalancer) (*apis.LoadBalancer
 	return convertLoadBalancer(lb), nil
 }
 
-//need update lb
+// need update lb
 func (q *QingCloudClient) ModifyLB(conf *apis.LoadBalancer) error {
 	input := &qcservice.ModifyLoadBalancerAttributesInput{
 		LoadBalancer: conf.Status.LoadBalancerID,
@@ -231,7 +231,7 @@ func (q *QingCloudClient) UpdateLB(id *string) error {
 	return nil
 }
 
-//need update before delete
+// need update before delete
 func (q *QingCloudClient) DeleteLB(id *string) error {
 	var (
 		err    error
