@@ -107,6 +107,7 @@ type LoadBalancerConfig struct {
 	balanceMode        *string
 	ServerCertificate  *string
 	Protocol           *string
+	Timeout            *string
 
 	//backend
 	BackendLabel       string
@@ -183,6 +184,12 @@ func (qc *QingCloud) ParseServiceLBConfig(cluster string, service *v1.Service) (
 			return nil, fmt.Errorf("please spec a valid value of loadBalancer backend count")
 		}
 		config.BackendCountConfig = backendCount
+	}
+	if timeoutConf, ok := annotation[ServiceAnnotationListenerTimeout]; ok {
+		if err := validListenerTimeout(timeoutConf); err != nil {
+			return nil, err
+		}
+		config.Timeout = &timeoutConf
 	}
 
 	networkType := annotation[ServiceAnnotationLoadBalancerNetworkType]

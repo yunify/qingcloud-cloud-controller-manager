@@ -7,6 +7,7 @@ import (
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
+	k8sErr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -173,6 +174,10 @@ func (epc *EndpointController) handleEndpointsUpdate(key string) error {
 	// 1. get service of this endpoint to get service type and service externalTraffixPolicy
 	svc, err := epc.serviceLister.Services(namespace).Get(name)
 	if err != nil {
+		if k8sErr.IsNotFound(err) {
+			klog.V(4).Infof("endpoints %s/%s has no service, ignore!", namespace, name)
+			return nil
+		}
 		return fmt.Errorf("get service %s/%s error: %v", namespace, name, err)
 	}
 	// ignore service which service type != loadbalancer or externalTrafficPolicy != Local

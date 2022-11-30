@@ -21,7 +21,7 @@ type Error struct {
 	ResouceName  string
 }
 
-//Error is method of error interface
+// Error is method of error interface
 func (e *Error) Error() string {
 	return fmt.Sprintf("[%s] happened when [%s] type: [%s] name: [%s], msg: [%s]", e.Type, e.Action, e.ResourceType, e.ResouceName, e.Message)
 }

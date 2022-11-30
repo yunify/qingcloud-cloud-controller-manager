@@ -119,6 +119,7 @@ spec:
 3. 支持 roundrobin/leastconn/source 三种负载均衡方式，`service.beta.kubernetes.io/qingcloud-lb-listener-balancemode`，默认是 roundrobin
 4. 支持 http/https 协议的配置，`service.beta.kubernetes.io/qingcloud-lb-listener-protocol`，没有此注解则默认使用 Service 所用协议
 5. 支持 https 协议证书的配置，`service.beta.kubernetes.io/qingcloud-lb-listener-cert`，如果配置的 https 协议，则必须配置证书
+6. 支持监听器的超时时间，` service.beta.kubernetes.io/qingcloud-lb-listener-timeout`，不配置默认是50，可选范围为（10 ～ 86400），单位为s
 
 因为一个LB会有多个监听器，所以进行service注解设置时，通过如下格式区分不同监听器：`80:xxx,443:xxx`。
 
@@ -136,6 +137,7 @@ metadata:
     service.beta.kubernetes.io/qingcloud-lb-listener-balancemode: "8090:source"
     service.beta.kubernetes.io/qingcloud-lb-listener-protocol: "8090:https"
     service.beta.kubernetes.io/qingcloud-lb-listener-cert: "8090:sc-77oko7zj"
+    service.beta.kubernetes.io/qingcloud-lb-listener-timeout: "8080:10"
 spec:
   selector:
     app:  mylbapp

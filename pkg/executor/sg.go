@@ -118,7 +118,7 @@ func (q *QingCloudClient) DeleteSG(sg *string) error {
 	return nil
 }
 
-//Currently all load balancers that do not specify sg are using the default.
+// Currently all load balancers that do not specify sg are using the default.
 func (q *QingCloudClient) ensureSecurityGroupByName(name string) (*apis.SecurityGroup, error) {
 	sg, err := q.GetSecurityGroupByName(name)
 	if err != nil {

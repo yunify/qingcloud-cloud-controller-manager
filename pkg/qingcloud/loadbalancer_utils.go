@@ -13,8 +13,11 @@ import (
 	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/apis"
 )
 
-const defaultListenerHeathyCheckOption = "10|5|2|5"
-const defaultListenerBalanceMode = "roundrobin"
+const (
+	defaultListenerHeathyCheckOption = "10|5|2|5"
+	defaultListenerBalanceMode       = "roundrobin"
+	defaultTimeout                   = 50
+)
 
 // Make sure qingcloud instance hostname or override-hostname (if provided) is equal to InstanceId
 // Recommended to use override-hostname
@@ -43,8 +46,8 @@ func convertLoadBalancerStatus(status *apis.LoadBalancerStatus) *v1.LoadBalancer
 	return &v1.LoadBalancerStatus{Ingress: result}
 }
 
-//The reason for this is that it is compatible with old logic, and future updates to the
-//load balancer will be placed in the relevant crd controller.
+// The reason for this is that it is compatible with old logic, and future updates to the
+// load balancer will be placed in the relevant crd controller.
 func needUpdateAttr(config *LoadBalancerConfig, status *apis.LoadBalancer) *apis.LoadBalancer {
 	result := &apis.LoadBalancer{
 		Status: apis.LoadBalancerStatus{
@@ -78,7 +81,7 @@ func needUpdateAttr(config *LoadBalancerConfig, status *apis.LoadBalancer) *apis
 	return nil
 }
 
-//The load balancer will be shared, filtering out its own listeners.
+// The load balancer will be shared, filtering out its own listeners.
 func filterListeners(listeners []apis.LoadBalancerListener, prefix string) []*string {
 	var result []*string
 
@@ -154,6 +157,17 @@ func getProtocol(annotationConf map[int]string, port int) *string {
 	}
 }
 
+func getTimeout(timeouts map[int]int, port int) *int {
+	timeout := defaultTimeout
+	if timeouts != nil {
+		if t, ok := timeouts[port]; ok {
+			return &t
+		}
+	}
+
+	return &timeout
+}
+
 func diffListeners(listeners []*apis.LoadBalancerListener, conf *LoadBalancerConfig, ports []v1.ServicePort) (toDelete []*string, toAdd []v1.ServicePort, toKeep []*apis.LoadBalancerListener) {
 	svcNodePort := make(map[string]int)
 	for _, listener := range listeners {
@@ -164,6 +178,7 @@ func diffListeners(listeners []*apis.LoadBalancerListener, conf *LoadBalancerCon
 
 	hcs, _ := parseHeathyCheck(conf)
 	bms, _ := parseBalanceMode(conf)
+	timeoutConf, _ := parseTimeout(conf)
 	for _, port := range ports {
 		add := true
 		healthyCheck := getHealthyCheck(hcs, int(port.Port), strings.ToLower(string(port.Protocol)))
@@ -173,7 +188,8 @@ func diffListeners(listeners []*apis.LoadBalancerListener, conf *LoadBalancerCon
 				svcNodePort[*listener.Status.LoadBalancerListenerID] == int(port.NodePort) &&
 				*balanceMode == *listener.Spec.BalanceMode &&
 				(*healthyCheck.option == *listener.Spec.HealthyCheckOption && *healthyCheck.method == *listener.Spec.HealthyCheckMethod) &&
-				equalProtocol(listener, conf, port) {
+				equalProtocol(listener, conf, port) &&
+				equalTimeout(listener, timeoutConf, int(port.Port)) {
 				add = false
 				break
 			}
@@ -192,7 +208,8 @@ func diffListeners(listeners []*apis.LoadBalancerListener, conf *LoadBalancerCon
 				svcNodePort[*listener.Status.LoadBalancerListenerID] == int(port.NodePort) &&
 				*balanceMode == *listener.Spec.BalanceMode &&
 				(*healthyCheck.option == *listener.Spec.HealthyCheckOption && *healthyCheck.method == *listener.Spec.HealthyCheckMethod) &&
-				equalProtocol(listener, conf, port) {
+				equalProtocol(listener, conf, port) &&
+				equalTimeout(listener, timeoutConf, int(port.Port)) {
 				delete = false
 				break
 			}
@@ -256,11 +273,13 @@ type healthyChek struct {
 
 // data format like this: port1:conf,port2:conf,port3:conf
 // Example:
-//  1)healthycheckmethod: "80:tcp,443:tcp"
-//  2)healthycheckoption: "80:10|5|2|5,443:10|5|2|5"
-//  3)balancemode: "80:roundrobin,443:leastconn,8080:source"
-//  4)cert: "443:sc-77oko7zj,80:sc-77oko7zj"
-//  5)protocol: "443:https,80:http"
+//
+//	1)healthycheckmethod: "80:tcp,443:tcp"
+//	2)healthycheckoption: "80:10|5|2|5,443:10|5|2|5"
+//	3)balancemode: "80:roundrobin,443:leastconn,8080:source"
+//	4)cert: "443:sc-77oko7zj,80:sc-77oko7zj"
+//	5)protocol: "443:https,80:http"
+//	6)timeout: "443:10,80:20"
 func parseLsnAnnotaionData(data string) (map[int]string, error) {
 	methods := strings.Split(data, ",")
 	rst := make(map[int]string, len(methods))
@@ -344,6 +363,13 @@ func parseProtocol(conf *LoadBalancerConfig) (map[int]string, error) {
 	return parseLsnAnnotaionData(*conf.Protocol)
 }
 
+func parseTimeout(conf *LoadBalancerConfig) (map[int]int, error) {
+	if conf == nil || conf.Timeout == nil {
+		return nil, nil
+	}
+	return parseAnnotationIntoIntIntMap(*conf.Timeout)
+}
+
 func parseAnnotationIntoStringMap(data string) (map[string]string, error) {
 	parts := strings.Split(data, ",")
 	rst := make(map[string]string, len(parts))
@@ -389,6 +415,11 @@ func generateLoadBalancerListeners(conf *LoadBalancerConfig, lb *apis.LoadBalanc
 		return nil, err
 	}
 
+	timeouts, err := parseTimeout(conf)
+	if err != nil {
+		return nil, err
+	}
+
 	var result []*apis.LoadBalancerListener
 	for _, port := range ports {
 		protocol := ""
@@ -406,6 +437,7 @@ func generateLoadBalancerListeners(conf *LoadBalancerConfig, lb *apis.LoadBalanc
 		balanceMode := getBalanceMode(bms, int(port.Port))
 		listenerProtocol := getProtocol(protocols, int(port.Port))
 		certID := getCertificate(certs, int(port.Port))
+		timeout := getTimeout(timeouts, int(port.Port))
 
 		if listenerProtocol == nil {
 			listenerProtocol = &protocol
@@ -430,6 +462,7 @@ func generateLoadBalancerListeners(conf *LoadBalancerConfig, lb *apis.LoadBalanc
 				HealthyCheckOption:       healthyCheck.option,
 				BalanceMode:              balanceMode,
 				ServerCertificateID:      serverCertificate,
+				Timeout:                  timeout,
 			},
 		})
 	}
@@ -522,6 +555,18 @@ func equalProtocol(listener *apis.LoadBalancerListener, conf *LoadBalancerConfig
 			return false
 		}
 		return true
+	}
+	return false
+}
+
+func equalTimeout(listener *apis.LoadBalancerListener, timeoutConf map[int]int, port int) bool {
+	timeout, ok := timeoutConf[port]
+	if !ok {
+		return true
+	} else {
+		if timeout == *listener.Spec.Timeout {
+			return true
+		}
 	}
 	return false
 }

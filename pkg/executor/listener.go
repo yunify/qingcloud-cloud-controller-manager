@@ -50,6 +50,7 @@ func convertLoadBalancerListener(inputs []*qcservice.LoadBalancerListener) []*ap
 				HealthyCheckOption:       input.HealthyCheckOption,
 				BalanceMode:              input.BalanceMode,
 				ServerCertificateID:      input.ServerCertificateID,
+				Timeout:                  input.Timeout,
 			},
 			Status: apis.LoadBalancerListenerStatus{
 				LoadBalancerListenerID: input.LoadBalancerListenerID,
@@ -74,13 +75,14 @@ func convertFromLoadBalancerListener(inputs []*apis.LoadBalancerListener) []*qcs
 			HealthyCheckOption:       input.Spec.HealthyCheckOption,
 			BalanceMode:              input.Spec.BalanceMode,
 			ServerCertificateID:      input.Spec.ServerCertificateID,
+			Timeout:                  input.Spec.Timeout,
 		})
 	}
 
 	return result
 }
 
-//need update lb
+// need update lb
 func (q *QingCloudClient) CreateListener(inputs []*apis.LoadBalancerListener) ([]*apis.LoadBalancerListener, error) {
 	id := inputs[0].Spec.LoadBalancerID
 	output, err := q.LBService.AddLoadBalancerListeners(&qcservice.AddLoadBalancerListenersInput{
