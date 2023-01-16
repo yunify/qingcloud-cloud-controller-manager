@@ -41,6 +41,7 @@ import (
 	// e.g. _"k8s.io/legacy-cloud-providers/<provider>"
 	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/controllers/clusternode"
 	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/controllers/endpoint"
+	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/controllers/service"
 	_ "github.com/yunify/qingcloud-cloud-controller-manager/pkg/qingcloud"
 )
 
@@ -95,5 +96,6 @@ func controllerInitializers() map[string]app.InitFuncConstructor {
 	controllerInitializers := app.DefaultInitFuncConstructors
 	controllerInitializers["endpoint"] = endpoint.StartEndpointControllerWrapper
 	controllerInitializers["clusternode"] = clusternode.StartClusterNodeControllerWrapper
+	controllerInitializers["cloud-service"] = service.StartServiceControllerWarpper
 	return controllerInitializers
 }

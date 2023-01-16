@@ -175,7 +175,7 @@ func (epc *EndpointController) handleEndpointsUpdate(key string) error {
 	svc, err := epc.serviceLister.Services(namespace).Get(name)
 	if err != nil {
 		if k8sErr.IsNotFound(err) {
-			klog.V(4).Infof("endpoints %s/%s has no service, ignore!", namespace, name)
+			klog.V(4).Infof("endpoints %s/%s has no service, ignore handle endpoints update!", namespace, name)
 			return nil
 		}
 		return fmt.Errorf("get service %s/%s error: %v", namespace, name, err)

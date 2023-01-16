@@ -271,7 +271,7 @@ func (q *QingCloudClient) DeleteLB(id *string) error {
 
 		err = qcclient.WaitJob(q.jobService, *output.JobID, operationWaitTimeout, waitInterval)
 		if err != nil {
-			return fmt.Errorf("lb %s delete job not completed", *id)
+			return fmt.Errorf("lb %s delete job not completed, err: %v", *id, err)
 		}
 	}
 
