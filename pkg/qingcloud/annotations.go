@@ -140,15 +140,16 @@ func (qc *QingCloud) ParseServiceLBConfig(cluster string, service *v1.Service) (
 	lbEipIds, hasEip := annotation[ServiceAnnotationLoadBalancerEipIds]
 	if hasEip && lbEipIds != "" {
 		config.EipIDs = qcservice.StringSlice(strings.Split(lbEipIds, ","))
-	}
-	source := annotation[ServiceAnnotationLoadBalancerEipSource]
-	config.EipSource = &source
-	switch source {
-	case AllocateOnly:
-	case UseAvailableOnly:
-	case UseAvailableOrAllocateOne:
-	default:
-		config.EipSource = nil
+	} else {
+		source := annotation[ServiceAnnotationLoadBalancerEipSource]
+		config.EipSource = &source
+		switch source {
+		case AllocateOnly:
+		case UseAvailableOnly:
+		case UseAvailableOrAllocateOne:
+		default:
+			config.EipSource = nil
+		}
 	}
 
 	if vxnetID, ok := annotation[ServiceAnnotationLoadBalancerVxnetID]; ok {
@@ -193,14 +194,14 @@ func (qc *QingCloud) ParseServiceLBConfig(cluster string, service *v1.Service) (
 	}
 
 	networkType := annotation[ServiceAnnotationLoadBalancerNetworkType]
-	if config.VxNetID == nil && qc.Config.DefaultVxNetForLB != "" {
-		config.VxNetID = qcservice.String(qc.Config.DefaultVxNetForLB)
-	}
 	switch networkType {
 	case NetworkModePublic:
 		config.NetworkType = networkType
 	case NetworkModeInternal:
 		config.NetworkType = networkType
+		if config.VxNetID == nil && qc.Config.DefaultVxNetForLB != "" {
+			config.VxNetID = qcservice.String(qc.Config.DefaultVxNetForLB)
+		}
 	default:
 		config.NetworkType = NetworkModePublic
 	}
@@ -208,14 +209,14 @@ func (qc *QingCloud) ParseServiceLBConfig(cluster string, service *v1.Service) (
 	if lbType, ok := annotation[ServiceAnnotationLoadBalancerType]; ok {
 		t, err := strconv.Atoi(lbType)
 		if err != nil {
-			return nil, fmt.Errorf("Pls spec a valid value of loadBalancer type, acceptted values are '0-3',err: %s", err.Error())
+			return nil, fmt.Errorf("pls spec a valid value of loadBalancer type, acceptted values are '0-3',err: %s", err.Error())
 		}
 		config.LoadBalancerType = &t
 	}
 	if nodes, ok := annotation[ServiceAnnotationLoadBalancerNodes]; ok {
 		num, err := strconv.Atoi(nodes)
 		if err != nil {
-			return nil, fmt.Errorf("Pls spec a valid value of loadBalancer node number")
+			return nil, fmt.Errorf("pls spec a valid value of loadBalancer node number")
 		}
 		config.NodeCount = &num
 	}
@@ -235,7 +236,7 @@ func (qc *QingCloud) ParseServiceLBConfig(cluster string, service *v1.Service) (
 				break
 			} else {
 				if config.InternalIP == nil || config.InternalReuseID == nil {
-					return nil, fmt.Errorf("Must specify reuse-id or internalip if wants to use shared internal lb")
+					return nil, fmt.Errorf("must specify reuse-id or internalip if wants to use shared internal lb")
 				}
 
 				if config.InternalReuseID != nil {

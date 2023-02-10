@@ -182,3 +182,39 @@ func (qc *QingCloud) diffBackend(listener *apis.LoadBalancerListener, nodes []*v
 
 	return
 }
+
+// this method only used to get lb before delete lb(service type changed: Loadbalancer -> ClusterIP/NodePort)
+// new service may deleted lb annotation, if so,  not return error,
+// annother controller(cloud-service-controller) will deleted the lb according to the last version service annotation
+func (qc *QingCloud) getLoadBalancerBeforeDelete(svc *v1.Service) (conf *LoadBalancerConfig, lb *apis.LoadBalancer, err error) {
+
+	conf = qc.parseServiceLBAndEIP(svc)
+	if conf == nil {
+		return nil, nil, nil
+	}
+
+	if conf.ReuseLBID != "" {
+		lb, err = qc.Client.GetLoadBalancerByID(conf.ReuseLBID)
+	} else if conf.LoadBalancerName != "" {
+		lb, err = qc.Client.GetLoadBalancerByName(conf.LoadBalancerName)
+	} else {
+		return conf, nil, fmt.Errorf("cannot found loadbalance id or name")
+	}
+	return conf, lb, err
+}
+
+// only used to get lb and eip config, return nil if has no lb and eip annotation
+// we think the service auto create lb as default; but if the service config reuse lb id, we use lb id first
+func (qc *QingCloud) parseServiceLBAndEIP(svc *v1.Service) (conf *LoadBalancerConfig) {
+	conf = new(LoadBalancerConfig)
+
+	conf.listenerName = fmt.Sprintf("listener_%s_%s_", svc.Namespace, svc.Name)
+	conf.sgName = conf.LoadBalancerName
+	conf.LoadBalancerName = fmt.Sprintf("k8s_lb_%s_%s_%s_%s", qc.Config.ClusterID, svc.Namespace, svc.Name, util.GetFirstUID(string(svc.UID)))
+	if len(svc.Annotations) > 0 {
+		if svc.Annotations[ServiceAnnotationLoadBalancerPolicy] == ReuseExistingLB {
+			conf.ReuseLBID = svc.Annotations[ServiceAnnotationLoadBalancerID]
+		}
+	}
+	return
+}

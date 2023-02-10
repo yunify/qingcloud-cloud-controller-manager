@@ -152,9 +152,9 @@ func (qc *QingCloud) GetLoadBalancerName(_ context.Context, _ string, service *v
 // GetLoadBalancer returns whether the specified load balancer exists, and
 // if so, what its status is.
 func (qc *QingCloud) GetLoadBalancer(ctx context.Context, _ string, service *v1.Service) (status *v1.LoadBalancerStatus, exists bool, err error) {
-	_, lb, err := qc.getLoadBalancer(service)
+	_, lb, err := qc.getLoadBalancerBeforeDelete(service)
 
-	if errors.IsResourceNotFound(err) {
+	if errors.IsResourceNotFound(err) || lb == nil {
 		return nil, false, nil
 	}
 
@@ -464,9 +464,9 @@ func (qc *QingCloud) createListenersAndBackends(conf *LoadBalancerConfig, status
 // Implementations must treat the *v1.Service parameter as read-only and not modify it.
 // Parameter 'clusterName' is the name of the cluster as presented to kube-controller-manager
 func (qc *QingCloud) EnsureLoadBalancerDeleted(ctx context.Context, _ string, service *v1.Service) error {
-	lbConfig, lb, err := qc.getLoadBalancer(service)
+	lbConfig, lb, err := qc.getLoadBalancerBeforeDelete(service)
 	klog.V(4).Infof("==== EnsureLoadBalancerDeleted %s config %s ====", spew.Sdump(lb), spew.Sdump(lbConfig))
-	if errors.IsResourceNotFound(err) {
+	if errors.IsResourceNotFound(err) || lb == nil {
 		return nil
 	}
 
