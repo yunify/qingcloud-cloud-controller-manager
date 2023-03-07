@@ -128,18 +128,20 @@ func (q *QingCloudClient) ensureSecurityGroupByName(name string) (*apis.Security
 					SecurityGroupName: &name,
 				},
 			})
-			if err == nil {
-				sg, err = q.addSecurityGroupRules(sg, defaultLBSecurityGroupRules)
+			if err != nil {
+				return nil, fmt.Errorf("create sg error: %v", err)
 			}
+
+			sg, err = q.addSecurityGroupRules(sg, defaultLBSecurityGroupRules)
+			if err != nil {
+				return nil, fmt.Errorf("add sg rules error: %v", err)
+			}
+		} else {
+			return nil, fmt.Errorf("get sg by name error: %v", err)
 		}
 	}
 
-	if err != nil {
-		q.DeleteSG(sg.Status.SecurityGroupID)
-		return nil, err
-	} else {
-		return sg, nil
-	}
+	return sg, nil
 }
 
 func (q *QingCloudClient) GetSecurityGroupByName(name string) (*apis.SecurityGroup, error) {

@@ -29,7 +29,13 @@ spec:
 > 使用青云负载均衡器时需要配合一个公网ip，cloud-controller带有IP管理功能。
 
 ### 手动配置公网ip
-这是本插件的默认方式，即用户需要在Service中添加公网ip的annotation。首先在Service annotation中添加如下key: `service.beta.kubernetes.io/qingcloud-load-balancer-eip-source`，并设置其值为`mannual`。如果不设置此Key，默认是`mannual`。然后必须继续添加`service.beta.kubernetes.io/qingcloud-load-balancer-eip-ids`的key，其值公网IP的ID，如果需要绑定多个IP，以逗号分隔。请确保此IP处于可用状态。如下：
+这是本插件的默认方式，即用户需要在Service中添加公网ip的annotation。首先在Service annotation中添加如下key: `service.beta.kubernetes.io/qingcloud-load-balancer-eip-source`，并设置其值为`mannual`。如果不设置此Key，默认是`mannual`。
+
+然后必须继续添加`service.beta.kubernetes.io/qingcloud-load-balancer-eip-ids`的key，其值公网IP的ID，如果需要绑定多个IP，以逗号分隔。请确保此IP处于可用状态。
+
+如果该服务对应lb的已经存在，默认情况下，会将上述注解中指定的eip追加绑定到已有的lb；如果只想保留注解中指定的eip，不需要lb之前其他eip，则需添加注解`service.beta.kubernetes.io/qingcloud-load-balancer-eip-replace: "true"`。
+
+如下：
 ```yaml
 kind: Service
 apiVersion: v1

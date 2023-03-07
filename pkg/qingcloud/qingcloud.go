@@ -329,12 +329,13 @@ func (qc *QingCloud) EnsureLoadBalancer(ctx context.Context, _ string, service *
 			},
 		})
 		if err != nil {
-			return nil, fmt.Errorf("failed to create loadbalance err=%+v", err)
+			return nil, fmt.Errorf("create loadbalance for service %s/%s error: %v", service.Namespace, service.Name, err)
 		}
 
 		//create listener
+		klog.Infof("creating listener %s for loadbalance %s", conf.listenerName, *lb.Status.LoadBalancerID)
 		if err = qc.createListenersAndBackends(conf, lb, service.Spec.Ports, nodes, service); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("create listener %s for loadbalance %s error: %v", conf.listenerName, *lb.Status.LoadBalancerID, err)
 		}
 	} else {
 		return nil, err
@@ -474,8 +475,11 @@ func (qc *QingCloud) EnsureLoadBalancerDeleted(ctx context.Context, _ string, se
 		return err
 	}
 
-	if lbConfig.ReuseLBID != "" {
-		listeners := filterListeners(lb.Status.LoadBalancerListeners, lbConfig.listenerName)
+	listeners := filterListeners(lb.Status.LoadBalancerListeners, lbConfig.listenerName)
+	if lbConfig.ReuseLBID != "" || len(lb.Status.LoadBalancerListeners)-len(listeners) > 0 {
+		klog.Infof("service %s/%s reuse lb or lb %s has other listeners, try to delete listener %s",
+			service.Namespace, service.Name, *lb.Status.LoadBalancerID, lbConfig.listenerName)
+
 		if len(listeners) <= 0 {
 			return nil
 		}
@@ -487,6 +491,9 @@ func (qc *QingCloud) EnsureLoadBalancerDeleted(ctx context.Context, _ string, se
 	}
 
 	//delete lb
+	if len(lb.Status.LoadBalancerListeners)-len(listeners) > 0 {
+		return nil
+	}
 	err = qc.Client.DeleteLB(lb.Status.LoadBalancerID)
 	if err != nil {
 		return err

@@ -72,9 +72,11 @@ func (qc *QingCloud) diffLBEip(config *LoadBalancerConfig, lb *apis.LoadBalancer
 			}
 		}
 
-		for lbEipID := range lbEipMap {
-			if !configEipMap[lbEipID] {
-				eipsToDel = append(eipsToDel, &lbEipID)
+		if config.EipReplace {
+			for _, lbEipID := range lb.Spec.EIPs {
+				if !configEipMap[*lbEipID] {
+					eipsToDel = append(eipsToDel, lbEipID)
+				}
 			}
 		}
 	} else if config.EipSource != nil {
