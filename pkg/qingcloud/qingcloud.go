@@ -430,9 +430,9 @@ func (qc *QingCloud) createListenersAndBackends(conf *LoadBalancerConfig, status
 		return err
 	}
 
-	// filter backend nodes by count
-	if svc.Spec.ExternalTrafficPolicy == v1.ServiceExternalTrafficPolicyTypeCluster && conf.BackendCountConfig != "" {
-		klog.Infof("service %s/%s has lb backend count annotation, try to get %d random nodes as backend", svc.Namespace, svc.Name, conf.BackendCountResult)
+	// filter backend nodes by count config
+	if svc.Spec.ExternalTrafficPolicy == v1.ServiceExternalTrafficPolicyTypeCluster && conf.BackendCountResult != 0 {
+		klog.Infof("try to get %d random nodes as backend for service %s/%s", conf.BackendCountResult, svc.Namespace, svc.Name)
 		nodes = getRandomNodes(nodes, conf.BackendCountResult)
 
 		var resultNames []string
@@ -537,6 +537,7 @@ func (qc *QingCloud) filterNodes(ctx context.Context, svc *v1.Service, nodes []*
 			}
 		}
 	} else {
+		var backendCountResult int
 		if lbconfog.BackendLabel != "" { // filter by node label
 			klog.Infof("filter nodes for service %s/%s by backend label: %s", svc.Namespace, svc.Name, lbconfog.BackendLabel)
 
@@ -560,37 +561,30 @@ func (qc *QingCloud) filterNodes(ctx context.Context, svc *v1.Service, nodes []*
 					newNodes = append(newNodes, nodes[i])
 				}
 			}
-			// if there are no available nodes , use all nodes
+			// if there are no available nodes , use default backend count value
 			if len(newNodes) == 0 {
-				klog.Infof("there are no available nodes for service %s/%s, use all nodes!", svc.Namespace, svc.Name)
+				klog.Infof("there are no available nodes filter by label %s for service %s/%s, use default backend count!",
+					lbconfog.BackendLabel, svc.Namespace, svc.Name)
+				backendCountResult = getBackendCount(nodes)
 				newNodes = nodes
 			}
-			// clear lb backend count config
-			lbconfog.BackendCountConfig = ""
-		} else if lbconfog.BackendCountConfig != "" { //filter by backend count config
-			var backendCountResult int
 
+		} else if lbconfog.BackendCountConfig != "" { //filter by backend count config
 			backendCountConfig, _ := strconv.Atoi(lbconfog.BackendCountConfig)
 			if backendCountConfig > 0 && backendCountConfig <= len(nodes) {
 				backendCountResult = backendCountConfig
 			} else {
-				//invalid count config, use default value (1/3 of all nodes)
-				if len(nodes) <= 3 {
-					backendCountResult = len(nodes)
-				} else {
-					backendCountResult = len(nodes) / 3
-					if backendCountResult < 3 {
-						backendCountResult = DefaultBackendCount
-					}
-				}
-			}
+				klog.Infof("invalid backend count config %d for service %s/%s, use default backend count!",
+					backendCountConfig, svc.Namespace, svc.Name)
+				backendCountResult = getBackendCount(nodes)
 
-			lbconfog.BackendCountResult = backendCountResult
+			}
 			newNodes = nodes
 		} else {
 			// no need to filter
 			newNodes = nodes
 		}
+		lbconfog.BackendCountResult = backendCountResult
 	}
 
 	var resultNames []string

@@ -47,3 +47,6 @@ vet:
 	go vet ./pkg/... ./cmd/...
 
 .PHONY : clean
+
+push:
+	docker buildx build -t ${IMG} --platform=linux/amd64,linux/arm64 -f deploy/DockerfileWithBuilder . --push
