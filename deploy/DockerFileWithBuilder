@@ -1,0 +1,12 @@
+# Copy the controller-manager into a thin image
+FROM golang:1.19-alpine as builder
+WORKDIR /qingcloud-ccm
+COPY . .
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags "-w" -o bin/manager ./cmd/main.go
+
+FROM alpine
+RUN apk --no-cache add iptables ca-certificates \
+    && update-ca-certificates 2>/dev/null || true
+WORKDIR /
+COPY --from=builder /qingcloud-ccm/bin/manager /manager
+ENTRYPOINT ["/manager"]

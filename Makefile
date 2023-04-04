@@ -2,7 +2,7 @@
 # GitHub viewer defaults to 8, change with ?ts=4 in URL
 
 GIT_REPOSITORY= github.com/yunify/qingcloud-cloud-controller-manager
-IMG?= qingcloud/cloud-controller-manager:v1.4.17
+IMG?= qingcloud/cloud-controller-manager:v1.4.18
 #Debug level: 0, 1, 2 (1 true, 2 use bash)
 DEBUG?= 0
 DOCKERFILE?= deploy/Dockerfile
@@ -47,3 +47,6 @@ vet:
 	go vet ./pkg/... ./cmd/...
 
 .PHONY : clean
+
+push:
+	docker buildx build -t ${IMG} --platform=linux/amd64,linux/arm64 -f deploy/DockerfileWithBuilder . --push

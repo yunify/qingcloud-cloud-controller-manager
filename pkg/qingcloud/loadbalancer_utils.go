@@ -585,3 +585,13 @@ func getRandomNodes(nodes []*v1.Node, count int) (result []*v1.Node) {
 	}
 	return
 }
+
+func getBackendCount(nodes []*v1.Node) (backendCountResult int) {
+	if len(nodes) > 3 {
+		backendCountResult = len(nodes) / 3
+		if backendCountResult < 3 {
+			backendCountResult = DefaultBackendCount
+		}
+	}
+	return
+}

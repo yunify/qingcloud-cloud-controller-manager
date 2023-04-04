@@ -80,8 +80,6 @@ func New(
 				newSvc, ok2 := cur.(*corev1.Service)
 				if ok1 && ok2 && sc.needClean(oldSvc, newSvc) {
 					sc.enqueueService(old)
-					// sc.cleanLBAndListener(oldSvc, newSvc)
-
 				}
 			},
 		},

@@ -31,6 +31,8 @@ const (
 	UseAvailableOnly                       = "use-available"
 	AllocateOnly                           = "allocate"
 
+	ServiceAnnotationEipReplace = "service.beta.kubernetes.io/qingcloud-load-balancer-eip-replace"
+
 	//1.2 Configure vxnet
 	// ServiceAnnotationLoadBalancerVxnetId is the annotation which indicates the very vxnet where load
 	// balancer resides. This annotation should NOT be used when ServiceAnnotationLoadBalancerEipIds is
@@ -92,9 +94,10 @@ const (
 
 type LoadBalancerConfig struct {
 	//Network
-	EipIDs    []*string
-	EipSource *string
-	VxNetID   *string
+	EipIDs     []*string
+	EipSource  *string
+	VxNetID    *string
+	EipReplace bool
 
 	//Attribute
 	LoadBalancerType *int
@@ -149,6 +152,16 @@ func (qc *QingCloud) ParseServiceLBConfig(cluster string, service *v1.Service) (
 		case UseAvailableOrAllocateOne:
 		default:
 			config.EipSource = nil
+		}
+	}
+	if eipReplace, ok := annotation[ServiceAnnotationEipReplace]; ok {
+		switch eipReplace {
+		case "true":
+			config.EipReplace = true
+		case "false":
+			config.EipReplace = false
+		default:
+			config.EipReplace = false
 		}
 	}
 

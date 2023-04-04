@@ -72,9 +72,11 @@ func (qc *QingCloud) diffLBEip(config *LoadBalancerConfig, lb *apis.LoadBalancer
 			}
 		}
 
-		for lbEipID := range lbEipMap {
-			if !configEipMap[lbEipID] {
-				eipsToDel = append(eipsToDel, &lbEipID)
+		if config.EipReplace {
+			for _, lbEipID := range lb.Spec.EIPs {
+				if !configEipMap[*lbEipID] {
+					eipsToDel = append(eipsToDel, lbEipID)
+				}
 			}
 		}
 	} else if config.EipSource != nil {
@@ -156,8 +158,8 @@ func (qc *QingCloud) diffBackend(listener *apis.LoadBalancerListener, nodes []*v
 		}
 	}
 
-	// filter backend nodes by count
-	if svc.Spec.ExternalTrafficPolicy == v1.ServiceExternalTrafficPolicyTypeCluster && conf.BackendCountConfig != "" {
+	// filter backend nodes by count config
+	if svc.Spec.ExternalTrafficPolicy == v1.ServiceExternalTrafficPolicyTypeCluster && conf.BackendCountResult != 0 {
 		backendLeftCount := len(listener.Status.LoadBalancerBackends) - len(toDelete)
 		if backendLeftCount > conf.BackendCountResult {
 			// delete some
