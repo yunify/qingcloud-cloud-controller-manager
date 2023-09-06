@@ -8,7 +8,7 @@ import (
 	qcclient "github.com/yunify/qingcloud-sdk-go/client"
 	qcservice "github.com/yunify/qingcloud-sdk-go/service"
 	"github.com/yunify/qingcloud-sdk-go/utils"
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 
 	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/apis"
 	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/errors"
@@ -101,10 +101,11 @@ func (q *QingCloudClient) GetLoadBalancerByName(name string) (*apis.LoadBalancer
 	}
 	output, err := q.LBService.DescribeLoadBalancers(input)
 	if err != nil && strings.Contains(err.Error(), "QingCloud Error: Code (1300)") {
-		klog.Warningf("cannot found lb by name, err=%s, input=%s, output=%s", spew.Sdump(err), spew.Sdump(input), spew.Sdump(output))
+		klog.V(4).Infof("cannot found lb by name, err=%s, input=%s, output=%s", spew.Sdump(err), spew.Sdump(input), spew.Sdump(output))
 		return nil, errors.NewResourceNotFoundError(ResourceNameLoadBalancer, name)
 	} else if err != nil {
-		return nil, fmt.Errorf("cannot found lb by name, err=%s, input=%s, output=%s", spew.Sdump(err), spew.Sdump(input), spew.Sdump(output))
+		klog.V(4).Infof("get lb by name error, err=%s, input=%s, output=%s", spew.Sdump(err), spew.Sdump(input), spew.Sdump(output))
+		return nil, fmt.Errorf("get lb by name error, err=%s", err)
 	}
 	for _, lb := range output.LoadBalancerSet {
 		if lb.LoadBalancerName != nil && *lb.LoadBalancerName == name {
@@ -121,10 +122,11 @@ func (q *QingCloudClient) GetLoadBalancerByID(id string) (*apis.LoadBalancer, er
 	}
 	output, err := q.LBService.DescribeLoadBalancers(input)
 	if err != nil && strings.Contains(err.Error(), "QingCloud Error: Code (1300)") {
-		klog.Warningf("cannot found lb by id, err=%s, input=%s, output=%s", spew.Sdump(err), spew.Sdump(input), spew.Sdump(output))
+		klog.V(4).Infof("cannot found lb by id, err=%s, input=%s, output=%s", spew.Sdump(err), spew.Sdump(input), spew.Sdump(output))
 		return nil, errors.NewResourceNotFoundError(ResourceNameLoadBalancer, id)
 	} else if err != nil {
-		return nil, fmt.Errorf("cannot found lb by id, err=%s, input=%s, output=%s", spew.Sdump(err), spew.Sdump(input), spew.Sdump(output))
+		klog.V(4).Infof("get lb by id error, err=%s, input=%s, output=%s", spew.Sdump(err), spew.Sdump(input), spew.Sdump(output))
+		return nil, fmt.Errorf("get lb by id error, err=%s", err)
 	}
 
 	if len(output.LoadBalancerSet) > 0 {
@@ -155,7 +157,8 @@ func (q *QingCloudClient) fillLBDefaultFileds(input *qcservice.CreateLoadBalance
 
 func (q *QingCloudClient) CreateLB(input *apis.LoadBalancer) (*apis.LoadBalancer, error) {
 	if input.Spec.VxNetID == nil && len(input.Spec.EIPs) <= 0 {
-		return nil, fmt.Errorf("need vxnet or eip, input=%s", spew.Sdump(input))
+		klog.V(4).Infof("need vxnet or eip, input=%s", spew.Sdump(input))
+		return nil, fmt.Errorf("create lb input invalid, need vxnet or eip")
 	}
 
 	inputLB := &qcservice.CreateLoadBalancerInput{
@@ -172,7 +175,11 @@ func (q *QingCloudClient) CreateLB(input *apis.LoadBalancer) (*apis.LoadBalancer
 	q.fillLBDefaultFileds(inputLB)
 	output, err := q.LBService.CreateLoadBalancer(inputLB)
 	if err != nil || *output.RetCode != 0 {
-		return nil, fmt.Errorf("failed to create lb, err=%s, input=%s, output=%s", spew.Sdump(err), spew.Sdump(inputLB), spew.Sdump(output))
+		klog.V(4).Infof("failed to create lb, err=%s, input=%s, output=%s", spew.Sdump(err), spew.Sdump(inputLB), spew.Sdump(output))
+		if err != nil {
+			return nil, fmt.Errorf("failed to create lb, err=%v", err)
+		}
+		return nil, fmt.Errorf("failed to create lb, code=%d, msg=%s", *output.RetCode, *output.Message)
 	}
 
 	var lbID = *output.LoadBalancerID
@@ -200,7 +207,11 @@ func (q *QingCloudClient) ModifyLB(conf *apis.LoadBalancer) error {
 	}
 	output, err := q.LBService.ModifyLoadBalancerAttributes(input)
 	if err != nil || *output.RetCode != 0 {
-		return fmt.Errorf("failed to modify lb attr, err=%s, input=%s, output=%s", spew.Sdump(err), spew.Sdump(input), spew.Sdump(output))
+		klog.V(4).Infof("failed to modify lb attr, err=%s, input=%s, output=%s", spew.Sdump(err), spew.Sdump(input), spew.Sdump(output))
+		if err != nil {
+			return fmt.Errorf("failed to modify lb attr, err=%v", err)
+		}
+		return fmt.Errorf("failed to modify lb attr, code=%d, msg=%s", *output.RetCode, *output.Message)
 	}
 
 	//need apply modify
@@ -219,11 +230,15 @@ func (q *QingCloudClient) UpdateLB(id *string) error {
 	updateInput := &qcservice.UpdateLoadBalancersInput{
 		LoadBalancers: []*string{id},
 	}
-	updateOutput, err := q.LBService.UpdateLoadBalancers(updateInput)
-	if err != nil || *updateOutput.RetCode != 0 {
-		return fmt.Errorf("failed to update lb attr, err=%s, input=%s, output=%s", spew.Sdump(err), spew.Sdump(updateInput), spew.Sdump(updateOutput))
+	output, err := q.LBService.UpdateLoadBalancers(updateInput)
+	if err != nil || *output.RetCode != 0 {
+		klog.V(4).Infof("failed to update lb attr, err=%s, input=%s, output=%s", spew.Sdump(err), spew.Sdump(updateInput), spew.Sdump(output))
+		if err != nil {
+			return fmt.Errorf("failed to update lb attr, err=%v", err)
+		}
+		return fmt.Errorf("failed to update lb attr, code=%d, msg=%s", *output.RetCode, *output.Message)
 	}
-	err = qcclient.WaitJob(q.jobService, *updateOutput.JobID, operationWaitTimeout, waitInterval)
+	err = qcclient.WaitJob(q.jobService, *output.JobID, operationWaitTimeout, waitInterval)
 	if err != nil {
 		return fmt.Errorf("lb %s delete job not completed", *id)
 	}
@@ -251,7 +266,8 @@ func (q *QingCloudClient) DeleteLB(id *string) error {
 			}
 
 			if !strings.Contains(err.Error(), "QingCloud Error: Code (1400)") {
-				return false, fmt.Errorf("failed to delete lb %s, err=%s, output=%s", *id, spew.Sdump(err), spew.Sdump(output))
+				klog.V(4).Infof("failed to delete lb %s, err=%s, output=%s", *id, spew.Sdump(err), spew.Sdump(output))
+				return false, fmt.Errorf("failed to delete lb %s, err=%v", *id, err)
 			}
 
 			return false, nil
@@ -285,23 +301,23 @@ func (q *QingCloudClient) AssociateEIPsToLB(id *string, eips []*string) error {
 	if len(eips) == 0 {
 		return nil
 	}
-
+	eipValueSlice := qcservice.StringValueSlice(eips)
 	output, err = q.LBService.AssociateEIPsToLoadBalancer(&qcservice.AssociateEIPsToLoadBalancerInput{
 		EIPs:         eips,
 		LoadBalancer: id,
 	})
 	if err != nil {
-		return fmt.Errorf("associate eip %s to lb %s error: %v", spew.Sdump(eips), *id, err)
+		return fmt.Errorf("associate eip %v to lb %s error: %v", eipValueSlice, *id, err)
 	}
 
 	if output != nil {
 		if *output.RetCode != 0 {
-			return fmt.Errorf("associate eip %s to lb %s failed, code=%d, message=%s", spew.Sdump(eips), *id, *output.RetCode, *output.Message)
+			return fmt.Errorf("associate eip %v to lb %s failed, code=%d, message=%s", eipValueSlice, *id, *output.RetCode, *output.Message)
 		}
 
 		err = qcclient.WaitJob(q.jobService, *output.JobID, operationWaitTimeout, waitInterval)
 		if err != nil {
-			return fmt.Errorf("associate eip %s to lb %s job not completed, err %v", spew.Sdump(eips), *id, err)
+			return fmt.Errorf("associate eip %v to lb %s job not completed, err %v", eipValueSlice, *id, err)
 		}
 	}
 
@@ -314,23 +330,23 @@ func (q *QingCloudClient) DissociateEIPsFromLB(id *string, eips []*string) error
 	if len(eips) == 0 {
 		return nil
 	}
-
+	eipValueSlice := qcservice.StringValueSlice(eips)
 	output, err = q.LBService.DissociateEIPsFromLoadBalancer(&qcservice.DissociateEIPsFromLoadBalancerInput{
 		EIPs:         eips,
 		LoadBalancer: id,
 	})
 	if err != nil {
-		return fmt.Errorf("dissociate eips %s from lb %s error: %v", spew.Sdump(eips), *id, err)
+		return fmt.Errorf("dissociate eips %v from lb %s error: %v", eipValueSlice, *id, err)
 	}
 
 	if output != nil {
 		if *output.RetCode != 0 {
-			return fmt.Errorf("dissociate eip %s from lb %s failed, code=%d, message=%s", spew.Sdump(eips), *id, *output.RetCode, *output.Message)
+			return fmt.Errorf("dissociate eip %v from lb %s failed, code=%d, message=%s", eipValueSlice, *id, *output.RetCode, *output.Message)
 		}
 
 		err = qcclient.WaitJob(q.jobService, *output.JobID, operationWaitTimeout, waitInterval)
 		if err != nil {
-			return fmt.Errorf("dissociate eip %s from lb %s job not completed, err %v", spew.Sdump(eips), *id, err)
+			return fmt.Errorf("dissociate eip %v from lb %s job not completed, err %v", eipValueSlice, *id, err)
 		}
 	}
 

@@ -18,7 +18,7 @@ import (
 	cloudproviderapp "k8s.io/cloud-provider/app"
 	cloudcontrollerconfig "k8s.io/cloud-provider/app/config"
 	genericcontrollermanager "k8s.io/controller-manager/app"
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 
 	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/qingcloud"
 )
@@ -182,10 +182,11 @@ func (sc *ServiceController) processNextWorkItem() bool {
 	return true
 }
 
+// handleServiceUpdate clean lb listener for service which new svc del the lb annotation
 func (sc *ServiceController) handleServiceUpdate(svc *corev1.Service) error {
 	startTime := time.Now()
 	defer func() {
-		klog.V(4).Infof("Finished handleEndpointsUpdate  %s/%s (%v)", svc.Namespace, svc.Name, time.Since(startTime))
+		klog.V(4).Infof("Finished handleServiceUpdate  %s/%s (%v)", svc.Namespace, svc.Name, time.Since(startTime))
 	}()
 
 	cloudLbIntf, _ := sc.cloud.LoadBalancer()

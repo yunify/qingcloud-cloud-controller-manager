@@ -19,7 +19,7 @@ import (
 	cloudproviderapp "k8s.io/cloud-provider/app"
 	cloudcontrollerconfig "k8s.io/cloud-provider/app/config"
 	genericcontrollermanager "k8s.io/controller-manager/app"
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 
 	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/controllers/utils"
 	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/qingcloud"
@@ -167,7 +167,7 @@ func (cnc *ClusterNodeController) processNextWorkItem() bool {
 	return true
 }
 
-// handleNodesUpdate handle service backend according to node lables
+// handleNodesUpdate handle node labels change for service which has node lable annotation
 func (cnc *ClusterNodeController) handleNodesUpdate(key string) error {
 	startTime := time.Now()
 	defer func() {
@@ -197,7 +197,8 @@ func (cnc *ClusterNodeController) handleNodesUpdate(key string) error {
 		_, ok := svc.Annotations[qingcloud.ServiceAnnotationBackendLabel]
 		if ok && svc.Spec.Type == corev1.ServiceTypeLoadBalancer &&
 			svc.Spec.ExternalTrafficPolicy == corev1.ServiceExternalTrafficPolicyTypeCluster {
-			klog.Infof("service %s serviceType = %s, externalTrafficPolicy = %s, also has backend label annotation , going to update loadbalancer", svc.Name, svc.Spec.Type, svc.Spec.ExternalTrafficPolicy)
+			klog.Infof("node lable changed and service has backend label annotation, going to update loadbalancer for service %s/%s serviceType = %s, externalTrafficPolicy = %s, ",
+				svc.Namespace, svc.Name, svc.Spec.Type, svc.Spec.ExternalTrafficPolicy)
 
 			// 4. update lb
 			lbInterface, _ := cnc.cloud.LoadBalancer()

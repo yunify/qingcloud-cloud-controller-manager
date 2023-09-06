@@ -19,8 +19,8 @@ const (
 	pageLimt             = 100
 )
 
-// GetPortsOfService return service ports and nodeports
-func GetPortsOfService(service *v1.Service) ([]int, []int) {
+// GetSvcPortsAndNodePorts return service ports and nodeports
+func GetSvcPortsAndNodePorts(service *v1.Service) ([]int, []int) {
 	k8sPorts := []int{}
 	k8sNodePorts := []int{}
 	for _, port := range service.Spec.Ports {
@@ -28,6 +28,22 @@ func GetPortsOfService(service *v1.Service) ([]int, []int) {
 		k8sNodePorts = append(k8sNodePorts, int(port.NodePort))
 	}
 	return k8sPorts, k8sNodePorts
+}
+
+func GetSvcPorts(service *v1.Service) []int {
+	k8sPorts := []int{}
+	for _, port := range service.Spec.Ports {
+		k8sPorts = append(k8sPorts, int(port.Port))
+	}
+	return k8sPorts
+}
+
+func GetPortsSlice(ports []v1.ServicePort) []int {
+	k8sPorts := []int{}
+	for _, port := range ports {
+		k8sPorts = append(k8sPorts, int(port.Port))
+	}
+	return k8sPorts
 }
 
 func GetNodePort(service *v1.Service, port int32, protocol v1.Protocol) (nodePort int32, found bool) {
@@ -94,6 +110,24 @@ func GetRandomItems(items []*string, count int) (result []*string) {
 			result = append(result, items[r.Int64()])
 			resultMap[r.Int64()] = true
 			i++
+		}
+	}
+	return
+}
+
+func CoverPointSliceToStr[T string | int](ps []*T) (result []T) {
+	for _, v := range ps {
+		if v != nil {
+			result = append(result, *v)
+		}
+	}
+	return
+}
+
+func GetNodesName(nodes []*v1.Node) (names []string) {
+	for _, node := range nodes {
+		if node != nil {
+			names = append(names, node.Name)
 		}
 	}
 	return

@@ -5,7 +5,7 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	qcservice "github.com/yunify/qingcloud-sdk-go/service"
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 
 	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/apis"
 	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/errors"
@@ -20,13 +20,18 @@ func (q *QingCloudClient) DeleteBackends(ids []*string) error {
 		klog.Warningln("No backends to delete, pls check the inputs")
 		return nil
 	}
-	output, err := q.LBService.DeleteLoadBalancerBackends(&qcservice.DeleteLoadBalancerBackendsInput{
+	input := &qcservice.DeleteLoadBalancerBackendsInput{
 		LoadBalancerBackends: ids,
-	})
-	if *output.RetCode != 0 {
-		return errors.NewCommonServerError(ResourceNameBackend, spew.Sdump(ids), "DeleteBackends", *output.Message)
 	}
-	return err
+	output, err := q.LBService.DeleteLoadBalancerBackends(input)
+	if err != nil || *output.RetCode != 0 {
+		klog.V(4).Infof("failed to delete backends, err=%s, input=%s, output=%s", spew.Sdump(err), spew.Sdump(input), spew.Sdump(output))
+		if err != nil {
+			return fmt.Errorf("failed to delete backends,err=%v", err)
+		}
+		return fmt.Errorf("failed to delete backends, code=%d, msg=%s", *output.RetCode, *output.Message)
+	}
+	return nil
 }
 
 // need update lb
@@ -48,8 +53,13 @@ func (q *QingCloudClient) CreateBackends(backends []*apis.LoadBalancerBackend) (
 	}
 
 	output, err := q.LBService.AddLoadBalancerBackends(input)
+
 	if err != nil || *output.RetCode != 0 {
-		return nil, fmt.Errorf("failed to create backends, err=%s, input=%s, output=%s", spew.Sdump(err), spew.Sdump(input), spew.Sdump(output))
+		klog.V(4).Infof("failed to create backends, err=%s, input=%s, output=%s", spew.Sdump(err), spew.Sdump(input), spew.Sdump(output))
+		if err != nil {
+			return nil, fmt.Errorf("failed to create backends,err=%v", err)
+		}
+		return nil, fmt.Errorf("failed to create backends, code=%d, msg=%s", *output.RetCode, *output.Message)
 	}
 
 	return output.LoadBalancerBackends, nil

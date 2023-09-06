@@ -20,7 +20,7 @@ import (
 	cloudproviderapp "k8s.io/cloud-provider/app"
 	cloudcontrollerconfig "k8s.io/cloud-provider/app/config"
 	genericcontrollermanager "k8s.io/controller-manager/app"
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 
 	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/controllers/utils"
 )
@@ -160,6 +160,7 @@ func (epc *EndpointController) processNextWorkItem() bool {
 	return true
 }
 
+// handleEndpointsUpdate handle endpoint change for loadlanbacer service which externalTrafficPolicy is local
 func (epc *EndpointController) handleEndpointsUpdate(key string) error {
 	startTime := time.Now()
 	defer func() {
@@ -182,10 +183,12 @@ func (epc *EndpointController) handleEndpointsUpdate(key string) error {
 	}
 	// ignore service which service type != loadbalancer or externalTrafficPolicy != Local
 	if svc.Spec.Type != corev1.ServiceTypeLoadBalancer || svc.Spec.ExternalTrafficPolicy != corev1.ServiceExternalTrafficPolicyTypeLocal {
-		klog.V(4).Infof("service %s serviceType = %s, externalTrafficPolicy = %s, skip handle endpoint update", svc.Name, svc.Spec.Type, svc.Spec.ExternalTrafficPolicy)
+		klog.V(4).Infof("skip handle endpoint update for service %s/%s serviceType = %s, externalTrafficPolicy = %s",
+			svc.Namespace, svc.Name, svc.Spec.Type, svc.Spec.ExternalTrafficPolicy)
 		return nil
 	}
-	klog.Infof("service %s serviceType = %s, externalTrafficPolicy = %s, going to handle endpoint update", svc.Name, svc.Spec.Type, svc.Spec.ExternalTrafficPolicy)
+	klog.Infof("going to handle endpoint update for service %s/%s serviceType = %s, externalTrafficPolicy = %s",
+		svc.Namespace, svc.Name, svc.Spec.Type, svc.Spec.ExternalTrafficPolicy)
 
 	// 2. get node list
 	var nodes []*corev1.Node
@@ -203,9 +206,9 @@ func (epc *EndpointController) handleEndpointsUpdate(key string) error {
 	cloudLbIntf, _ := epc.cloud.LoadBalancer()
 	err = cloudLbIntf.UpdateLoadBalancer(context.TODO(), "", svc, nodes)
 	if err != nil {
-		return fmt.Errorf("update loadbalancer for service %s/%s error: %v", svc.Namespace, svc.Name, err)
+		return fmt.Errorf("update loadbalancer for service %s/%s error: %v", namespace, name, err)
 	}
-	klog.Infof("update loadbalancer for service %s/%s success", svc.Namespace, svc.Name)
+	klog.Infof("update loadbalancer for service %s/%s success", namespace, name)
 
 	return nil
 }

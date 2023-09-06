@@ -9,7 +9,7 @@ import (
 	qcservice "github.com/yunify/qingcloud-sdk-go/service"
 	"github.com/yunify/qingcloud-sdk-go/utils"
 	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 
 	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/apis"
 )
@@ -25,7 +25,11 @@ func (q *QingCloudClient) getEIPByID(id string) (*qcservice.EIP, error) {
 		EIPs: []*string{&id},
 	})
 	if err != nil || *output.RetCode != 0 {
-		return nil, fmt.Errorf("failed to get eip by id %s, err=%s, output=%s", id, spew.Sdump(err), spew.Sdump(output))
+		klog.V(4).Infof("failed to get eip by id %s, err=%s, output=%s", id, spew.Sdump(err), spew.Sdump(output))
+		if err != nil {
+			return nil, fmt.Errorf("failed to get eip by id %s, err=%v", id, err)
+		}
+		return nil, fmt.Errorf("failed to get eip by id %s, code=%d, msg=%s", id, *output.RetCode, *output.Message)
 	}
 
 	return output.EIPSet[0], nil
@@ -50,7 +54,8 @@ func (q *QingCloudClient) ReleaseEIP(ids []*string) error {
 		//QingCloud Error: Code (1400), Message (PermissionDenied, resource [eip-5ywkioa5] lease info not ready yet, please try later)
 		if (err != nil && !strings.Contains(err.Error(), "QingCloud Error: Code (1400)")) ||
 			(output != nil && *output.RetCode != 0 && *output.RetCode != 1400) {
-			return false, fmt.Errorf("failed to release eip, err=%s, input=%s, output=%s", spew.Sdump(err), spew.Sdump(input), spew.Sdump(output))
+			klog.V(4).Infof("failed to release eip, err=%s, input=%s, output=%s", spew.Sdump(err), spew.Sdump(input), spew.Sdump(output))
+			return false, fmt.Errorf("failed to release eip, err=%v", err)
 		} else if err == nil && *output.RetCode == 0 {
 			return true, nil
 		}
@@ -89,7 +94,11 @@ func (q *QingCloudClient) AllocateEIP(eip *apis.EIP) (*apis.EIP, error) {
 
 	output, err := q.EIPService.AllocateEIPs(input)
 	if err != nil || *output.RetCode != 0 {
-		return nil, fmt.Errorf("failed to allocate eip, err=%s, input=%s, output=%s", spew.Sdump(err), spew.Sdump(input), spew.Sdump(output))
+		klog.V(4).Infof("failed to allocate eip, err=%s, input=%s, output=%s", spew.Sdump(err), spew.Sdump(input), spew.Sdump(output))
+		if err != nil {
+			return nil, fmt.Errorf("failed to allocate eip, err=%v", err)
+		}
+		return nil, fmt.Errorf("failed to allocate eip, code=%d, msg=%s", *output.RetCode, *output.Message)
 	}
 
 	id := output.EIPs[0]
@@ -120,13 +129,18 @@ func convertEIP(eip *qcservice.EIP) *apis.EIP {
 }
 
 func (q *QingCloudClient) GetAvaliableEIPs() ([]*apis.EIP, error) {
-	output, err := q.EIPService.DescribeEIPs(&qcservice.DescribeEIPsInput{
+	input := &qcservice.DescribeEIPsInput{
 		Owner:  &q.Config.UserID,
 		Status: []*string{qcservice.String(EIPStatusAvailable)},
-	})
+	}
+	output, err := q.EIPService.DescribeEIPs(input)
 
 	if err != nil || *output.RetCode != 0 {
-		return nil, fmt.Errorf("failed to get avaliable eips, err=%s, output=%s", spew.Sdump(err), spew.Sdump(output))
+		klog.V(4).Infof("failed to get avaliable eips, err=%s, input=%s, output=%s", spew.Sdump(err), spew.Sdump(input), spew.Sdump(output))
+		if err != nil {
+			return nil, fmt.Errorf("failed to get avaliable eips, err=%v", err)
+		}
+		return nil, fmt.Errorf("failed to get avaliable eips, code=%d, msg=%s", *output.RetCode, *output.Message)
 	}
 
 	result := make([]*apis.EIP, 0)
