@@ -2,7 +2,7 @@
 # GitHub viewer defaults to 8, change with ?ts=4 in URL
 
 GIT_REPOSITORY= github.com/yunify/qingcloud-cloud-controller-manager
-IMG?= qingcloud/cloud-controller-manager:v1.4.18
+IMG?= qingcloud/cloud-controller-manager:v1.4.19
 #Debug level: 0, 1, 2 (1 true, 2 use bash)
 DEBUG?= 0
 DOCKERFILE?= deploy/Dockerfile
@@ -31,9 +31,9 @@ endif
 publish: test build
 	docker build -t ${IMG}  -f ${DOCKERFILE} bin/
 	@echo "updating kustomize image patch file for manager resource"
-	sed -i'' -e 's@image: .*@image: '"${IMG}"'@' config/${TARGET}/manager_image_patch.yaml
+	#sed -i'' -e 's@image: .*@image: '"${IMG}"'@' config/${TARGET}/manager_image_patch.yaml
 	docker push ${IMG}
-	kustomize build config/${TARGET} > ${DEPLOY}
+	#kustomize build config/${TARGET} > ${DEPLOY}
 
 clean:
 	rm -rf bin/

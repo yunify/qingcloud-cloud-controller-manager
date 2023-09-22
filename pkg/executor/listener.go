@@ -3,7 +3,6 @@ package executor
 import (
 	"fmt"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/apis"
 	qcservice "github.com/yunify/qingcloud-sdk-go/service"
 )
@@ -26,10 +25,10 @@ func (q *QingCloudClient) DeleteListener(lsnid []*string) error {
 		LoadBalancerListeners: lsnid,
 	})
 	if err != nil {
-		return fmt.Errorf("failed to delete listener %v err=%v", spew.Sdump(lsnid), err)
+		return fmt.Errorf("failed to delete listener %v, err=%v", qcservice.StringValueSlice(lsnid), err)
 	}
 	if *output.RetCode != 0 {
-		return fmt.Errorf("failed to delete listener %v output=%v", spew.Sdump(lsnid), spew.Sdump(output))
+		return fmt.Errorf("failed to delete listener %v, code=%d, msg=%s", qcservice.StringValueSlice(lsnid), *output.RetCode, *output.Message)
 	}
 	return nil
 }
@@ -89,8 +88,11 @@ func (q *QingCloudClient) CreateListener(inputs []*apis.LoadBalancerListener) ([
 		Listeners:    convertFromLoadBalancerListener(inputs),
 		LoadBalancer: id,
 	})
-	if err != nil || *output.RetCode != 0 {
-		return nil, fmt.Errorf("failed to create listerner, err=%+v, input=%s, output=%s", spew.Sdump(err), spew.Sdump(inputs), spew.Sdump(output))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create listener, err=%v", err)
+	}
+	if *output.RetCode != 0 {
+		return nil, fmt.Errorf("failed to create listener, code=%d, msg=%s", *output.RetCode, *output.Message)
 	}
 
 	return q.GetListeners(output.LoadBalancerListeners)

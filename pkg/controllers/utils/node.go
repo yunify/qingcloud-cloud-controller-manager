@@ -2,7 +2,7 @@ package utils
 
 import (
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 )
 
 // check if the node should be backend or not

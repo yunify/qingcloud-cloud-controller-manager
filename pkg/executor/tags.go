@@ -26,10 +26,10 @@ func (i *QingCloudClient) attachTagsToResources(resourceIDs []*string, resourceT
 	}
 	output, err := i.tagService.AttachTags(input)
 	if err != nil {
-		return errors.NewCommonServerError("tag", fmt.Sprintf("%v", resourceIDs), "attachTagsToResources", err.Error())
+		return errors.NewCommonServerError("tag", fmt.Sprintf("%v", service.StringValueSlice(resourceIDs)), "attachTagsToResources", err.Error())
 	}
 	if *output.RetCode != 0 {
-		return errors.NewCommonServerError("tag", fmt.Sprintf("%v", resourceIDs), "attachTagsToResources", *output.Message)
+		return errors.NewCommonServerError("tag", fmt.Sprintf("%v", service.StringValueSlice(resourceIDs)), "attachTagsToResources", *output.Message)
 	}
 	return nil
 }

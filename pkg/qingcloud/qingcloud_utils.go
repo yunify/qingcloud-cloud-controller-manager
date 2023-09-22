@@ -3,7 +3,6 @@ package qingcloud
 import (
 	"fmt"
 
-	"github.com/davecgh/go-spew/spew"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/klog/v2"
 
@@ -84,7 +83,7 @@ func (qc *QingCloud) diffLBEip(config *LoadBalancerConfig, lb *apis.LoadBalancer
 		case AllocateOnly, UseAvailableOnly, UseAvailableOrAllocateOne:
 			if len(lb.Spec.EIPs) > 0 {
 				// lb already has eip, do nothing
-				klog.Infof("lb %s already has eip %s, do nothing", *lb.Status.LoadBalancerID, spew.Sdump(lb.Spec.EIPs))
+				klog.Infof("lb %s already has eip %v, do nothing", *lb.Status.LoadBalancerID, util.CoverPointSliceToStr(lb.Spec.EIPs))
 			} else {
 				// get or create an available eip from qingcloud and associate this eip to lb
 				eip, err := qc.prepareEip(config.EipSource)
@@ -120,7 +119,7 @@ func (qc *QingCloud) updateLBEip(config *LoadBalancerConfig, lb *apis.LoadBalanc
 
 	// update lb eip
 	if len(eipsToAdd) > 0 {
-		klog.Infof("associating eips %s to lb %s", spew.Sdump(eipsToAdd), *lb.Status.LoadBalancerID)
+		klog.Infof("associating eips %v to lb %s", util.CoverPointSliceToStr(eipsToAdd), *lb.Status.LoadBalancerID)
 		err = qc.Client.AssociateEIPsToLB(lb.Status.LoadBalancerID, eipsToAdd)
 		if err != nil {
 			return err
@@ -128,7 +127,7 @@ func (qc *QingCloud) updateLBEip(config *LoadBalancerConfig, lb *apis.LoadBalanc
 		updated = true
 	}
 	if len(eipsToDel) > 0 {
-		klog.Infof("dissociating eips %s from lb %s", spew.Sdump(eipsToDel), *lb.Status.LoadBalancerID)
+		klog.Infof("dissociating eips %v from lb %s", util.CoverPointSliceToStr(eipsToDel), *lb.Status.LoadBalancerID)
 		err = qc.Client.DissociateEIPsFromLB(lb.Status.LoadBalancerID, eipsToDel)
 		if err != nil {
 			return err
@@ -150,6 +149,8 @@ func (qc *QingCloud) updateLBEip(config *LoadBalancerConfig, lb *apis.LoadBalanc
 
 func (qc *QingCloud) diffBackend(listener *apis.LoadBalancerListener, nodes []*v1.Node, conf *LoadBalancerConfig, svc *v1.Service) (toDelete []*string, toAdd []*v1.Node) {
 	var backendLeftID []*string
+
+	// deleted cluster node sync to lb backend
 	for _, backend := range listener.Status.LoadBalancerBackends {
 		if !nodesHasBackend(*backend.Spec.LoadBalancerBackendName, nodes) {
 			toDelete = append(toDelete, backend.Status.LoadBalancerBackendID)
@@ -175,6 +176,7 @@ func (qc *QingCloud) diffBackend(listener *apis.LoadBalancerListener, nodes []*v
 			toAdd = append(toAdd, getRandomNodes(nodeLeft, conf.BackendCountResult-backendLeftCount)...)
 		}
 	} else {
+		// added cluster node sync to lb backend
 		for _, node := range nodes {
 			if !backendsHasNode(node, listener.Status.LoadBalancerBackends) {
 				toAdd = append(toAdd, node)

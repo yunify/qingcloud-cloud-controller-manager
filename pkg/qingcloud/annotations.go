@@ -201,7 +201,7 @@ func (qc *QingCloud) ParseServiceLBConfig(cluster string, service *v1.Service) (
 	}
 	if timeoutConf, ok := annotation[ServiceAnnotationListenerTimeout]; ok {
 		if err := validListenerTimeout(timeoutConf); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("valid listener timeout error: %v", err)
 		}
 		config.Timeout = &timeoutConf
 	}

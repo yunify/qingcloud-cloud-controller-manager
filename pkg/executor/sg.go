@@ -6,7 +6,7 @@ import (
 	"github.com/davecgh/go-spew/spew"
 	qcclient "github.com/yunify/qingcloud-sdk-go/client"
 	qcservice "github.com/yunify/qingcloud-sdk-go/service"
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 
 	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/apis"
 	"github.com/yunify/qingcloud-cloud-controller-manager/pkg/errors"
@@ -62,14 +62,18 @@ func (q *QingCloudClient) CreateSecurityGroup(input *apis.SecurityGroup) (*apis.
 	}
 	createOutput, err := q.securityGroupService.CreateSecurityGroup(createInput)
 	if err != nil || *createOutput.RetCode != 0 {
-		return nil, fmt.Errorf("failed to create sg, err=%s, input=%s, output=%s", spew.Sdump(err), spew.Sdump(createInput), spew.Sdump(createOutput))
+		klog.V(4).Infof("failed to create sg, err=%s, input=%s, output=%s", spew.Sdump(err), spew.Sdump(createInput), spew.Sdump(createOutput))
+		if err != nil {
+			return nil, fmt.Errorf("failed to create sg, err=%v", err)
+		}
+		return nil, fmt.Errorf("failed to create sg, code=%d, msg=%s", *createOutput.RetCode, *createOutput.Message)
 	}
 
 	input.Status.SecurityGroupID = createOutput.SecurityGroupID
 
 	err = q.attachTagsToResources([]*string{createOutput.SecurityGroupID}, SGTagResourceType)
 	if err != nil {
-		klog.Errorf("Failed to attach tag to security group %s, err: %s", spew.Sdump(input), err.Error())
+		klog.Errorf("Failed to attach tag to security group %s, err: %v", *createOutput.SecurityGroupID, err)
 	}
 
 	return input, nil
@@ -83,7 +87,11 @@ func (q *QingCloudClient) addSecurityGroupRules(sg *apis.SecurityGroup, rules []
 	}
 	addRuleOutput, err := q.securityGroupService.AddSecurityGroupRules(addRuleInput)
 	if err != nil || *addRuleOutput.RetCode != 0 {
-		return nil, fmt.Errorf("failed to add sg rules, err=%s, input=%s, output=%s", spew.Sdump(err), spew.Sdump(addRuleInput), spew.Sdump(addRuleOutput))
+		klog.V(4).Infof("failed to add sg rules, err=%s, input=%s, output=%s", spew.Sdump(err), spew.Sdump(addRuleInput), spew.Sdump(addRuleOutput))
+		if err != nil {
+			return nil, fmt.Errorf("failed to add sg rules, err=%v", err)
+		}
+		return nil, fmt.Errorf("failed to add sg rules, code=%d, msg=%s", *addRuleOutput.RetCode, *addRuleOutput.Message)
 	}
 
 	sg.Status.SecurityGroupRuleIDs = addRuleOutput.SecurityGroupRules
@@ -95,12 +103,17 @@ func (q *QingCloudClient) addSecurityGroupRules(sg *apis.SecurityGroup, rules []
 	}
 	applyRuleOutput, err := q.securityGroupService.ApplySecurityGroup(applyRuleInput)
 	if err != nil || *applyRuleOutput.RetCode != 0 {
-		return nil, fmt.Errorf("failed to apply sg rules, err=%s, input=%s, output=%s", spew.Sdump(err), spew.Sdump(applyRuleInput), spew.Sdump(applyRuleOutput))
+		klog.V(4).Infof("failed to apply sg rules, err=%s, input=%s, output=%s", spew.Sdump(err), spew.Sdump(applyRuleInput), spew.Sdump(applyRuleOutput))
+		if err != nil {
+			return nil, fmt.Errorf("failed to apply sg rules, err=%v", err)
+		}
+		return nil, fmt.Errorf("failed to apply sg rules, code=%d, msg=%s", *applyRuleOutput.RetCode, *applyRuleOutput.Message)
 	}
 
 	err = qcclient.WaitJob(q.jobService, *applyRuleOutput.JobID, operationWaitTimeout, sgWaitInterval)
 	if err != nil {
-		return nil, fmt.Errorf("failed to apply sg rules, err=%s, input=%s, output=%s", spew.Sdump(err), spew.Sdump(applyRuleInput), spew.Sdump(applyRuleOutput))
+		klog.V(4).Infof("failed to apply sg rules, err=%s, input=%s, output=%s", spew.Sdump(err), spew.Sdump(applyRuleInput), spew.Sdump(applyRuleOutput))
+		return nil, fmt.Errorf("failed to apply sg rules, err=%v", err)
 	}
 
 	return sg, nil
@@ -112,7 +125,11 @@ func (q *QingCloudClient) DeleteSG(sg *string) error {
 	}
 	output, err := q.securityGroupService.DeleteSecurityGroups(input)
 	if err != nil || *output.RetCode != 0 {
-		return fmt.Errorf("failed to delete sg %s, err=%s, output=%s", *sg, spew.Sdump(err), spew.Sdump(output))
+		klog.V(4).Infof("failed to delete sg %s, err=%s, output=%s", *sg, spew.Sdump(err), spew.Sdump(output))
+		if err != nil {
+			return fmt.Errorf("failed to delete sg %s, err=%v", *sg, err)
+		}
+		return fmt.Errorf("failed to delete sg %s, code=%d, msg=%s", *sg, *output.RetCode, *output.Message)
 	}
 
 	return nil
@@ -151,7 +168,11 @@ func (q *QingCloudClient) GetSecurityGroupByName(name string) (*apis.SecurityGro
 	}
 	output, err := q.securityGroupService.DescribeSecurityGroups(input)
 	if err != nil || *output.RetCode != 0 {
-		return nil, fmt.Errorf("cannot get sg by name, err=%s, input=%s, output=%s", spew.Sdump(err), spew.Sdump(input), spew.Sdump(output))
+		klog.V(4).Infof("get sg by name %s failed, err=%s, input=%s, output=%s", name, spew.Sdump(err), spew.Sdump(input), spew.Sdump(output))
+		if err != nil {
+			return nil, fmt.Errorf("get sg by name %s failed, err=%v", name, err)
+		}
+		return nil, fmt.Errorf("get sg by name %s failed, code=%d, msg=%s", name, *output.RetCode, *output.Message)
 	}
 
 	if len(output.SecurityGroupSet) > 1 {
