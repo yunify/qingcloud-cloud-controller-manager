@@ -252,11 +252,12 @@ func generateLoadBalancerBackends(nodes []*v1.Node, listener *apis.LoadBalancerL
 
 	for _, node := range nodes {
 		nodeName := nodeToInstanceIDs(node)
+		ip := getIPStr(node)
 		backend := &apis.LoadBalancerBackend{
 			Spec: apis.LoadBalancerBackendSpec{
 				LoadBalancerListenerID:  listener.Status.LoadBalancerListenerID,
 				LoadBalancerBackendName: &nodeName,
-				ResourceID:              &nodeName,
+				ResourceID:              &ip, //&nodeName,
 				Port:                    getLoadBalancerListenerNodePort(listener, ports),
 			},
 		}
@@ -591,6 +592,16 @@ func getDefaultBackendCount(nodes []*v1.Node) (backendCountResult int) {
 		backendCountResult = len(nodes) / 3
 		if backendCountResult < 3 {
 			backendCountResult = DefaultBackendCount
+		}
+	}
+	return
+}
+
+// get node internal ip
+func getIPStr(node *v1.Node) (ipStr string) {
+	for _, addr := range node.Status.Addresses {
+		if addr.Type == v1.NodeInternalIP {
+			return addr.Address
 		}
 	}
 	return
