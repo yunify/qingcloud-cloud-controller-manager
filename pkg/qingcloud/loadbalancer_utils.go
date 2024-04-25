@@ -252,12 +252,12 @@ func generateLoadBalancerBackends(nodes []*v1.Node, listener *apis.LoadBalancerL
 
 	for _, node := range nodes {
 		nodeName := nodeToInstanceIDs(node)
-		ip := getIPStr(node)
+		// ip := getIPStr(node)
 		backend := &apis.LoadBalancerBackend{
 			Spec: apis.LoadBalancerBackendSpec{
 				LoadBalancerListenerID:  listener.Status.LoadBalancerListenerID,
 				LoadBalancerBackendName: &nodeName,
-				ResourceID:              &ip, //&nodeName,
+				ResourceID:              &nodeName,
 				Port:                    getLoadBalancerListenerNodePort(listener, ports),
 			},
 		}
