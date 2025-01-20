@@ -50,6 +50,9 @@ func convertLoadBalancerListener(inputs []*qcservice.LoadBalancerListener) []*ap
 				BalanceMode:              input.BalanceMode,
 				ServerCertificateID:      input.ServerCertificateID,
 				Timeout:                  input.Timeout,
+				Scene:                    input.Scene,
+				Forwardfor:               input.Forwardfor,
+				ListenerOption:           input.ListenerOption,
 			},
 			Status: apis.LoadBalancerListenerStatus{
 				LoadBalancerListenerID: input.LoadBalancerListenerID,
@@ -75,6 +78,9 @@ func convertFromLoadBalancerListener(inputs []*apis.LoadBalancerListener) []*qcs
 			BalanceMode:              input.Spec.BalanceMode,
 			ServerCertificateID:      input.Spec.ServerCertificateID,
 			Timeout:                  input.Spec.Timeout,
+			Scene:                    input.Spec.Scene,
+			Forwardfor:               input.Spec.Forwardfor,
+			ListenerOption:           input.Spec.ListenerOption,
 		})
 	}
 

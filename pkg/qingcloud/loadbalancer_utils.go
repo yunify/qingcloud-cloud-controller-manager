@@ -4,7 +4,6 @@ import (
 	"crypto/rand"
 	"fmt"
 	"math/big"
-	"strconv"
 	"strings"
 
 	qcservice "github.com/yunify/qingcloud-sdk-go/service"
@@ -17,6 +16,9 @@ const (
 	defaultListenerHeathyCheckOption = "10|5|2|5"
 	defaultListenerBalanceMode       = "roundrobin"
 	defaultTimeout                   = 50
+	defaultScene                     = 0
+	defaultForwardfor                = 0
+	defaultListenerOption            = 0
 )
 
 // Make sure qingcloud instance hostname or override-hostname (if provided) is equal to InstanceId
@@ -157,15 +159,45 @@ func getProtocol(annotationConf map[int]string, port int) *string {
 	}
 }
 
-func getTimeout(timeouts map[int]int, port int) *int {
+func getTimeout(annotationConf map[int]int, port int) *int {
 	timeout := defaultTimeout
-	if timeouts != nil {
-		if t, ok := timeouts[port]; ok {
+	if annotationConf != nil {
+		if t, ok := annotationConf[port]; ok {
 			return &t
 		}
 	}
 
 	return &timeout
+}
+
+func getScene(annotationConf map[int]int, port int) *int {
+	scene := defaultScene
+	if annotationConf != nil {
+		if s, ok := annotationConf[port]; ok {
+			return &s
+		}
+	}
+	return &scene
+}
+
+func getForwardfor(annotationConf map[int]int, port int) *int {
+	forwardfor := defaultForwardfor
+	if annotationConf != nil {
+		if f, ok := annotationConf[port]; ok {
+			return &f
+		}
+	}
+	return &forwardfor
+}
+
+func getListenerOption(annotationConf map[int]int, port int) *int {
+	listenerOption := defaultListenerOption
+	if annotationConf != nil {
+		if f, ok := annotationConf[port]; ok {
+			return &f
+		}
+	}
+	return &listenerOption
 }
 
 func diffListeners(listeners []*apis.LoadBalancerListener, conf *LoadBalancerConfig, ports []v1.ServicePort) (toDelete []*string, toAdd []v1.ServicePort, toKeep []*apis.LoadBalancerListener) {
@@ -179,17 +211,30 @@ func diffListeners(listeners []*apis.LoadBalancerListener, conf *LoadBalancerCon
 	hcs, _ := parseHeathyCheck(conf)
 	bms, _ := parseBalanceMode(conf)
 	timeoutConf, _ := parseTimeout(conf)
+	sceneConf, _ := parseScene(conf)
+	forwardforConf, _ := parseForwardfor(conf)
+	listenerOptionConf, _ := parseListenerOption(conf)
+
 	for _, port := range ports {
+		portInt := int(port.Port)
 		add := true
-		healthyCheck := getHealthyCheck(hcs, int(port.Port), strings.ToLower(string(port.Protocol)))
-		balanceMode := getBalanceMode(bms, int(port.Port))
+		healthyCheck := getHealthyCheck(hcs, portInt, strings.ToLower(string(port.Protocol)))
+		balanceMode := getBalanceMode(bms, portInt)
+		timeout := getTimeout(timeoutConf, portInt)
+		scene := getScene(sceneConf, portInt)
+		forwardfor := getForwardfor(forwardforConf, portInt)
+		listenerOption := getListenerOption(listenerOptionConf, portInt)
+
 		for _, listener := range listeners {
-			if *listener.Spec.ListenerPort == int(port.Port) &&
+			if *listener.Spec.ListenerPort == portInt &&
 				svcNodePort[*listener.Status.LoadBalancerListenerID] == int(port.NodePort) &&
 				*balanceMode == *listener.Spec.BalanceMode &&
 				(*healthyCheck.option == *listener.Spec.HealthyCheckOption && *healthyCheck.method == *listener.Spec.HealthyCheckMethod) &&
 				equalProtocol(listener, conf, port) &&
-				equalTimeout(listener, timeoutConf, int(port.Port)) {
+				*timeout == *listener.Spec.Timeout &&
+				*scene == *listener.Spec.Scene &&
+				*forwardfor == *listener.Spec.Forwardfor &&
+				*listenerOption == *listener.Spec.ListenerOption {
 				add = false
 				break
 			}
@@ -202,14 +247,22 @@ func diffListeners(listeners []*apis.LoadBalancerListener, conf *LoadBalancerCon
 	for _, listener := range listeners {
 		delete := true
 		for _, port := range ports {
+			portInt := int(port.Port)
 			healthyCheck := getHealthyCheck(hcs, int(port.Port), strings.ToLower(string(port.Protocol)))
 			balanceMode := getBalanceMode(bms, int(port.Port))
+			timeout := getTimeout(timeoutConf, portInt)
+			scene := getScene(sceneConf, portInt)
+			forwardfor := getForwardfor(forwardforConf, portInt)
+			listenerOption := getListenerOption(listenerOptionConf, portInt)
 			if *listener.Spec.ListenerPort == int(port.Port) &&
 				svcNodePort[*listener.Status.LoadBalancerListenerID] == int(port.NodePort) &&
 				*balanceMode == *listener.Spec.BalanceMode &&
 				(*healthyCheck.option == *listener.Spec.HealthyCheckOption && *healthyCheck.method == *listener.Spec.HealthyCheckMethod) &&
 				equalProtocol(listener, conf, port) &&
-				equalTimeout(listener, timeoutConf, int(port.Port)) {
+				*timeout == *listener.Spec.Timeout &&
+				*scene == *listener.Spec.Scene &&
+				*forwardfor == *listener.Spec.Forwardfor &&
+				*listenerOption == *listener.Spec.ListenerOption {
 				delete = false
 				break
 			}
@@ -270,35 +323,6 @@ func generateLoadBalancerBackends(nodes []*v1.Node, listener *apis.LoadBalancerL
 type healthyChek struct {
 	method *string
 	option *string
-}
-
-// data format like this: port1:conf,port2:conf,port3:conf
-// Example:
-//
-//	1)healthycheckmethod: "80:tcp,443:tcp"
-//	2)healthycheckoption: "80:10|5|2|5,443:10|5|2|5"
-//	3)balancemode: "80:roundrobin,443:leastconn,8080:source"
-//	4)cert: "443:sc-77oko7zj,80:sc-77oko7zj"
-//	5)protocol: "443:https,80:http"
-//	6)timeout: "443:10,80:20"
-func parseLsnAnnotaionData(data string) (map[int]string, error) {
-	methods := strings.Split(data, ",")
-	rst := make(map[int]string, len(methods))
-	for _, method := range methods {
-		if method == "" {
-			continue
-		}
-		m := strings.Split(method, ":")
-		if len(m) != 2 {
-			return nil, fmt.Errorf("wrong format: (%s)", data)
-		}
-		port, err := strconv.Atoi(m[0])
-		if err != nil {
-			return nil, fmt.Errorf("wrong format: (%s)", data)
-		}
-		rst[port] = m[1]
-	}
-	return rst, nil
 }
 
 func parseHeathyCheck(conf *LoadBalancerConfig) (map[int]healthyChek, error) {
@@ -371,6 +395,27 @@ func parseTimeout(conf *LoadBalancerConfig) (map[int]int, error) {
 	return parseAnnotationIntoIntIntMap(*conf.Timeout)
 }
 
+func parseScene(conf *LoadBalancerConfig) (map[int]int, error) {
+	if conf == nil || conf.Scene == nil {
+		return nil, nil
+	}
+	return parseAnnotationIntoIntIntMap(*conf.Scene)
+}
+
+func parseForwardfor(conf *LoadBalancerConfig) (map[int]int, error) {
+	if conf == nil || conf.Scene == nil {
+		return nil, nil
+	}
+	return parseAnnotationIntoIntIntMap(*conf.Forwardfor)
+}
+
+func parseListenerOption(conf *LoadBalancerConfig) (map[int]int, error) {
+	if conf == nil || conf.Scene == nil {
+		return nil, nil
+	}
+	return parseAnnotationIntoIntIntMap(*conf.ListenerOption)
+}
+
 func parseAnnotationIntoStringMap(data string) (map[string]string, error) {
 	parts := strings.Split(data, ",")
 	rst := make(map[string]string, len(parts))
@@ -421,6 +466,21 @@ func generateLoadBalancerListeners(conf *LoadBalancerConfig, lb *apis.LoadBalanc
 		return nil, err
 	}
 
+	scene, err := parseScene(conf)
+	if err != nil {
+		return nil, err
+	}
+
+	forwardfor, err := parseForwardfor(conf)
+	if err != nil {
+		return nil, err
+	}
+
+	listenerOption, err := parseListenerOption(conf)
+	if err != nil {
+		return nil, err
+	}
+
 	var result []*apis.LoadBalancerListener
 	for _, port := range ports {
 		protocol := ""
@@ -439,6 +499,9 @@ func generateLoadBalancerListeners(conf *LoadBalancerConfig, lb *apis.LoadBalanc
 		listenerProtocol := getProtocol(protocols, int(port.Port))
 		certID := getCertificate(certs, int(port.Port))
 		timeout := getTimeout(timeouts, int(port.Port))
+		scene := getScene(scene, int(port.Port))
+		forwardfor := getForwardfor(forwardfor, int(port.Port))
+		listenerOption := getListenerOption(listenerOption, int(port.Port))
 
 		if listenerProtocol == nil {
 			listenerProtocol = &protocol
@@ -464,6 +527,9 @@ func generateLoadBalancerListeners(conf *LoadBalancerConfig, lb *apis.LoadBalanc
 				BalanceMode:              balanceMode,
 				ServerCertificateID:      serverCertificate,
 				Timeout:                  timeout,
+				Scene:                    scene,
+				Forwardfor:               forwardfor,
+				ListenerOption:           listenerOption,
 			},
 		})
 	}
@@ -540,34 +606,9 @@ func equalProtocol(listener *apis.LoadBalancerListener, conf *LoadBalancerConfig
 	if *lsnProtocol == *listener.Spec.ListenerProtocol {
 		if *lsnProtocol == "https" {
 			// check cert
-			certs, _ := parseCertificate(conf)
-			certIDConf := getCertificate(certs, int(port.Port))
-			if certIDConf == nil && len(listener.Spec.ServerCertificateID) == 0 {
-				return true
-			}
-
-			if certIDConf != nil {
-				for _, cert := range listener.Spec.ServerCertificateID {
-					if *cert == *certIDConf {
-						return true
-					}
-				}
-			}
-			return false
+			return equalCertificate(listener, conf, port)
 		}
 		return true
-	}
-	return false
-}
-
-func equalTimeout(listener *apis.LoadBalancerListener, timeoutConf map[int]int, port int) bool {
-	timeout, ok := timeoutConf[port]
-	if !ok {
-		return true
-	} else {
-		if timeout == *listener.Spec.Timeout {
-			return true
-		}
 	}
 	return false
 }
@@ -592,16 +633,6 @@ func getDefaultBackendCount(nodes []*v1.Node) (backendCountResult int) {
 		backendCountResult = len(nodes) / 3
 		if backendCountResult < 3 {
 			backendCountResult = DefaultBackendCount
-		}
-	}
-	return
-}
-
-// get node internal ip
-func getIPStr(node *v1.Node) (ipStr string) {
-	for _, addr := range node.Status.Addresses {
-		if addr.Type == v1.NodeInternalIP {
-			return addr.Address
 		}
 	}
 	return

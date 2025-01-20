@@ -91,6 +91,9 @@ type LoadBalancerListenerSpec struct {
 	BalanceMode              *string   `json:"balance_mode" name:"balance_mode"`
 	ServerCertificateID      []*string `json:"server_certificate_id" name:"server_certificate_id"`
 	Timeout                  *int      `json:"timeout" name:"timeout"`
+	Scene                    *int      `json:"scene" name:"scene"`
+	Forwardfor               *int      `json:"forwardfor" name:"forwardfor"`
+	ListenerOption           *int      `json:"listener_option" name:"listener_option"`
 }
 
 type LoadBalancerListenerStatus struct {

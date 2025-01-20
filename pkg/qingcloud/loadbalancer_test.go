@@ -145,8 +145,12 @@ func TestDiffListeners(t *testing.T) {
 						ListenerPort:       qcservice.Int(8080),
 						ListenerProtocol:   qcservice.String("tcp"),
 						HealthyCheckMethod: qcservice.String("tcp"),
-						HealthyCheckOption: qcservice.String("10|5|2|5"),
-						BalanceMode:        qcservice.String("roundrobin"),
+						HealthyCheckOption: qcservice.String(defaultListenerHeathyCheckOption),
+						BalanceMode:        qcservice.String(defaultListenerBalanceMode),
+						Timeout:            qcservice.Int(defaultTimeout),
+						Scene:              qcservice.Int(defaultScene),
+						Forwardfor:         qcservice.Int(defaultForwardfor),
+						ListenerOption:     qcservice.Int(defaultListenerOption),
 					},
 					Status: apis.LoadBalancerListenerStatus{
 						LoadBalancerListenerID: qcservice.String("testListener"),
@@ -184,6 +188,10 @@ func TestDiffListeners(t *testing.T) {
 						HealthyCheckMethod: qcservice.String("tcp"),
 						HealthyCheckOption: qcservice.String("10|5|2|5"),
 						BalanceMode:        qcservice.String("roundrobin"),
+						Timeout:            qcservice.Int(50),
+						Scene:              qcservice.Int(0),
+						Forwardfor:         qcservice.Int(0),
+						ListenerOption:     qcservice.Int(0),
 					},
 					Status: apis.LoadBalancerListenerStatus{
 						LoadBalancerListenerID: qcservice.String("testListener"),
@@ -227,6 +235,10 @@ func TestDiffListeners(t *testing.T) {
 						HealthyCheckMethod: qcservice.String("tcp"),
 						HealthyCheckOption: qcservice.String("10|5|2|5"),
 						BalanceMode:        qcservice.String("roundrobin"),
+						Timeout:            qcservice.Int(50),
+						Scene:              qcservice.Int(0),
+						Forwardfor:         qcservice.Int(0),
+						ListenerOption:     qcservice.Int(0),
 					},
 					Status: apis.LoadBalancerListenerStatus{
 						LoadBalancerListenerID: qcservice.String("testListener"),
@@ -270,6 +282,10 @@ func TestDiffListeners(t *testing.T) {
 						HealthyCheckMethod: qcservice.String("tcp"),
 						HealthyCheckOption: qcservice.String("10|5|2|5"),
 						BalanceMode:        qcservice.String("roundrobin"),
+						Timeout:            qcservice.Int(50),
+						Scene:              qcservice.Int(0),
+						Forwardfor:         qcservice.Int(0),
+						ListenerOption:     qcservice.Int(0),
 					},
 					Status: apis.LoadBalancerListenerStatus{
 						LoadBalancerListenerID: qcservice.String("testListener"),
@@ -313,6 +329,10 @@ func TestDiffListeners(t *testing.T) {
 						HealthyCheckMethod: qcservice.String("tcp"),
 						HealthyCheckOption: qcservice.String("10|5|2|5"),
 						BalanceMode:        qcservice.String("roundrobin"),
+						Timeout:            qcservice.Int(50),
+						Scene:              qcservice.Int(0),
+						Forwardfor:         qcservice.Int(0),
+						ListenerOption:     qcservice.Int(0),
 					},
 					Status: apis.LoadBalancerListenerStatus{
 						LoadBalancerListenerID: qcservice.String("testListenerBalanceMode"),
@@ -359,6 +379,10 @@ func TestDiffListeners(t *testing.T) {
 						HealthyCheckMethod: qcservice.String("tcp"),
 						HealthyCheckOption: qcservice.String("10|5|2|5"),
 						BalanceMode:        qcservice.String("roundrobin"),
+						Timeout:            qcservice.Int(50),
+						Scene:              qcservice.Int(0),
+						Forwardfor:         qcservice.Int(0),
+						ListenerOption:     qcservice.Int(0),
 					},
 					Status: apis.LoadBalancerListenerStatus{
 						LoadBalancerListenerID: qcservice.String("testListenerProtocol"),
@@ -401,7 +425,7 @@ func TestDiffListeners(t *testing.T) {
 
 	for _, tc := range testCases {
 		toDelete, toAdd, _ := diffListeners(tc.listeners, tc.conf, tc.ports)
-		// fmt.Printf("delete=%s, add=%s", spew.Sdump(toDelete), spew.Sdump(toAdd))
+		// fmt.Printf("delete=%s, add=%s, keep=%s\n",spew.Sdump(toDelete), spew.Sdump(toAdd), spew.Sdump(toKeep))
 		if !reflect.DeepEqual(toDelete, tc.toDelete) || !reflect.DeepEqual(toAdd, tc.toAdd) {
 			t.Fail()
 		}

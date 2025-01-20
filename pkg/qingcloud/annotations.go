@@ -84,6 +84,12 @@ const (
 	ServiceAnnotationListenerProtocol = "service.beta.kubernetes.io/qingcloud-lb-listener-protocol"
 	// port:timeout, such as "443:50", the value must in range 10 ～ 86400
 	ServiceAnnotationListenerTimeout = "service.beta.kubernetes.io/qingcloud-lb-listener-timeout"
+	// port:scene, such as "443:0", default is "*:0"
+	ServiceAnnotationListenerScene = "service.beta.kubernetes.io/qingcloud-lb-listener-scene"
+	// port:forwardforoption, such as "443:0", default is "*:0"
+	ServiceAnnotationListenerForwardfor = "service.beta.kubernetes.io/qingcloud-lb-listener-forwardfor"
+	//port:listeneroption, such as "443:0", default is "*:0"
+	ServiceAnnotationListenerListenerOption = "service.beta.kubernetes.io/qingcloud-lb-listener-listeneroption"
 
 	// 5. Configure backend
 	// backend label, such as "key1=value1,key2=value2"
@@ -111,6 +117,9 @@ type LoadBalancerConfig struct {
 	ServerCertificate  *string
 	Protocol           *string
 	Timeout            *string
+	Scene              *string
+	Forwardfor         *string
+	ListenerOption     *string
 
 	//backend
 	BackendLabel       string
@@ -174,21 +183,65 @@ func (qc *QingCloud) ParseServiceLBConfig(cluster string, service *v1.Service) (
 	if internalReuseID, ok := annotation[ServiceAnnotationLoadBalancerInternalReuseID]; ok {
 		config.InternalReuseID = &internalReuseID
 	}
+
+	//listener annotation
 	if healthyCheckMethod, ok := annotation[ServiceAnnotationListenerHealthyCheckMethod]; ok {
+		if err := validListenerStringConfig(ServiceAnnotationListenerHealthyCheckMethod, healthyCheckMethod); err != nil {
+			return nil, err
+		}
 		config.healthyCheckMethod = &healthyCheckMethod
 	}
 	if healthyCheckOption, ok := annotation[ServiceAnnotationListenerHealthyCheckOption]; ok {
+		if err := validListenerStringConfig(ServiceAnnotationListenerHealthyCheckOption, healthyCheckOption); err != nil {
+			return nil, err
+		}
 		config.healthyCheckOption = &healthyCheckOption
 	}
 	if balanceMode, ok := annotation[ServiceAnnotationListenerBalanceMode]; ok {
+		if err := validListenerStringConfig(ServiceAnnotationListenerBalanceMode, balanceMode); err != nil {
+			return nil, err
+		}
 		config.balanceMode = &balanceMode
 	}
 	if serverCertificate, ok := annotation[ServiceAnnotationListenerServerCertificate]; ok {
+		if err := validListenerStringConfig(ServiceAnnotationListenerServerCertificate, serverCertificate); err != nil {
+			return nil, err
+		}
 		config.ServerCertificate = &serverCertificate
 	}
 	if protocol, ok := annotation[ServiceAnnotationListenerProtocol]; ok {
+		if err := validListenerStringConfig(ServiceAnnotationListenerProtocol, protocol); err != nil {
+			return nil, err
+		}
 		config.Protocol = &protocol
 	}
+
+	if timeoutConf, ok := annotation[ServiceAnnotationListenerTimeout]; ok {
+		if err := validListenerTimeout(timeoutConf); err != nil {
+			return nil, err
+		}
+		config.Timeout = &timeoutConf
+	}
+	if scene, ok := annotation[ServiceAnnotationListenerScene]; ok {
+		if err := validListenerScene(scene); err != nil {
+			return nil, err
+		}
+		config.Scene = &scene
+	}
+	if forwardfor, ok := annotation[ServiceAnnotationListenerForwardfor]; ok {
+		if err := validListenerIntConfig(ServiceAnnotationListenerForwardfor, forwardfor); err != nil {
+			return nil, err
+		}
+		config.Forwardfor = &forwardfor
+	}
+	if listenerOption, ok := annotation[ServiceAnnotationListenerListenerOption]; ok {
+		if err := validListenerIntConfig(ServiceAnnotationListenerListenerOption, listenerOption); err != nil {
+			return nil, err
+		}
+		config.ListenerOption = &listenerOption
+	}
+
+	//backend annotation
 	if backendLabel, ok := annotation[ServiceAnnotationBackendLabel]; ok {
 		config.BackendLabel = backendLabel
 	}
@@ -198,12 +251,6 @@ func (qc *QingCloud) ParseServiceLBConfig(cluster string, service *v1.Service) (
 			return nil, fmt.Errorf("please spec a valid value of loadBalancer backend count")
 		}
 		config.BackendCountConfig = backendCount
-	}
-	if timeoutConf, ok := annotation[ServiceAnnotationListenerTimeout]; ok {
-		if err := validListenerTimeout(timeoutConf); err != nil {
-			return nil, fmt.Errorf("valid listener timeout error: %v", err)
-		}
-		config.Timeout = &timeoutConf
 	}
 
 	networkType := annotation[ServiceAnnotationLoadBalancerNetworkType]
