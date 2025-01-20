@@ -403,14 +403,14 @@ func parseScene(conf *LoadBalancerConfig) (map[int]int, error) {
 }
 
 func parseForwardfor(conf *LoadBalancerConfig) (map[int]int, error) {
-	if conf == nil || conf.Scene == nil {
+	if conf == nil || conf.Forwardfor == nil {
 		return nil, nil
 	}
 	return parseAnnotationIntoIntIntMap(*conf.Forwardfor)
 }
 
 func parseListenerOption(conf *LoadBalancerConfig) (map[int]int, error) {
-	if conf == nil || conf.Scene == nil {
+	if conf == nil || conf.ListenerOption == nil {
 		return nil, nil
 	}
 	return parseAnnotationIntoIntIntMap(*conf.ListenerOption)

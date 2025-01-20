@@ -15,7 +15,7 @@
    kubectl annotate nodes {nodename} "node.beta.kubernetes.io/instance-id=${instance_id}" ##请替换nodename
    ```
    
-2. 生[控制台](https://console.qingcloud.com/access_keys)成api密钥文件
+2. [控制台](https://console.qingcloud.com/access_keys)生成api密钥文件
    
    `touch ccm-qingcloud.yaml; vim ccm-qingcloud.yaml` , 填充通过上面方法获取到的内容， 内容例子如下：
    

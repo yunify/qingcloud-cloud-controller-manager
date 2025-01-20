@@ -163,7 +163,7 @@ spec:
     protocol: TCP
     targetPort:  80
 ```
-监听器参数说明：https://docsv3.qingcloud.com/network/loadbalancer/api/listener/modify_listener_attribute/
+
 
 ## 五、配置LB监听器backend
 ### 如何配置
