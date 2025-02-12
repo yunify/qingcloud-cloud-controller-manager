@@ -1,5 +1,5 @@
 # Copy the controller-manager into a thin image
-FROM golang:1.19-alpine as builder
+FROM golang:1.23-alpine as builder
 WORKDIR /qingcloud-ccm
 COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -ldflags "-w" -o bin/manager ./cmd/main.go

@@ -97,7 +97,7 @@ func (q *QingCloudClient) GetLoadBalancerByName(name string) (*apis.LoadBalancer
 		Owner:      &q.Config.UserID,
 		//> 0 时，会额外返回监听器的信息
 		//    >= 2 时，会返回集群健康检查信息
-		Verbose: qcservice.Int(1),
+		Verbose: qcservice.Int(2),
 	}
 	output, err := q.LBService.DescribeLoadBalancers(input)
 	if err != nil && strings.Contains(err.Error(), "QingCloud Error: Code (1300)") {

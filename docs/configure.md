@@ -119,6 +119,8 @@ spec:
 
 ## 四、配置LB的监听器属性
 
+> 详细配置说明可以查看官方文档：https://docsv4.qingcloud.com/user_guide/development_docs/api/api_list/network/loadbalancer/add_lb_listeners/
+
 ### 如何配置
 1. 设置监听器的健康检查方式，`service.beta.kubernetes.io/qingcloud-lb-listener-healthycheckmethod`，对于 tcp 协议默认是 tcp 方式，对于 udp 协议默认是 udp 方式
 2. 设置监听器的健康检查参数，`service.beta.kubernetes.io/qingcloud-lb-listener-healthycheckoption`，默认是 "10|5|2|5"
@@ -126,6 +128,10 @@ spec:
 4. 支持 http/https 协议的配置，`service.beta.kubernetes.io/qingcloud-lb-listener-protocol`，没有此注解则默认使用 Service 所用协议
 5. 支持 https 协议证书的配置，`service.beta.kubernetes.io/qingcloud-lb-listener-cert`，如果配置的 https 协议，则必须配置证书
 6. 支持监听器的超时时间，` service.beta.kubernetes.io/qingcloud-lb-listener-timeout`，不配置默认是50，可选范围为（10 ～ 86400），单位为s
+7. 支持监听器的场景配置，`service.beta.kubernetes.io/qingcloud-lb-listener-scene`，默认是0，配置为1表示启用 Keep-Alive，详细说明参考官网文档
+8. 支持http头转发字段的配置， `service.beta.kubernetes.io/qingcloud-lb-listener-forwardfor`，默认是0,配置为1表示设置 X-Forwarded-For 头字段获取客户端的真实IP传给后端，详细说明参考官网文档
+9. 支持监听器附加选项的配置，`service.beta.kubernetes.io/qingcloud-lb-listener-listeneroption`，默认是0，配置为4表示启用数据压缩，详细说明参考官网文档
+
 
 因为一个LB会有多个监听器，所以进行service注解设置时，通过如下格式区分不同监听器：`80:xxx,443:xxx`。
 
@@ -144,6 +150,9 @@ metadata:
     service.beta.kubernetes.io/qingcloud-lb-listener-protocol: "8090:https"
     service.beta.kubernetes.io/qingcloud-lb-listener-cert: "8090:sc-77oko7zj"
     service.beta.kubernetes.io/qingcloud-lb-listener-timeout: "8080:10"
+    service.beta.kubernetes.io/qingcloud-lb-listener-scene: "8080:1"
+    service.beta.kubernetes.io/qingcloud-lb-listener-forwardfor: "8080:1"
+    service.beta.kubernetes.io/qingcloud-lb-listener-listeneroption: "8080:4"
 spec:
   selector:
     app:  mylbapp
@@ -154,7 +163,7 @@ spec:
     protocol: TCP
     targetPort:  80
 ```
-监听器参数说明：https://docsv3.qingcloud.com/network/loadbalancer/api/listener/modify_listener_attribute/
+
 
 ## 五、配置LB监听器backend
 ### 如何配置
