@@ -41,6 +41,7 @@ type Config struct {
 	IsApp             bool     `yaml:"isApp,omitempty"`
 	TagIDs            []string `yaml:"tagIDs,omitempty"`
 	InstanceIDs       []string `yaml:"instanceIDs,omitempty"`
+	PlaceGroupID      string   `yaml:"placeGroupID,omitempty"`
 }
 
 // A single Kubernetes cluster can run in multiple zones,
@@ -211,8 +212,8 @@ func (qc *QingCloud) ensureLoadBalancer(ctx context.Context, _ string, service *
 	klog.V(4).Infof("EnsureLoadBalancer lb %s config %s", spew.Sdump(lb), spew.Sdump(conf))
 	if err != nil {
 		if errors.IsResourceNotFound(err) && conf.Policy != ReuseExistingLB && conf.Policy != Shared {
-			// will auto create lb with assigned eip
-			klog.Infof("lb not found for service %s/%s, going to create lb with assigned eip ", service.Namespace, service.Name)
+			// will auto create lb with assigned eip or vxnet
+			klog.Infof("lb not found for service %s/%s, going to create lb with assigned eip or vxnet ", service.Namespace, service.Name)
 		} else {
 			return nil, fmt.Errorf("getLoadBalancer error: %v", err)
 		}
@@ -339,6 +340,7 @@ func (qc *QingCloud) ensureLoadBalancer(ctx context.Context, _ string, service *
 				VxNetID:          conf.VxNetID,
 				PrivateIPs:       []*string{conf.InternalIP},
 				EIPs:             conf.EipIDs,
+				PlaceGroupID:     conf.PlaceGroupID,
 			},
 		})
 		if err != nil {

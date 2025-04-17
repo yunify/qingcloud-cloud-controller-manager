@@ -109,6 +109,7 @@ type LoadBalancerConfig struct {
 	LoadBalancerType *int
 	NodeCount        *int
 	InternalIP       *string
+	PlaceGroupID     *string
 
 	//listener attrs
 	healthyCheckMethod *string
@@ -182,6 +183,10 @@ func (qc *QingCloud) ParseServiceLBConfig(cluster string, service *v1.Service) (
 	}
 	if internalReuseID, ok := annotation[ServiceAnnotationLoadBalancerInternalReuseID]; ok {
 		config.InternalReuseID = &internalReuseID
+	}
+	//plg
+	if qc.Config.PlaceGroupID != "" {
+		config.PlaceGroupID = qcservice.String(qc.Config.PlaceGroupID)
 	}
 
 	//listener annotation

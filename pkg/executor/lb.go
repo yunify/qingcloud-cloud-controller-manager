@@ -168,6 +168,7 @@ func (q *QingCloudClient) CreateLB(input *apis.LoadBalancer) (*apis.LoadBalancer
 		NodeCount:        input.Spec.NodeCount,
 		VxNet:            input.Spec.VxNetID,
 		SecurityGroup:    input.Spec.SecurityGroups,
+		PlaceGroupID:     input.Spec.PlaceGroupID,
 	}
 	if len(input.Spec.PrivateIPs) > 0 {
 		inputLB.PrivateIP = input.Spec.PrivateIPs[0]

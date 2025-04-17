@@ -5,7 +5,7 @@ go 1.19
 require (
 	github.com/davecgh/go-spew v1.1.1
 	github.com/spf13/pflag v1.0.5
-	github.com/yunify/qingcloud-sdk-go v0.0.0-20250120063512-895f1d8507aa
+	github.com/yunify/qingcloud-sdk-go v0.0.0-20250417083958-b5f7eb82df62
 	gopkg.in/yaml.v2 v2.4.0
 	k8s.io/api v0.21.1
 	k8s.io/apimachinery v0.21.1
