@@ -382,6 +382,8 @@ github.com/yuin/goldmark v1.1.27/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9de
 github.com/yuin/goldmark v1.2.1/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=
 github.com/yunify/qingcloud-sdk-go v0.0.0-20250120063512-895f1d8507aa h1:AJ2wQoxVo8QmwVI3lJFjf0eEwmToHBzfLBRf/rGEMPg=
 github.com/yunify/qingcloud-sdk-go v0.0.0-20250120063512-895f1d8507aa/go.mod h1:OfwXDPSOiv0Si+1iyH8+JDPPApt73Em03muEf9iKM+c=
+github.com/yunify/qingcloud-sdk-go v0.0.0-20250417083958-b5f7eb82df62 h1:iMjV/kc1SRvWXK/84wzi08yYTtgatr9aKRvBW+NzhZU=
+github.com/yunify/qingcloud-sdk-go v0.0.0-20250417083958-b5f7eb82df62/go.mod h1:OfwXDPSOiv0Si+1iyH8+JDPPApt73Em03muEf9iKM+c=
 go.etcd.io/bbolt v1.3.2/go.mod h1:IbVyRI1SCnLcuJnV2u8VeU0CEYM7e686BmAb1XKL+uU=
 go.etcd.io/bbolt v1.3.3/go.mod h1:IbVyRI1SCnLcuJnV2u8VeU0CEYM7e686BmAb1XKL+uU=
 go.etcd.io/bbolt v1.3.5 h1:XAzx9gjCb0Rxj7EoqcClPD1d5ZBxZJk0jbuoPHenBt0=

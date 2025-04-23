@@ -37,6 +37,7 @@ type LoadBalancerSpec struct {
 	VxNetID    *string   `json:"vxnet_id" name:"vxnet_id"`
 
 	SecurityGroups *string `json:"securityGroups" name:"securityGroups"`
+	PlaceGroupID   *string `json:"place_group_id" name:"place_group_id"`
 }
 
 type LoadBalancerStatus struct {
