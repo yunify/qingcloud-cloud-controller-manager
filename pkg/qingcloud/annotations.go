@@ -110,6 +110,7 @@ type LoadBalancerConfig struct {
 	NodeCount        *int
 	InternalIP       *string
 	PlaceGroupID     *string
+	SecurityGroupID  *string //if not set, will use default security group
 
 	//listener attrs
 	healthyCheckMethod *string
@@ -187,6 +188,10 @@ func (qc *QingCloud) ParseServiceLBConfig(cluster string, service *v1.Service) (
 	//plg
 	if qc.Config.PlaceGroupID != "" {
 		config.PlaceGroupID = qcservice.String(qc.Config.PlaceGroupID)
+	}
+	//sg
+	if qc.Config.SecurityGroupID != "" {
+		config.SecurityGroupID = qcservice.String(qc.Config.SecurityGroupID)
 	}
 
 	//listener annotation

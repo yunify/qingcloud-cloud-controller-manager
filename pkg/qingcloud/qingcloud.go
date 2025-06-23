@@ -42,6 +42,7 @@ type Config struct {
 	TagIDs            []string `yaml:"tagIDs,omitempty"`
 	InstanceIDs       []string `yaml:"instanceIDs,omitempty"`
 	PlaceGroupID      string   `yaml:"placeGroupID,omitempty"`
+	SecurityGroupID   string   `yaml:"securityGroupID,omitempty"`
 }
 
 // A single Kubernetes cluster can run in multiple zones,
@@ -341,6 +342,7 @@ func (qc *QingCloud) ensureLoadBalancer(ctx context.Context, _ string, service *
 				PrivateIPs:       []*string{conf.InternalIP},
 				EIPs:             conf.EipIDs,
 				PlaceGroupID:     conf.PlaceGroupID,
+				SecurityGroups:   conf.SecurityGroupID,
 			},
 		})
 		if err != nil {
