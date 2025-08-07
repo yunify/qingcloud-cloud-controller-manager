@@ -147,7 +147,7 @@ func getProtocol(annotationConf map[int]string, port int) *string {
 		case "tcp", "TCP":
 			protocol = "tcp"
 		case "udp", "UDP":
-			protocol = "upd"
+			protocol = "udp"
 		default:
 			protocol = ""
 		}
